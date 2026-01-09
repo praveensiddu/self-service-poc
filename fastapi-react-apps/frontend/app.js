@@ -31,6 +31,8 @@ function App() {
   const [view, setView] = React.useState("apps");
   const [namespaces, setNamespaces] = React.useState({});
   const [selectedNamespaces, setSelectedNamespaces] = React.useState(() => new Set());
+  const [l4IngressItems, setL4IngressItems] = React.useState([]);
+  const [selectedL4IngressRows, setSelectedL4IngressRows] = React.useState(() => new Set());
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -88,6 +90,8 @@ function App() {
         setView("apps");
         setNamespaces({});
         setSelectedNamespaces(new Set());
+        setL4IngressItems([]);
+        setSelectedL4IngressRows(new Set());
 
         const appNames = Object.keys(appsResp);
         const l4Pairs = await Promise.all(
@@ -144,6 +148,8 @@ function App() {
       );
       setNamespaces(resp || {});
       setSelectedNamespaces(new Set());
+      setL4IngressItems([]);
+      setSelectedL4IngressRows(new Set());
       setView("namespaces");
     } catch (e) {
       setError(e?.message || String(e));
@@ -156,6 +162,8 @@ function App() {
     setView("apps");
     setNamespaces({});
     setSelectedNamespaces(new Set());
+    setL4IngressItems([]);
+    setSelectedL4IngressRows(new Set());
     setError("");
   }
 
@@ -173,6 +181,15 @@ function App() {
     });
   }
 
+  function onToggleL4IngressRow(key, checked) {
+    setSelectedL4IngressRows((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+
   async function onViewL4Ingress() {
     const appname = requireExactlyOneSelectedApp();
     if (!appname) return;
@@ -183,8 +200,11 @@ function App() {
       const items = await fetchJson(
         `/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
       );
-      const ips = uniqStrings((items || []).flatMap((i) => i.allocated_ips || []));
-      setError(ips.length ? `L4 IPs for ${appname}: ${ips.join(", ")}` : `No L4 IPs found for ${appname}.`);
+      setL4IngressItems(items || []);
+      setSelectedL4IngressRows(new Set());
+      setNamespaces({});
+      setSelectedNamespaces(new Set());
+      setView("l4ingress");
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
@@ -265,11 +285,17 @@ function App() {
             onToggleRow={toggleRow}
             onSelectAll={onSelectAllFromFiltered}
           />
-        ) : (
+        ) : view === "namespaces" ? (
           <NamespacesTable
             namespaces={namespaces}
             selectedNamespaces={selectedNamespaces}
             onToggleNamespace={onToggleNamespace}
+          />
+        ) : (
+          <L4IngressTable
+            items={l4IngressItems}
+            selectedRows={selectedL4IngressRows}
+            onToggleRow={onToggleL4IngressRow}
           />
         )}
       </div>

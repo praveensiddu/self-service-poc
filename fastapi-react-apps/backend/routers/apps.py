@@ -332,14 +332,12 @@ L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "requested_total": 66,
                 "allocated_total": 66,
                 "allocated_ips": ["1.1.12.150", "1.1.12.151"],
+                "purpose": "",
+                "url": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/browse/ip_provisioning/c04/l4ingressip-allocated.yaml?at=refs/heads/prd",
+                   
                 "allocations": [
                     {
                         "name": "l4ingress_app1_app1",
-                        "purpose": "app1",
-                        "app": "app1",
-                        "ips": ["1.1.12.150", "1.1.12.151"],
-                        "count": 66,
-                        "url": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/browse/ip_provisioning/c04/l4ingressip-allocated.yaml?at=refs/heads/prd",
                     }
                 ],
                 "links": {
