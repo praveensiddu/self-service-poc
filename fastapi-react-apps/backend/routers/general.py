@@ -14,7 +14,7 @@ class KSelfServeConfig(BaseModel):
 
 
 def _config_path() -> Path:
-    return Path.home() / ".kselfserve" / "kselfservecofig.yaml"
+    return Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
 
 
 @router.get("/config", response_model=KSelfServeConfig)
@@ -66,9 +66,9 @@ def get_deployment_type():
     return {
         "deployment_env": "test",
         "title": {
-            "test": "OCP Provisioning Portal (Test)",
-            "staging": "OCP Provisioning Portal (Staging)",
-            "live": "OCP Provisioning Portal",
+            "test": "Kubernetes Self Server Provisioning Tool (Test)",
+            "staging": "Kubernetes Self Server Provisioning Tool (Staging)",
+            "live": "Kubernetes Self Server Provisioning Tool",
         },
         "headerColor": {
             "test": "red",

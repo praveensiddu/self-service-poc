@@ -616,6 +616,35 @@ function App() {
     }
   }
 
+  async function onUseDefaults() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const saved = await postJson("/api/config", {
+        workspace: "~/workspace",
+        requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
+        renderedManifestsRepo: "https://github.com/praveensiddu/kselfservice-rendered",
+      });
+
+      setWorkspace(saved?.workspace || "");
+      setRequestsRepo(saved?.requestsRepo || "");
+      setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
+
+      const isComplete = Boolean(
+        (saved?.workspace || "").trim() &&
+          (saved?.requestsRepo || "").trim() &&
+          (saved?.renderedManifestsRepo || "").trim(),
+      );
+      setPersistedConfigComplete(isComplete);
+      if (isComplete) setTopTab("Request provisioning");
+    } catch (e) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <AppView
       bannerColor={bannerColor}
@@ -637,6 +666,7 @@ function App() {
       renderedManifestsRepo={renderedManifestsRepo}
       setRenderedManifestsRepo={setRenderedManifestsRepo}
       onSaveConfig={onSaveConfig}
+      onUseDefaults={onUseDefaults}
       onEnvClick={(env) => {
         setActiveEnv(env);
         pushUiUrl({ view: "apps", env, appname: "" }, false);
