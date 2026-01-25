@@ -1,4 +1,4 @@
-function NamespaceDetails({ namespace, namespaceName }) {
+function NamespaceDetailsView({ namespace, namespaceName }) {
   if (!namespace) {
     return (
       <div className="card" style={{ padding: '24px', textAlign: 'center' }}>
@@ -199,4 +199,3 @@ function NamespaceDetails({ namespace, namespaceName }) {
     </div>
   );
 }
-

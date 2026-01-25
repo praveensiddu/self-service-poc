@@ -514,151 +514,49 @@ function App() {
   }
 
   return (
-    <div>
-      <div className="topbar" style={{ background: bannerColor }}>
-        <div>
-          <div className="title">{bannerTitle}</div>
-          <div className="envLabel">
-            Deployment: <span className="pill">{deploymentEnv || "unknown"}</span>
-          </div>
-        </div>
-        <div className="user">{currentUser ? `Logged in as ${currentUser}` : ""}</div>
-      </div>
-
-      <div className="container">
-        <div className="row">
-          <div className="muted">Environments</div>
-          <div className="muted">{loading ? "Loading…" : ""}</div>
-        </div>
-
-        <div className="tabs">
-          {envKeys.map((env) => (
-            <button
-              key={env}
-              className={env === activeEnv ? "tab active" : "tab"}
-              onClick={() => {
-                setActiveEnv(env);
-                pushUiUrl({ view: "apps", env, appname: "" }, false);
-              }}
-              type="button"
-            >
-              {env}
-            </button>
-          ))}
-        </div>
-
-        <div className="actions">
-          {view === "apps" ? (
-            <>
-              <button className="btn" type="button" onClick={onViewNamespaces}>
-                View Namespaces
-              </button>
-              <button className="btn" type="button" onClick={onViewL4Ingress}>
-                View L4 ingress IPs
-              </button>
-              <button className="btn" type="button" onClick={onViewEgressIps}>
-              View Egress IPs
-            </button>
-            </>
-          ) : view === "namespaceDetails" ? (
-            <>
-              <button className="btn" type="button" onClick={onBackFromNamespaceDetails}>
-                ← Back to Namespaces
-              </button>
-            </>
-          ) : view === "l4ingress" ? (
-            <>
-
-            <button className="btn" type="button" onClick={onBackToApps}>
-                Back to App
-              </button>
-              <button className="btn" type="button" onClick={onViewNamespaces}>
-                View Namespaces
-              </button>
-              <button className="btn" type="button" onClick={onViewEgressIps}>
-              View Egress IPs
-            </button>
-              </>
-            
-          ) : view === "egressips" ? (
-            <>
-            <button className="btn" type="button" onClick={onBackToApps}>
-              Back to App
-            </button>
-              <button className="btn" type="button" onClick={onViewNamespaces}>
-                View Namespaces
-              </button>
-              <button className="btn" type="button" onClick={onViewL4Ingress}>
-                View L4 ingress IPs
-              </button>
-              </>
-          ) : (
-            <button className="btn" type="button" onClick={onBackToApps}>
-              Back to App
-            </button>
-          )}
-
-
-
-        </div>
-
-        {error ? <div className="status">Error: {error}</div> : null}
-
-        {view === "apps" ? (
-          <AppsTable
-            rows={appRows}
-            clustersByApp={clustersByApp}
-            l4IpsByApp={l4IpsByApp}
-            egressIpsByApp={egressIpsByApp}
-            selectedApps={selectedApps}
-            onToggleRow={toggleRow}
-            onSelectAll={onSelectAllFromFiltered}
-            onDeleteApp={deleteApp}
-            onViewDetails={(appname) => openNamespaces(appname, true)}
-          />
-        ) : view === "namespaceDetails" ? (
-          <NamespaceDetails
-            namespace={detailNamespace}
-            namespaceName={detailNamespaceName}
-          />
-        ) : view === "namespaces" ? (
-          <div>
-            <div style={{ marginTop: 8, marginBottom: 10, fontWeight: 600 }}>
-              {`namespaces allocated in different cluster for ${detailAppName || ""}`}
-            </div>
-            <NamespacesTable
-              namespaces={namespaces}
-              selectedNamespaces={selectedNamespaces}
-              onToggleNamespace={toggleNamespace}
-              onSelectAll={onSelectAllNamespaces}
-              onDeleteNamespace={deleteNamespace}
-              onViewDetails={viewNamespaceDetails}
-            />
-          </div>
-        ) : view === "l4ingress" ? (
-          <div>
-            <div style={{ marginTop: 8, marginBottom: 10, fontWeight: 600 }}>
-              {`L4 ingress IPs allocated in different cluster for ${detailAppName || ""}`}
-            </div>
-            <L4IngressTable
-              items={l4IngressItems}
-            />
-          </div>
-        ) : (
-          <div>
-            <div style={{ marginTop: 8, marginBottom: 10, fontWeight: 600 }}>
-              {`Egress IPs allocated in different cluster for ${detailAppName || ""}`}
-            </div>
-            <EgressIpTable
-              items={egressIpItems}
-              selectedItems={selectedEgressIps}
-              onToggleRow={toggleEgressIp}
-              onSelectAll={onSelectAllEgressIps}
-            />
-          </div>
-        )}
-      </div>
-    </div>
+    <AppView
+      bannerColor={bannerColor}
+      bannerTitle={bannerTitle}
+      deploymentEnv={deploymentEnv}
+      currentUser={currentUser}
+      envKeys={envKeys}
+      activeEnv={activeEnv}
+      loading={loading}
+      view={view}
+      error={error}
+      onEnvClick={(env) => {
+        setActiveEnv(env);
+        pushUiUrl({ view: "apps", env, appname: "" }, false);
+      }}
+      onViewNamespaces={onViewNamespaces}
+      onViewL4Ingress={onViewL4Ingress}
+      onViewEgressIps={onViewEgressIps}
+      onBackToApps={onBackToApps}
+      onBackFromNamespaceDetails={onBackFromNamespaceDetails}
+      appRows={appRows}
+      clustersByApp={clustersByApp}
+      l4IpsByApp={l4IpsByApp}
+      egressIpsByApp={egressIpsByApp}
+      selectedApps={selectedApps}
+      toggleRow={toggleRow}
+      onSelectAllFromFiltered={onSelectAllFromFiltered}
+      deleteApp={deleteApp}
+      openNamespaces={openNamespaces}
+      detailNamespace={detailNamespace}
+      detailNamespaceName={detailNamespaceName}
+      namespaces={namespaces}
+      selectedNamespaces={selectedNamespaces}
+      toggleNamespace={toggleNamespace}
+      onSelectAllNamespaces={onSelectAllNamespaces}
+      deleteNamespace={deleteNamespace}
+      viewNamespaceDetails={viewNamespaceDetails}
+      detailAppName={detailAppName}
+      l4IngressItems={l4IngressItems}
+      egressIpItems={egressIpItems}
+      selectedEgressIps={selectedEgressIps}
+      toggleEgressIp={toggleEgressIp}
+      onSelectAllEgressIps={onSelectAllEgressIps}
+    />
   );
 }
 

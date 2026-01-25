@@ -1,49 +1,17 @@
-function AppsTable({ rows, clustersByApp, l4IpsByApp, egressIpsByApp, selectedApps, onToggleRow, onSelectAll, onDeleteApp, onViewDetails }) {
-  const [filters, setFilters] = React.useState({
-    appname: "",
-    description: "",
-    managedby: "",
-    clusters: "",
-    namespaces: "",
-    l4ips: "",
-    egressips: "",
-  });
-
-  function formatValue(val) {
-    if (val === null || val === undefined) return "";
-    if (Array.isArray(val)) return val.join(", ");
-    if (typeof val === "object") {
-      try {
-        return JSON.stringify(val);
-      } catch {
-        return String(val);
-      }
-    }
-    return String(val);
-  }
-
-  const filteredRows = (rows || []).filter((a) => {
-    const appname = formatValue(a?.appname).toLowerCase();
-    const description = formatValue(a?.description).toLowerCase();
-    const managedby = formatValue(a?.managedby).toLowerCase();
-    const clusters = formatValue((clustersByApp?.[a?.appname] || []).join(", ")).toLowerCase();
-    const namespacesCount = formatValue(a?.totalns).toLowerCase();
-    const l4ips = formatValue((l4IpsByApp?.[a?.appname] || []).join(", ")).toLowerCase();
-    const egressips = formatValue((egressIpsByApp?.[a?.appname] || []).join(", ")).toLowerCase();
-
-    return (
-      appname.includes((filters.appname || "").toLowerCase()) &&
-      description.includes((filters.description || "").toLowerCase()) &&
-      managedby.includes((filters.managedby || "").toLowerCase()) &&
-      clusters.includes((filters.clusters || "").toLowerCase()) &&
-      namespacesCount.includes((filters.namespaces || "").toLowerCase()) &&
-      l4ips.includes((filters.l4ips || "").toLowerCase()) &&
-      egressips.includes((filters.egressips || "").toLowerCase())
-    );
-  });
-
-  const allSelected = filteredRows.length > 0 && filteredRows.every((a) => selectedApps.has(a.appname));
-
+function AppsTableView({
+  filteredRows,
+  allSelected,
+  filters,
+  setFilters,
+  clustersByApp,
+  l4IpsByApp,
+  egressIpsByApp,
+  selectedApps,
+  onToggleRow,
+  onSelectAll,
+  onDeleteApp,
+  onViewDetails,
+}) {
   return (
     <div className="card">
       <table>
@@ -63,8 +31,8 @@ function AppsTable({ rows, clustersByApp, l4IpsByApp, egressIpsByApp, selectedAp
             <th>Clusters</th>
             <th>Namespaces</th>
             <th>L4 IPs</th>
-            <th>Actions</th>
             <th>Egress IPs</th>
+            <th>Actions</th>
           </tr>
           <tr>
             <th></th>
@@ -110,7 +78,6 @@ function AppsTable({ rows, clustersByApp, l4IpsByApp, egressIpsByApp, selectedAp
                 onChange={(e) => setFilters((p) => ({ ...p, l4ips: e.target.value }))}
               />
             </th>
-            <th></th>
             <th>
               <input
                 className="filterInput"
@@ -118,12 +85,13 @@ function AppsTable({ rows, clustersByApp, l4IpsByApp, egressIpsByApp, selectedAp
                 onChange={(e) => setFilters((p) => ({ ...p, egressips: e.target.value }))}
               />
             </th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="muted">No apps found.</td>
+              <td colSpan={9} className="muted">No apps found.</td>
             </tr>
           ) : (
             filteredRows.map((a) => (
@@ -142,6 +110,7 @@ function AppsTable({ rows, clustersByApp, l4IpsByApp, egressIpsByApp, selectedAp
                 <td>{(clustersByApp?.[a.appname] || []).join(", ")}</td>
                 <td>{a.totalns ?? ""}</td>
                 <td>{(l4IpsByApp?.[a.appname] || []).join(", ")}</td>
+                <td>{(egressIpsByApp?.[a.appname] || []).join(", ")}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button
@@ -168,7 +137,6 @@ function AppsTable({ rows, clustersByApp, l4IpsByApp, egressIpsByApp, selectedAp
                     </button>
                   </div>
                 </td>
-                <td>{(egressIpsByApp?.[a.appname] || []).join(", ")}</td>
               </tr>
             ))
           )}
