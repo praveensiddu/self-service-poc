@@ -564,59 +564,19 @@ function App() {
               </button>
             </>
           ) : view === "l4ingress" ? (
-            <>
-              <button className="btn" type="button" onClick={onBackToApps}>
-                Back to App
-              </button>
-              <button className="btn" type="button" onClick={onViewNamespaces}>
-                View Namespaces
-              </button>
-            </>
-            <button className="btn" type="button" onClick={onBackToApps}>
-              Back to App
-            </button>
-          ) : view === "egressips" ? (
-            <button className="btn" type="button" onClick={onBackToApps}>
-              Back to App
-            </button>
-          ) : (
-            <button className="btn" type="button" onClick={onBackToApps}>
-              Back to App
-            </button>
-          )}
-
-          {view === "l4ingress" ? (
-            <button className="btn" type="button" onClick={onViewNamespaces}>
-              View Namespaces
-            </button>
-          ) : view === "egressips" ? (
-            <button className="btn" type="button" onClick={onViewNamespaces}>
-              View Namespaces
-            </button>
-          ) : (
-            <>
-              <button className="btn" type="button" onClick={onBackToApps}>
-                Back to App
-              </button>
-              <button className="btn" type="button" onClick={onViewL4Ingress}>
-                View L4 ingress IPs
-              </button>
-            </>
-          )}
-
-          {view === "apps" ? (
-            <button className="btn" type="button" onClick={onViewEgressIps}>
-              View Egress IPs
-            </button>
-          ) : view === "l4ingress" ? (
-            <button className="btn" type="button" onClick={onViewEgressIps}>
-              View Egress IPs
-            </button>
-          ) : view === "egressips" ? (
             <button className="btn" type="button" onClick={onViewL4Ingress}>
               View L4 ingress IPs
             </button>
-          ) : null}
+          ) : view === "egressips" ? (
+            <button className="btn" type="button" onClick={onViewEgressIps}>
+              View Egress IPs
+            </button>
+          ) : (
+            <button className="btn" type="button" onClick={onBackToApps}>
+              Back to App
+            </button>
+          ) }
+
         </div>
 
         {error ? <div className="status">Error: {error}</div> : null}

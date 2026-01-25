@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from .routers import apps, general
+from routers import apps, general
 
 app = FastAPI(title="Application Management API")
 # execute the following command to run
