@@ -10,7 +10,7 @@ router = APIRouter(tags=["general"])
 class KSelfServeConfig(BaseModel):
     workspace: str = ""
     requestsRepo: str = ""
-    processedRepo: str = ""
+    renderedManifestsRepo: str = ""
 
 
 def _config_path() -> Path:
@@ -33,7 +33,9 @@ def get_config():
     return KSelfServeConfig(
         workspace=str(raw.get("workspace", "") or ""),
         requestsRepo=str(raw.get("requestsRepo", "") or ""),
-        processedRepo=str(raw.get("processedRepo", "") or ""),
+        renderedManifestsRepo=str(
+            raw.get("renderedManifestsRepo", raw.get("RenderedManifestsRepo", "")) or ""
+        ),
     )
 
 
@@ -45,7 +47,7 @@ def save_config(cfg: KSelfServeConfig):
         data = {
             "workspace": cfg.workspace or "",
             "requestsRepo": cfg.requestsRepo or "",
-            "processedRepo": cfg.processedRepo or "",
+            "renderedManifestsRepo": cfg.renderedManifestsRepo or "",
         }
         cfg_path.write_text(yaml.safe_dump(data, sort_keys=False))
     except Exception as e:

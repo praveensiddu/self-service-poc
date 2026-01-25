@@ -80,7 +80,7 @@ function App() {
 
   const [workspace, setWorkspace] = React.useState("");
   const [requestsRepo, setRequestsRepo] = React.useState("");
-  const [processedRepo, setProcessedRepo] = React.useState("");
+  const [renderedManifestsRepo, setRenderedManifestsRepo] = React.useState("");
   const [persistedConfigComplete, setPersistedConfigComplete] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
 
@@ -147,7 +147,7 @@ function App() {
 
         setWorkspace(cfg?.workspace || "");
         setRequestsRepo(cfg?.requestsRepo || "");
-        setProcessedRepo(cfg?.processedRepo || "");
+        setRenderedManifestsRepo(cfg?.renderedManifestsRepo || "");
 
         const keys = Object.keys(envList);
         setEnvKeys(keys);
@@ -159,7 +159,7 @@ function App() {
         pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname }, true);
 
         const isComplete = Boolean(
-          (cfg?.workspace || "").trim() && (cfg?.requestsRepo || "").trim() && (cfg?.processedRepo || "").trim()
+          (cfg?.workspace || "").trim() && (cfg?.requestsRepo || "").trim() && (cfg?.renderedManifestsRepo || "").trim()
         );
         setPersistedConfigComplete(isComplete);
 
@@ -597,15 +597,15 @@ function App() {
       const saved = await postJson("/api/config", {
         workspace,
         requestsRepo,
-        processedRepo,
+        renderedManifestsRepo,
       });
 
       setWorkspace(saved?.workspace || "");
       setRequestsRepo(saved?.requestsRepo || "");
-      setProcessedRepo(saved?.processedRepo || "");
+      setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
 
       const isComplete = Boolean(
-        (saved?.workspace || "").trim() && (saved?.requestsRepo || "").trim() && (saved?.processedRepo || "").trim(),
+        (saved?.workspace || "").trim() && (saved?.requestsRepo || "").trim() && (saved?.renderedManifestsRepo || "").trim(),
       );
       setPersistedConfigComplete(isComplete);
       if (isComplete) setTopTab("Request provisioning");
@@ -634,8 +634,8 @@ function App() {
       setWorkspace={setWorkspace}
       requestsRepo={requestsRepo}
       setRequestsRepo={setRequestsRepo}
-      processedRepo={processedRepo}
-      setProcessedRepo={setProcessedRepo}
+      renderedManifestsRepo={renderedManifestsRepo}
+      setRenderedManifestsRepo={setRenderedManifestsRepo}
       onSaveConfig={onSaveConfig}
       onEnvClick={(env) => {
         setActiveEnv(env);

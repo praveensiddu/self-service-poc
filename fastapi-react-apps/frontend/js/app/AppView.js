@@ -10,8 +10,8 @@ function AppView({
   setWorkspace,
   requestsRepo,
   setRequestsRepo,
-  processedRepo,
-  setProcessedRepo,
+  renderedManifestsRepo,
+  setRenderedManifestsRepo,
   onSaveConfig,
   envKeys,
   activeEnv,
@@ -50,7 +50,7 @@ function AppView({
 }) {
   const showProvisioningTabs = Boolean(configComplete);
   const canSaveConfig = Boolean(
-    (workspace || "").trim() && (requestsRepo || "").trim() && (processedRepo || "").trim(),
+    (workspace || "").trim() && (requestsRepo || "").trim() && (renderedManifestsRepo || "").trim(),
   );
 
   return (
@@ -99,21 +99,30 @@ function AppView({
         {topTab === "Home" ? (
           <div className="card" style={{ padding: 16 }}>
             <div style={{ marginBottom: 12, fontWeight: 600 }}>
-              Welcome to Kubernetes self provisioning tool. This tool provides self service for application teams to request resources in their allocated clusters
+              This self-service Kubernetes provisioning platform enables application teams to request resources on demand, while enforcing platform and security standards through GitOps-based automation. The result is faster delivery, reduced manual effort, and consistent governance across all Kubernetes clusters.
             </div>
 
             <div style={{ display: "grid", gap: 10, maxWidth: 720 }}>
               <div>
                 <div className="muted" style={{ marginBottom: 4 }}>WORKSPACE</div>
                 <input className="filterInput" placeholder="~/workspace" value={workspace} onChange={(e) => setWorkspace(e.target.value)} />
+                <div className="muted" style={{ marginTop: 4 }}>
+                  Local folder used by the tool to clone repos and process requests.
+                </div>
               </div>
               <div>
                 <div className="muted" style={{ marginBottom: 4 }}>RequestsRepo</div>
                 <input className="filterInput" value={requestsRepo} onChange={(e) => setRequestsRepo(e.target.value)} />
+                <div className="muted" style={{ marginTop: 4 }}>
+                  Git repo where incoming provisioning requests are stored (for example: org/repo or a full git URL).
+                </div>
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>ProcessedRepo</div>
-                <input className="filterInput" value={processedRepo} onChange={(e) => setProcessedRepo(e.target.value)} />
+                <div className="muted" style={{ marginBottom: 4 }}>renderedManifestsRepo</div>
+                <input className="filterInput" value={renderedManifestsRepo} onChange={(e) => setRenderedManifestsRepo(e.target.value)} />
+                <div className="muted" style={{ marginTop: 4 }}>
+                  Git repo which contains the fullly processed kubernetes rendered manifests ready for ArgoCD to apply to the clusters.
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
