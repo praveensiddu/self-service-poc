@@ -556,6 +556,9 @@ function App() {
               <button className="btn" type="button" onClick={onViewL4Ingress}>
                 View L4 ingress IPs
               </button>
+              <button className="btn" type="button" onClick={onViewEgressIps}>
+              View Egress IPs
+            </button>
             </>
           ) : view === "namespaceDetails" ? (
             <>
@@ -564,18 +567,38 @@ function App() {
               </button>
             </>
           ) : view === "l4ingress" ? (
-            <button className="btn" type="button" onClick={onViewL4Ingress}>
-              View L4 ingress IPs
-            </button>
-          ) : view === "egressips" ? (
-            <button className="btn" type="button" onClick={onViewEgressIps}>
+            <>
+
+            <button className="btn" type="button" onClick={onBackToApps}>
+                Back to App
+              </button>
+              <button className="btn" type="button" onClick={onViewNamespaces}>
+                View Namespaces
+              </button>
+              <button className="btn" type="button" onClick={onViewEgressIps}>
               View Egress IPs
             </button>
+              </>
+            
+          ) : view === "egressips" ? (
+            <>
+            <button className="btn" type="button" onClick={onBackToApps}>
+              Back to App
+            </button>
+              <button className="btn" type="button" onClick={onViewNamespaces}>
+                View Namespaces
+              </button>
+              <button className="btn" type="button" onClick={onViewL4Ingress}>
+                View L4 ingress IPs
+              </button>
+              </>
           ) : (
             <button className="btn" type="button" onClick={onBackToApps}>
               Back to App
             </button>
-          ) }
+          )}
+
+
 
         </div>
 

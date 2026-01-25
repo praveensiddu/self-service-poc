@@ -231,13 +231,13 @@ L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "cluster_no": "01",
                 "requested_total": 2,
                 "allocated_total": 2,
-                "allocated_ips": ["10.10.10.10", "10.10.10.11"],
+                "allocated_ips": ["1.10.1.10", "1.10.1.11"],
                 "allocations": [
                     {
                         "name": "l4ingress_app1_dev",
                         "purpose": "app1",
                         "app": "app1",
-                        "ips": ["10.10.10.10", "10.10.10.11"],
+                        "ips": ["1.10.1.10", "1.10.1.11"],
                         "count": 2,
                         "url": "https://mygitserver.com/dev/app1/l4ingressip-allocated.yaml",
                     }
@@ -250,13 +250,13 @@ L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "cluster_no": "04",
                 "requested_total": 1,
                 "allocated_total": 1,
-                "allocated_ips": ["10.10.20.10"],
+                "allocated_ips": ["1.1.20.10"],
                 "allocations": [
                     {
                         "name": "l4ingress_app2_dev",
                         "purpose": "app2",
                         "app": "app2",
-                        "ips": ["10.10.20.10"],
+                        "ips": ["1.1.20.10"],
                         "count": 1,
                         "url": "https://mygitserver.com/dev/app2/l4ingressip-allocated.yaml",
                     }
@@ -271,13 +271,13 @@ L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "cluster_no": "11",
                 "requested_total": 2,
                 "allocated_total": 2,
-                "allocated_ips": ["10.20.10.10", "10.20.10.11"],
+                "allocated_ips": ["1.20.1.10", "1.20.1.11"],
                 "allocations": [
                     {
                         "name": "l4ingress_app1_qa",
                         "purpose": "app1",
                         "app": "app1",
-                        "ips": ["10.20.10.10", "10.20.10.11"],
+                        "ips": ["1.20.1.10", "1.20.1.11"],
                         "count": 2,
                         "url": "https://mygitserver.com/qa/app1/l4ingressip-allocated.yaml",
                     }
@@ -290,13 +290,13 @@ L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "cluster_no": "12",
                 "requested_total": 2,
                 "allocated_total": 2,
-                "allocated_ips": ["10.20.20.10", "10.20.20.11"],
+                "allocated_ips": ["1.20.20.10", "1.20.20.11"],
                 "allocations": [
                     {
                         "name": "l4ingress_app2_qa",
                         "purpose": "app2",
                         "app": "app2",
-                        "ips": ["10.20.20.10", "10.20.20.11"],
+                        "ips": ["1.20.20.10", "1.20.20.11"],
                         "count": 2,
                         "url": "https://mygitserver.com/qa/app2/l4ingressip-allocated.yaml",
                     }
@@ -311,13 +311,13 @@ L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "cluster_no": "01",
                 "requested_total": 66,
                 "allocated_total": 66,
-                "allocated_ips": ["1.1.210.150", "1.1.210.151"],
+                "allocated_ips": ["1.1.21.150", "1.1.21.151"],
                 "allocations": [
                     {
                         "name": "l4ingress_app1_app1",
                         "purpose": "app1",
                         "app": "app1",
-                        "ips": ["1.1.210.150", "1.1.210.151"],
+                        "ips": ["1.1.21.150", "1.1.21.151"],
                         "count": 66,
                         "url": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/browse/ip_provisioning/c01/l4ingressip-allocated.yaml?at=refs/heads/prd",
                     }
@@ -420,21 +420,21 @@ EGRESS_IPS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "selector": "app=app1-qa",
                 "cluster": "11",
                 "allocation_id": "egress-ip-11-qa-001",
-                "allocated_ips": ["10.1.11.100"],
+                "allocated_ips": ["1.1.11.100"],
                 "link": "https://console.qa-cluster-11.com/egress/egress-ip-11-qa-001"
             },
             {
                 "selector": "app=app1-qa-ns2",
                 "cluster": "12",
                 "allocation_id": "egress-ip-12-qa-002",
-                "allocated_ips": ["10.1.12.101", "10.1.12.102"],
+                "allocated_ips": ["1.1.12.101", "1.1.12.102"],
                 "link": "https://console.qa-cluster-12.com/egress/egress-ip-12-qa-002"
             },
             {
                 "selector": "app=app1-qa-ns3",
                 "cluster": "06",
                 "allocation_id": "egress-ip-06-qa-003",
-                "allocated_ips": ["10.1.6.103"],
+                "allocated_ips": ["1.1.6.103"],
                 "link": "https://console.qa-cluster-06.com/egress/egress-ip-06-qa-003"
             }
         ],
@@ -443,14 +443,14 @@ EGRESS_IPS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "selector": "app=app2-qa",
                 "cluster": "01",
                 "allocation_id": "egress-ip-01-qa-004",
-                "allocated_ips": ["10.1.1.104"],
+                "allocated_ips": ["1.1.1.104"],
                 "link": "https://console.qa-cluster-01.com/egress/egress-ip-01-qa-004"
             },
             {
                 "selector": "app=app2-qa-ns2",
                 "cluster": "04",
                 "allocation_id": "egress-ip-04-qa-005",
-                "allocated_ips": ["10.1.4.105", "10.1.4.106"],
+                "allocated_ips": ["1.1.4.105", "1.1.4.106"],
                 "link": "https://console.qa-cluster-04.com/egress/egress-ip-04-qa-005"
             }
         ]
@@ -461,21 +461,21 @@ EGRESS_IPS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "selector": "app=app1-prod",
                 "cluster": "01",
                 "allocation_id": "egress-ip-01-prd-001",
-                "allocated_ips": ["10.2.1.100", "10.2.1.101", "10.2.1.102"],
+                "allocated_ips": ["1.2.1.100", "1.2.1.101", "1.2.1.102"],
                 "link": "https://console.prod-cluster-01.com/egress/egress-ip-01-prd-001"
             },
             {
                 "selector": "app=app1-prod-ns2",
                 "cluster": "04",
                 "allocation_id": "egress-ip-04-prd-002",
-                "allocated_ips": ["10.2.4.103", "10.2.4.104"],
+                "allocated_ips": ["1.2.4.103", "1.2.4.104"],
                 "link": "https://console.prod-cluster-04.com/egress/egress-ip-04-prd-002"
             },
             {
                 "selector": "app=app1-prod-ns3",
                 "cluster": "07",
                 "allocation_id": "egress-ip-07-prd-003",
-                "allocated_ips": ["10.2.7.105"],
+                "allocated_ips": ["1.2.7.105"],
                 "link": "https://console.prod-cluster-07.com/egress/egress-ip-07-prd-003"
             }
         ],
@@ -484,7 +484,7 @@ EGRESS_IPS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "selector": "app=app2-prod",
                 "cluster": "12",
                 "allocation_id": "egress-ip-12-prd-004",
-                "allocated_ips": ["10.2.12.106", "10.2.12.107"],
+                "allocated_ips": ["1.2.12.106", "1.2.12.107"],
                 "link": "https://console.prod-cluster-12.com/egress/egress-ip-12-prd-004"
             }
         ]
