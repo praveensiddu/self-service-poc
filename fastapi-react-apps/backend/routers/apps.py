@@ -1,23 +1,50 @@
 from fastapi import APIRouter, HTTPException
 from typing import Any, Dict, List, Optional
+from pathlib import Path
+import shutil
+
+import yaml
 
 router = APIRouter(tags=["apps"])
 
 
-APPS_BY_ENV: Dict[str, Dict[str, Dict[str, Any]]] = {
-    "dev": {
-        "app1": {"appname": "app1", "description": "", "managedby": "ldapgrp-dev", "totalns": 2},
-        "app2": {"appname": "app2", "description": "", "managedby": "ldapgrp-dev", "totalns": 1},
-    },
-    "qa": {
-        "app1": {"appname": "app1", "description": "", "managedby": "ldapgrp-qa", "totalns": 3},
-        "app2": {"appname": "app2", "description": "", "managedby": "ldapgrp-qa", "totalns": 2},
-    },
-    "prd": {
-        "app1": {"appname": "app1", "description": "", "managedby": "ldapgrp1,ldapgrp2", "totalns": 8},
-        "app2": {"appname": "app2", "description": "", "managedby": "ldapgrp1", "totalns": 2},
-    }
-}
+def _config_path() -> Path:
+    return Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
+
+
+def _require_initialized_workspace() -> Path:
+    cfg_path = _config_path()
+    if not cfg_path.exists():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    try:
+        raw_cfg = yaml.safe_load(cfg_path.read_text()) or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
+
+    if not isinstance(raw_cfg, dict):
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    workspace = str(raw_cfg.get("workspace", "") or "").strip()
+    if not workspace:
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    workspace_path = Path(workspace).expanduser()
+    if not workspace_path.exists() or not workspace_path.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    requests_root = (
+        workspace_path
+        / "kselfserv"
+        / "cloned-repositories"
+        / "requests"
+        / "app-requests"
+    )
+    if not requests_root.exists() or not requests_root.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    return requests_root
+
 
 
 NAMESPACES_BY_ENV_AND_APP: Dict[str, Dict[str, Dict[str, Any]]] = {
@@ -501,102 +528,57 @@ def _require_env(env: Optional[str]) -> str:
 @router.get("/apps")
 def list_apps(env: Optional[str] = None):
     env = _require_env(env)
-    apps = APPS_BY_ENV.get(env, {})
-    namespaces_by_app = NAMESPACES_BY_ENV_AND_APP.get(env, {})
+    requests_root = _require_initialized_workspace()
 
-    enriched: Dict[str, Dict[str, Any]] = {}
-    for appname, app in apps.items():
-        ns_obj = namespaces_by_app.get(appname, {})
-        clusters: List[str] = []
-        seen: set = set()
-        for ns in ns_obj.values():
-            for c in (ns.get("clusters") or []):
-                cs = str(c)
-                if cs not in seen:
-                    seen.add(cs)
-                    clusters.append(cs)
+    env_dir = requests_root / env
+    if not env_dir.exists() or not env_dir.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
 
-        enriched[appname] = {**app, "clusters": clusters}
+    apps_out: Dict[str, Dict[str, Any]] = {}
+    for child in env_dir.iterdir():
+        if not child.is_dir():
+            continue
 
-    return enriched
+        appname = child.name
+        appinfo_path = child / "appinfo.yaml"
+        description = ""
+        managedby = ""
 
+        if appinfo_path.exists() and appinfo_path.is_file():
+            try:
+                appinfo = yaml.safe_load(appinfo_path.read_text()) or {}
+                if isinstance(appinfo, dict):
+                    description = str(appinfo.get("description", "") or "")
+                    managedby = str(appinfo.get("managedby", "") or "")
+            except Exception:
+                description = ""
+                managedby = ""
 
-@router.get("/apps/{appname}/namespaces")
-def get_namespaces(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    return NAMESPACES_BY_ENV_AND_APP.get(env, {}).get(appname, {})
+        totalns = 0
+        try:
+            totalns = sum(1 for p in child.iterdir() if p.is_dir())
+        except Exception:
+            totalns = 0
 
+        apps_out[appname] = {
+            "appname": appname,
+            "description": description,
+            "managedby": managedby,
+            "totalns": totalns,
+        }
 
-@router.delete("/apps/{appname}/namespaces")
-def delete_namespaces(appname: str, env: Optional[str] = None, namespaces: Optional[str] = None):
-    """Delete specific namespaces from an application
-
-    Args:
-        appname: The application name
-        env: The environment (dev/qa/prd)
-        namespaces: Comma-separated list of namespace names to delete
-    """
-    env = _require_env(env)
-
-    if not namespaces:
-        raise HTTPException(status_code=400, detail="namespaces parameter is required (comma-separated list)")
-
-    namespace_list = [ns.strip() for ns in namespaces.split(",") if ns.strip()]
-
-    if not namespace_list:
-        raise HTTPException(status_code=400, detail="No valid namespaces provided")
-
-    deleted_data = {
-        "appname": appname,
-        "env": env,
-        "requested_deletions": namespace_list,
-        "deleted_namespaces": [],
-        "not_found": []
-    }
-
-    # Check if app exists in this environment
-    if env not in NAMESPACES_BY_ENV_AND_APP or appname not in NAMESPACES_BY_ENV_AND_APP[env]:
-        deleted_data["not_found"] = namespace_list
-        return deleted_data
-
-    app_namespaces = NAMESPACES_BY_ENV_AND_APP[env][appname]
-
-    # Delete each namespace
-    for ns_name in namespace_list:
-        if ns_name in app_namespaces:
-            del app_namespaces[ns_name]
-            deleted_data["deleted_namespaces"].append(ns_name)
-        else:
-            deleted_data["not_found"].append(ns_name)
-
-    # If all namespaces are deleted, remove the app entry
-    if len(app_namespaces) == 0:
-        del NAMESPACES_BY_ENV_AND_APP[env][appname]
-        deleted_data["app_entry_removed"] = True
-
-    # Update totalns count in APPS_BY_ENV
-    if env in APPS_BY_ENV and appname in APPS_BY_ENV[env]:
-        APPS_BY_ENV[env][appname]["totalns"] = len(app_namespaces)
-
-    return deleted_data
-
-
-@router.get("/apps/{appname}/l4_ingress")
-def get_l4_ingress(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    return L4_INGRESS_BY_ENV_AND_APP.get(env, {}).get(appname, [])
-
-
-@router.get("/apps/{appname}/pull_requests")
-def get_pull_requests(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    return PULL_REQUESTS_BY_ENV_AND_APP.get(env, {}).get(appname, [])
+    return apps_out
 
 
 @router.delete("/apps/{appname}")
 def delete_app(appname: str, env: Optional[str] = None):
     """Delete an application and all its associated data (namespaces, L4 ingress, pull requests)"""
     env = _require_env(env)
+
+    requests_root = _require_initialized_workspace()
+    app_dir = requests_root / env / appname
+    if not app_dir.exists() or not app_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
 
     deleted_data = {
         "appname": appname,
@@ -605,31 +587,13 @@ def delete_app(appname: str, env: Optional[str] = None):
         "removed": {}
     }
 
-    # Delete from APPS_BY_ENV
-    if env in APPS_BY_ENV and appname in APPS_BY_ENV[env]:
-        del APPS_BY_ENV[env][appname]
-        deleted_data["removed"]["app"] = True
+    try:
+        shutil.rmtree(app_dir)
+        deleted_data["removed"]["folder"] = True
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete app folder {app_dir}: {e}")
 
-    # Delete from NAMESPACES_BY_ENV_AND_APP
-    if env in NAMESPACES_BY_ENV_AND_APP and appname in NAMESPACES_BY_ENV_AND_APP[env]:
-        namespaces = list(NAMESPACES_BY_ENV_AND_APP[env][appname].keys())
-        del NAMESPACES_BY_ENV_AND_APP[env][appname]
-        deleted_data["removed"]["namespaces"] = namespaces
 
-    # Delete from L4_INGRESS_BY_ENV_AND_APP
-    if env in L4_INGRESS_BY_ENV_AND_APP and appname in L4_INGRESS_BY_ENV_AND_APP[env]:
-        del L4_INGRESS_BY_ENV_AND_APP[env][appname]
-        deleted_data["removed"]["l4_ingress"] = True
-
-    # Delete from PULL_REQUESTS_BY_ENV_AND_APP
-    if env in PULL_REQUESTS_BY_ENV_AND_APP and appname in PULL_REQUESTS_BY_ENV_AND_APP[env]:
-        del PULL_REQUESTS_BY_ENV_AND_APP[env][appname]
-        deleted_data["removed"]["pull_requests"] = True
 
     deleted_data["deleted"] = True
     return deleted_data
-
-@router.get("/apps/{appname}/egress_ips")
-def get_egress_ips(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    return EGRESS_IPS_BY_ENV_AND_APP.get(env, {}).get(appname, [])

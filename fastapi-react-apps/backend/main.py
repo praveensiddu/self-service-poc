@@ -3,13 +3,17 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from routers import apps, general
+from routers import apps, general, namespaces, l4_ingress, pull_requests, egress_ip
 
 app = FastAPI(title="Application Management API")
 # execute the following command to run
 # uvicorn backend.main:app --reload
 app.include_router(general.router, prefix="/api")
 app.include_router(apps.router, prefix="/api")
+app.include_router(namespaces.router, prefix="/api")
+app.include_router(l4_ingress.router, prefix="/api")
+app.include_router(pull_requests.router, prefix="/api")
+app.include_router(egress_ip.router, prefix="/api")
 
 _BACKEND_DIR = Path(__file__).resolve().parent
 _FRONTEND_DIR = _BACKEND_DIR.parent / "frontend"
