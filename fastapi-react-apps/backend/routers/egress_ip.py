@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from typing import Optional
 
-from routers.apps import _require_env, EGRESS_IPS_BY_ENV_AND_APP
+from backend.routers.apps import _require_env, EGRESS_IPS_BY_ENV_AND_APP
 
 router = APIRouter(tags=["egress_ip"])
 
