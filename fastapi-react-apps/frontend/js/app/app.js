@@ -219,6 +219,7 @@ function App() {
 
   React.useEffect(() => {
     if (!activeEnv) return;
+    if (isPrsPath()) return;
 
     let cancelled = false;
 
