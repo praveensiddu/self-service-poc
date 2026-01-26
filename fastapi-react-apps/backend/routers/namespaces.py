@@ -6,7 +6,7 @@ import yaml
 
 from pydantic import BaseModel
 
-from routers.apps import _require_env, _require_initialized_workspace
+from backend.routers.apps import _require_env, _require_initialized_workspace
 
 router = APIRouter(tags=["namespaces"])
 
@@ -27,9 +27,25 @@ class NamespaceResourcesUpdate(BaseModel):
     limits: Optional[NamespaceResourcesCpuMem] = None
 
 
+class RbacSubject(BaseModel):
+    kind: Optional[str] = None
+    name: Optional[str] = None
+
+
+class RbacRoleRef(BaseModel):
+    kind: Optional[str] = None
+    name: Optional[str] = None
+
+
+class RbacUpdate(BaseModel):
+    subjects: Optional[List[RbacSubject]] = None
+    roleRef: Optional[RbacRoleRef] = None
+
+
 class NamespaceUpdate(BaseModel):
     namespace_info: Optional[NamespaceInfoUpdate] = None
     resources: Optional[NamespaceResourcesUpdate] = None
+    rbac: Optional[RbacUpdate] = None
 
 
 def _parse_bool(v) -> bool:
@@ -61,6 +77,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         ns_info_path = child / "namespace_info.yaml"
         limits_path = child / "limits.yaml"
         requests_path = child / "requests.yaml"
+        rbac_path = child / "rbac.yaml"
 
         ns_info = {}
         if ns_info_path.exists() and ns_info_path.is_file():
@@ -88,6 +105,15 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     reqs = parsed
             except Exception:
                 reqs = {}
+
+        rbac = {}
+        if rbac_path.exists() and rbac_path.is_file():
+            try:
+                parsed = yaml.safe_load(rbac_path.read_text()) or {}
+                if isinstance(parsed, dict):
+                    rbac = parsed
+            except Exception:
+                rbac = {}
 
         clusters = ns_info.get("clusters")
         if not isinstance(clusters, list):
@@ -117,7 +143,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": {"roles": []},
+            "rbac": rbac,
         }
 
     return out
@@ -231,6 +257,27 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     lim_existing["memory"] = str(payload.resources.limits.memory)
 
                 lim_path.write_text(yaml.safe_dump(lim_existing, sort_keys=False))
+
+        if payload.rbac is not None:
+            rbac_path = ns_dir / "rbac.yaml"
+            rbac_existing = {}
+            if rbac_path.exists() and rbac_path.is_file():
+                parsed = yaml.safe_load(rbac_path.read_text()) or {}
+                if isinstance(parsed, dict):
+                    rbac_existing = parsed
+
+            if payload.rbac.subjects is not None:
+                rbac_existing["subjects"] = [
+                    {k: v for k, v in {"kind": s.kind, "name": s.name}.items() if v}
+                    for s in payload.rbac.subjects
+                ]
+
+            if payload.rbac.roleRef is not None:
+                rbac_existing["roleRef"] = {
+                    k: v for k, v in {"kind": payload.rbac.roleRef.kind, "name": payload.rbac.roleRef.name}.items() if v
+                }
+
+            rbac_path.write_text(yaml.safe_dump(rbac_existing, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
 
@@ -239,6 +286,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
     try:
         limits_path = ns_dir / "limits.yaml"
         requests_path = ns_dir / "requests.yaml"
+        rbac_path = ns_dir / "rbac.yaml"
 
         limits = {}
         if limits_path.exists() and limits_path.is_file():
@@ -251,6 +299,12 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             parsed = yaml.safe_load(requests_path.read_text()) or {}
             if isinstance(parsed, dict):
                 reqs = parsed
+
+        rbac = {}
+        if rbac_path.exists() and rbac_path.is_file():
+            parsed = yaml.safe_load(rbac_path.read_text()) or {}
+            if isinstance(parsed, dict):
+                rbac = parsed
 
         clusters = existing.get("clusters")
         if not isinstance(clusters, list):
@@ -282,7 +336,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": {"roles": []},
+            "rbac": rbac,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")

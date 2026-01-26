@@ -15,6 +15,9 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
   const [draftLimCpu, setDraftLimCpu] = React.useState("");
   const [draftLimMemory, setDraftLimMemory] = React.useState("");
+  const [draftRbacSubjects, setDraftRbacSubjects] = React.useState([]);
+  const [draftRbacRoleRefKind, setDraftRbacRoleRefKind] = React.useState("");
+  const [draftRbacRoleRefName, setDraftRbacRoleRefName] = React.useState("");
 
   React.useEffect(() => {
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
@@ -25,6 +28,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
     setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+
+    // Initialize RBAC draft values
+    const rbacSubjects = namespace?.rbac?.subjects && Array.isArray(namespace.rbac.subjects) ? namespace.rbac.subjects : [];
+    setDraftRbacSubjects(rbacSubjects);
+    setDraftRbacRoleRefKind(namespace?.rbac?.roleRef?.kind || "");
+    setDraftRbacRoleRefName(namespace?.rbac?.roleRef?.name || "");
+
     setEditEnabled(false);
   }, [namespace, namespaceName]);
 
@@ -118,6 +128,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
                     setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
                     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+
+                    // Reset RBAC draft values
+                    const rbacSubjects = namespace?.rbac?.subjects && Array.isArray(namespace.rbac.subjects) ? namespace.rbac.subjects : [];
+                    setDraftRbacSubjects(rbacSubjects);
+                    setDraftRbacRoleRefKind(namespace?.rbac?.roleRef?.kind || "");
+                    setDraftRbacRoleRefName(namespace?.rbac?.roleRef?.name || "");
+
                     setEditEnabled(false);
                   }}
                 >
@@ -152,6 +169,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                         limits: {
                           cpu: (draftLimCpu || "").trim(),
                           memory: (draftLimMemory || "").trim(),
+                        },
+                      },
+                      rbac: {
+                        subjects: draftRbacSubjects,
+                        roleRef: {
+                          kind: (draftRbacRoleRefKind || "").trim(),
+                          name: (draftRbacRoleRefName || "").trim(),
                         },
                       },
                     });
@@ -341,17 +365,148 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             <h3>RBAC</h3>
           </div>
           <div className="dashboardCardBody">
-            {Object.keys(rbac).length > 0 ? (
-              <div className="attributesGrid">
-                {Object.entries(rbac).map(([key, value]) => (
-                  <div key={key} className="attributeItem">
-                    <span className="attributeKey">{key}:</span>
-                    <span className="attributeValue">{formatValue(value)}</span>
+            {editEnabled ? (
+              <div>
+                {/* Subjects Section - Edit Mode */}
+                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
+                  <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Subjects</h4>
+                  {draftRbacSubjects.map((subject, idx) => (
+                    <div key={idx} style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px', position: 'relative' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                        <span className="attributeKey" style={{ minWidth: '80px' }}>Kind:</span>
+                        <select
+                          className="filterInput"
+                          style={{ flex: 1 }}
+                          value={subject.kind || "User"}
+                          onChange={(e) => {
+                            const updated = [...draftRbacSubjects];
+                            updated[idx] = { ...updated[idx], kind: e.target.value };
+                            setDraftRbacSubjects(updated);
+                          }}
+                        >
+                          <option value="User">User</option>
+                          <option value="Group">Group</option>
+                          <option value="ServiceAccount">ServiceAccount</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                        <span className="attributeKey" style={{ minWidth: '80px' }}>Name:</span>
+                        <input
+                          className="filterInput"
+                          style={{ flex: 1 }}
+                          value={subject.name || ""}
+                          onChange={(e) => {
+                            const updated = [...draftRbacSubjects];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setDraftRbacSubjects(updated);
+                          }}
+                          placeholder="e.g., user@example.com"
+                        />
+                      </div>
+                      {draftRbacSubjects.length > 1 && (
+                        <button
+                          className="btn btn-sm"
+                          style={{ position: 'absolute', top: '8px', right: '8px', padding: '2px 8px', fontSize: '12px' }}
+                          onClick={() => {
+                            const updated = draftRbacSubjects.filter((_, i) => i !== idx);
+                            setDraftRbacSubjects(updated);
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    className="btn btn-sm btn-primary"
+                    style={{ marginTop: '8px' }}
+                    onClick={() => {
+                      setDraftRbacSubjects([...draftRbacSubjects, { kind: "User", name: "" }]);
+                    }}
+                  >
+                    + Add Subject
+                  </button>
+                </div>
+                {/* RoleRef Section - Edit Mode */}
+                <div>
+                  <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Role Reference</h4>
+                  <div style={{ padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '80px' }}>Kind:</span>
+                      <select
+                        className="filterInput"
+                        style={{ flex: 1 }}
+                        value={draftRbacRoleRefKind || "ClusterRole"}
+                        onChange={(e) => setDraftRbacRoleRefKind(e.target.value)}
+                      >
+                        <option value="ClusterRole">ClusterRole</option>
+                        <option value="Role">Role</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span className="attributeKey" style={{ minWidth: '80px' }}>Name:</span>
+                      <input
+                        className="filterInput"
+                        style={{ flex: 1 }}
+                        value={draftRbacRoleRefName}
+                        onChange={(e) => setDraftRbacRoleRefName(e.target.value)}
+                        placeholder="e.g., cluster-admin, view"
+                      />
+                    </div>
                   </div>
-                ))}
+                </div>
               </div>
             ) : (
-              <p className="muted">No RBAC information available</p>
+              Object.keys(rbac).length > 0 ? (
+                <div>
+                  {/* Subjects Section */}
+                  {rbac.subjects && Array.isArray(rbac.subjects) && rbac.subjects.length > 0 && (
+                    <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Subjects</h4>
+                      {rbac.subjects.map((subject, idx) => (
+                        <div key={idx} style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                          {Object.entries(subject).map(([key, value]) => (
+                            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
+                              <span className="attributeValue">{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* RoleRef Section */}
+                  {rbac.roleRef && typeof rbac.roleRef === 'object' && (
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Role Reference</h4>
+                      <div style={{ padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                        {Object.entries(rbac.roleRef).map(([key, value]) => (
+                          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                            <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
+                            <span className="attributeValue">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Other RBAC fields */}
+                  {Object.entries(rbac).filter(([key]) => key !== 'subjects' && key !== 'roleRef').length > 0 && (
+                    <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #e9ecef' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Other</h4>
+                      <div className="attributesGrid">
+                        {Object.entries(rbac).filter(([key]) => key !== 'subjects' && key !== 'roleRef').map(([key, value]) => (
+                          <div key={key} className="attributeItem">
+                            <span className="attributeKey">{key}:</span>
+                            <span className="attributeValue">{formatValue(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="muted">No RBAC information available</p>
+              )
             )}
           </div>
         </div>
