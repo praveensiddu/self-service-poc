@@ -178,6 +178,18 @@ function AppView({
                     ← Back to Namespaces
                   </button>
                 </>
+              ) : view === "namespaces" ? (
+                <>
+                  <button className="btn" type="button" onClick={onBackToApps}>
+                    Back to App
+                  </button>
+                  <button className="btn" type="button" onClick={onViewL4Ingress}>
+                    View L4 ingress IPs
+                  </button>
+                  <button className="btn" type="button" onClick={onViewEgressIps}>
+                    View Egress IPs
+                  </button>
+                </>
               ) : view === "l4ingress" ? (
                 <>
                   <button className="btn" type="button" onClick={onBackToApps}>
