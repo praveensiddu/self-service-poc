@@ -37,9 +37,15 @@ class RbacRoleRef(BaseModel):
     name: Optional[str] = None
 
 
+class RbacBinding(BaseModel):
+    """Represents a single RoleBinding with one subject and one roleRef"""
+    subject: RbacSubject
+    roleRef: RbacRoleRef
+
+
 class RbacUpdate(BaseModel):
-    subjects: Optional[List[RbacSubject]] = None
-    roleRef: Optional[RbacRoleRef] = None
+    """List of RoleBindings, each with its own subject and roleRef"""
+    bindings: Optional[List[RbacBinding]] = None
 
 
 class NamespaceUpdate(BaseModel):
@@ -106,14 +112,29 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             except Exception:
                 reqs = {}
 
-        rbac = {}
+        rbac = None
         if rbac_path.exists() and rbac_path.is_file():
             try:
-                parsed = yaml.safe_load(rbac_path.read_text()) or {}
-                if isinstance(parsed, dict):
+                parsed = yaml.safe_load(rbac_path.read_text())
+                if parsed is not None:
                     rbac = parsed
             except Exception:
-                rbac = {}
+                rbac = None
+
+        # Convert rbac to array of bindings format
+        rbac_bindings = []
+        if isinstance(rbac, list):
+            # Already in new format: array of bindings
+            rbac_bindings = rbac
+        elif isinstance(rbac, dict) and rbac.get("subjects"):
+            # Old format: single binding with multiple subjects - convert to array
+            subjects = rbac.get("subjects", [])
+            role_ref = rbac.get("roleRef", {})
+            for subject in subjects:
+                rbac_bindings.append({
+                    "subject": subject,
+                    "roleRef": role_ref
+                })
 
         clusters = ns_info.get("clusters")
         if not isinstance(clusters, list):
@@ -143,7 +164,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": rbac,
+            "rbac": rbac_bindings,
         }
 
     return out
@@ -257,29 +278,61 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     lim_existing["memory"] = str(payload.resources.limits.memory)
 
                 lim_path.write_text(yaml.safe_dump(lim_existing, sort_keys=False))
-
-        if payload.rbac is not None:
-            rbac_path = ns_dir / "rbac.yaml"
-            rbac_existing = {}
-            if rbac_path.exists() and rbac_path.is_file():
-                parsed = yaml.safe_load(rbac_path.read_text()) or {}
-                if isinstance(parsed, dict):
-                    rbac_existing = parsed
-
-            if payload.rbac.subjects is not None:
-                rbac_existing["subjects"] = [
-                    {k: v for k, v in {"kind": s.kind, "name": s.name}.items() if v}
-                    for s in payload.rbac.subjects
-                ]
-
-            if payload.rbac.roleRef is not None:
-                rbac_existing["roleRef"] = {
-                    k: v for k, v in {"kind": payload.rbac.roleRef.kind, "name": payload.rbac.roleRef.name}.items() if v
-                }
-
-            rbac_path.write_text(yaml.safe_dump(rbac_existing, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
+
+    # RBAC validation and update - outside try-except so validation errors return proper 400 status
+    if payload.rbac is not None and payload.rbac.bindings is not None:
+        rbac_path = ns_dir / "rbac.yaml"
+
+        # Convert bindings to array format for storage with validation
+        rbac_data = []
+        for idx, binding in enumerate(payload.rbac.bindings):
+            # Validate mandatory fields - all must be non-empty
+            subject_kind = str(binding.subject.kind).strip() if binding.subject.kind is not None else ""
+            subject_name = str(binding.subject.name).strip() if binding.subject.name is not None else ""
+            roleref_kind = str(binding.roleRef.kind).strip() if binding.roleRef.kind is not None else ""
+            roleref_name = str(binding.roleRef.name).strip() if binding.roleRef.name is not None else ""
+
+            # Check if any mandatory field is empty
+            if not subject_kind:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"RBAC binding #{idx + 1}: Subject Kind is mandatory and cannot be empty"
+                )
+            if not subject_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"RBAC binding #{idx + 1}: Subject Name is mandatory and cannot be empty"
+                )
+            if not roleref_kind:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"RBAC binding #{idx + 1}: Role Type is mandatory and cannot be empty"
+                )
+            if not roleref_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"RBAC binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
+                )
+
+            binding_dict = {
+                "subject": {
+                    "kind": subject_kind,
+                    "name": subject_name
+                },
+                "roleRef": {
+                    "kind": roleref_kind,
+                    "name": roleref_name
+                }
+            }
+            rbac_data.append(binding_dict)
+
+        # Write rbac data - even if array is empty, write it to clear previous values
+        try:
+            rbac_path.write_text(yaml.safe_dump(rbac_data, sort_keys=False))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to write RBAC configuration: {e}")
 
     # Return updated namespace in the same shape as get_namespaces
     # by reusing the same file parsing logic.
@@ -300,11 +353,26 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             if isinstance(parsed, dict):
                 reqs = parsed
 
-        rbac = {}
+        rbac = None
         if rbac_path.exists() and rbac_path.is_file():
-            parsed = yaml.safe_load(rbac_path.read_text()) or {}
-            if isinstance(parsed, dict):
+            parsed = yaml.safe_load(rbac_path.read_text())
+            if parsed is not None:
                 rbac = parsed
+
+        # Convert rbac to array of bindings format
+        rbac_bindings = []
+        if isinstance(rbac, list):
+            # Already in new format: array of bindings
+            rbac_bindings = rbac
+        elif isinstance(rbac, dict) and rbac.get("subjects"):
+            # Old format: single binding with multiple subjects - convert to array
+            subjects = rbac.get("subjects", [])
+            role_ref = rbac.get("roleRef", {})
+            for subject in subjects:
+                rbac_bindings.append({
+                    "subject": subject,
+                    "roleRef": role_ref
+                })
 
         clusters = existing.get("clusters")
         if not isinstance(clusters, list):
@@ -336,7 +404,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": rbac,
+            "rbac": rbac_bindings,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")

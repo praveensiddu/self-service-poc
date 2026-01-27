@@ -15,9 +15,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
   const [draftLimCpu, setDraftLimCpu] = React.useState("");
   const [draftLimMemory, setDraftLimMemory] = React.useState("");
-  const [draftRbacSubjects, setDraftRbacSubjects] = React.useState([]);
-  const [draftRbacRoleRefKind, setDraftRbacRoleRefKind] = React.useState("");
-  const [draftRbacRoleRefName, setDraftRbacRoleRefName] = React.useState("");
+  const [draftRbacEntries, setDraftRbacEntries] = React.useState([]);
 
   React.useEffect(() => {
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
@@ -30,10 +28,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
 
     // Initialize RBAC draft values
-    const rbacSubjects = namespace?.rbac?.subjects && Array.isArray(namespace.rbac.subjects) ? namespace.rbac.subjects : [];
-    setDraftRbacSubjects(rbacSubjects);
-    setDraftRbacRoleRefKind(namespace?.rbac?.roleRef?.kind || "");
-    setDraftRbacRoleRefName(namespace?.rbac?.roleRef?.name || "");
+    // Backend now returns rbac as array of bindings: [{ subject: {...}, roleRef: {...} }, ...]
+    let rbacEntries = [];
+
+    if (Array.isArray(namespace?.rbac)) {
+      // New format: array of bindings
+      rbacEntries = namespace.rbac.map(binding => ({
+        subject: { ...(binding.subject || {}) },
+        roleRef: { ...(binding.roleRef || {}) }
+      }));
+    }
+
+    setDraftRbacEntries(rbacEntries);
 
     setEditEnabled(false);
   }, [namespace, namespaceName]);
@@ -106,7 +112,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           <div style={{ flex: 1 }} />
           <div style={{ flex: 2, textAlign: 'center' }}>
             <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '600', color: '#0d6efd' }}>
-              {`ENV: ${env || ""} APP: ${appname || ""} namespace: ${namespaceName}`}
+              {`${appname || ""} / ${namespaceName}`}
             </h2>
           </div>
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -130,10 +136,17 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
 
                     // Reset RBAC draft values
-                    const rbacSubjects = namespace?.rbac?.subjects && Array.isArray(namespace.rbac.subjects) ? namespace.rbac.subjects : [];
-                    setDraftRbacSubjects(rbacSubjects);
-                    setDraftRbacRoleRefKind(namespace?.rbac?.roleRef?.kind || "");
-                    setDraftRbacRoleRefName(namespace?.rbac?.roleRef?.name || "");
+                    let rbacEntries = [];
+
+                    if (Array.isArray(namespace?.rbac)) {
+                      // New format: array of bindings
+                      rbacEntries = namespace.rbac.map(binding => ({
+                        subject: { ...(binding.subject || {}) },
+                        roleRef: { ...(binding.roleRef || {}) }
+                      }));
+                    }
+
+                    setDraftRbacEntries(rbacEntries);
 
                     setEditEnabled(false);
                   }}
@@ -149,37 +162,48 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       return;
                     }
 
-                    const clusters = draftClusters
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean);
-                    const egress_nameid = (draftEgressNameId || "").trim();
+                    try {
+                      const clusters = draftClusters
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean);
+                      const egress_nameid = (draftEgressNameId || "").trim();
 
-                    await onUpdateNamespaceInfo(namespaceName, {
-                      namespace_info: {
-                        clusters,
-                        need_argo: Boolean(draftManagedByArgo),
-                        egress_nameid,
-                      },
-                      resources: {
-                        requests: {
-                          cpu: (draftReqCpu || "").trim(),
-                          memory: (draftReqMemory || "").trim(),
+                      await onUpdateNamespaceInfo(namespaceName, {
+                        namespace_info: {
+                          clusters,
+                          need_argo: Boolean(draftManagedByArgo),
+                          egress_nameid,
                         },
-                        limits: {
-                          cpu: (draftLimCpu || "").trim(),
-                          memory: (draftLimMemory || "").trim(),
+                        resources: {
+                          requests: {
+                            cpu: (draftReqCpu || "").trim(),
+                            memory: (draftReqMemory || "").trim(),
+                          },
+                          limits: {
+                            cpu: (draftLimCpu || "").trim(),
+                            memory: (draftLimMemory || "").trim(),
+                          },
                         },
-                      },
-                      rbac: {
-                        subjects: draftRbacSubjects,
-                        roleRef: {
-                          kind: (draftRbacRoleRefKind || "").trim(),
-                          name: (draftRbacRoleRefName || "").trim(),
+                        rbac: {
+                          bindings: draftRbacEntries.map(entry => ({
+                            subject: {
+                              kind: entry.subject?.kind || "User",
+                              name: entry.subject?.name || ""
+                            },
+                            roleRef: {
+                              kind: entry.roleRef?.kind || "ClusterRole",
+                              name: entry.roleRef?.name || ""
+                            }
+                          }))
                         },
-                      },
-                    });
-                    setEditEnabled(false);
+                      });
+                      setEditEnabled(false);
+                    } catch (error) {
+                      // Display validation error to user
+                      const errorMessage = error?.message || String(error);
+                      alert(`Failed to save changes:\n\n${errorMessage}`);
+                    }
                   }}
                 >
                   Submit
@@ -284,6 +308,251 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       {/* Detailed Attributes Section */}
       <div className="dashboardGrid" style={{ marginTop: '20px' }}>
 
+        {/* RBAC Configuration Card - Takes 2/3 width */}
+        <div className="dashboardCard" style={{ gridColumn: 'span 2' }}>
+          <div className="dashboardCardHeader">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+              <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+            </svg>
+            <h3>RBAC Configuration</h3>
+            {editEnabled && (
+              <button
+                className="btn btn-primary"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => {
+                  setDraftRbacEntries([...draftRbacEntries, {
+                    subject: { kind: "User", name: "" },
+                    roleRef: { kind: "ClusterRole", name: "" }
+                  }]);
+                }}
+              >
+                + Add RBAC Entry
+              </button>
+            )}
+          </div>
+          <div className="dashboardCardBody">
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Role Type</th>
+                    <th>Role Reference</th>
+                    <th>Subject Kind</th>
+                    <th>Subject Name</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editEnabled ? (
+                    draftRbacEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
+                          No RBAC entries. Click "+ Add RBAC Entry" to add one.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftRbacEntries.map((entry, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <select
+                              className="filterInput"
+                              value={entry.roleRef?.kind || "ClusterRole"}
+                              onChange={(e) => {
+                                const updated = [...draftRbacEntries];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  roleRef: { ...updated[idx].roleRef, kind: e.target.value }
+                                };
+                                setDraftRbacEntries(updated);
+                              }}
+                            >
+                              <option value="ClusterRole">ClusterRole</option>
+                              <option value="Role">Role</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="filterInput"
+                              value={entry.roleRef?.name || ""}
+                              onChange={(e) => {
+                                const updated = [...draftRbacEntries];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  roleRef: { ...updated[idx].roleRef, name: e.target.value }
+                                };
+                                setDraftRbacEntries(updated);
+                              }}
+                              placeholder="e.g., cluster-admin, view"
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="filterInput"
+                              value={entry.subject?.kind || "User"}
+                              onChange={(e) => {
+                                const updated = [...draftRbacEntries];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  subject: { ...updated[idx].subject, kind: e.target.value }
+                                };
+                                setDraftRbacEntries(updated);
+                              }}
+                            >
+                              <option value="User">User</option>
+                              <option value="Group">Group</option>
+                              <option value="ServiceAccount">ServiceAccount</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="filterInput"
+                              value={entry.subject?.name || ""}
+                              onChange={(e) => {
+                                const updated = [...draftRbacEntries];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  subject: { ...updated[idx].subject, name: e.target.value }
+                                };
+                                setDraftRbacEntries(updated);
+                              }}
+                              placeholder="e.g., user@example.com"
+                            />
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                className="iconBtn iconBtn-primary"
+                                onClick={() => {
+                                  const roleYaml = `apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${namespaceName}-binding-${idx}
+  namespace: ${namespaceName}
+subjects:
+- kind: ${entry.subject?.kind || "User"}
+  name: ${entry.subject?.name || ""}
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ${entry.roleRef?.kind || "ClusterRole"}
+  name: ${entry.roleRef?.name || ""}
+  apiGroup: rbac.authorization.k8s.io`;
+                                  // Create a custom modal-style dialog
+                                  const modal = document.createElement('div');
+                                  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                                  modal.innerHTML = `
+                                    <div style="background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RBAC Role Details</h3>
+                                        <button onclick="this.closest('div[style*=fixed]').remove()" style="border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;">&times;</button>
+                                      </div>
+                                      <pre style="background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${roleYaml}</pre>
+                                      <div style="margin-top: 16px; text-align: right;">
+                                        <button onclick="navigator.clipboard.writeText(\`${roleYaml.replace(/`/g, '\\`')}\`).then(() => alert('Copied to clipboard!'))" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;">Copy</button>
+                                        <button onclick="this.closest('div[style*=fixed]').remove()" style="padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Close</button>
+                                      </div>
+                                    </div>
+                                  `;
+                                  document.body.appendChild(modal);
+                                  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                }}
+                                aria-label="View YAML"
+                                title="View YAML description"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                </svg>
+                              </button>
+                              <button
+                                className="iconBtn iconBtn-danger"
+                                onClick={() => {
+                                  const updated = draftRbacEntries.filter((_, i) => i !== idx);
+                                  setDraftRbacEntries(updated);
+                                }}
+                                aria-label="Delete entry"
+                                title="Delete RBAC entry"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                  <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )
+                  ) : (
+                    Array.isArray(rbac) && rbac.length > 0 ? (
+                      rbac.map((binding, idx) => (
+                        <tr key={idx}>
+                          <td>{binding.roleRef?.kind || "N/A"}</td>
+                          <td>{binding.roleRef?.name || "N/A"}</td>
+                          <td>{binding.subject?.kind || "N/A"}</td>
+                          <td>{binding.subject?.name || "N/A"}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                className="iconBtn iconBtn-primary"
+                                onClick={() => {
+                                  const roleYaml = `apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${namespaceName}-binding-${idx}
+  namespace: ${namespaceName}
+subjects:
+- kind: ${binding.subject?.kind || ""}
+  name: ${binding.subject?.name || ""}
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ${binding.roleRef?.kind || ""}
+  name: ${binding.roleRef?.name || ""}
+  apiGroup: rbac.authorization.k8s.io`;
+                                  // Create a custom modal-style dialog
+                                  const modal = document.createElement('div');
+                                  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                                  modal.innerHTML = `
+                                    <div style="background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RBAC Role Details</h3>
+                                        <button onclick="this.closest('div[style*=fixed]').remove()" style="border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;">&times;</button>
+                                      </div>
+                                      <pre style="background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${roleYaml}</pre>
+                                      <div style="margin-top: 16px; text-align: right;">
+                                        <button onclick="navigator.clipboard.writeText(\`${roleYaml.replace(/`/g, '\\`')}\`).then(() => alert('Copied to clipboard!'))" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;">Copy</button>
+                                        <button onclick="this.closest('div[style*=fixed]').remove()" style="padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Close</button>
+                                      </div>
+                                    </div>
+                                  `;
+                                  document.body.appendChild(modal);
+                                  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                }}
+                                aria-label="View YAML"
+                                title="View YAML description"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
+                          No RBAC information available
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         {/* Resources Card */}
         <div className="dashboardCard">
           <div className="dashboardCardHeader">
@@ -352,161 +621,6 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               </div>
             ) : (
               <p className="muted">No resource information available</p>
-            )}
-          </div>
-        </div>
-
-        {/* RBAC Card */}
-        <div className="dashboardCard">
-          <div className="dashboardCardHeader">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
-            </svg>
-            <h3>RBAC</h3>
-          </div>
-          <div className="dashboardCardBody">
-            {editEnabled ? (
-              <div>
-                {/* Subjects Section - Edit Mode */}
-                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                  <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Subjects</h4>
-                  {draftRbacSubjects.map((subject, idx) => (
-                    <div key={idx} style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px', position: 'relative' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <span className="attributeKey" style={{ minWidth: '80px' }}>Kind:</span>
-                        <select
-                          className="filterInput"
-                          style={{ flex: 1 }}
-                          value={subject.kind || "User"}
-                          onChange={(e) => {
-                            const updated = [...draftRbacSubjects];
-                            updated[idx] = { ...updated[idx], kind: e.target.value };
-                            setDraftRbacSubjects(updated);
-                          }}
-                        >
-                          <option value="User">User</option>
-                          <option value="Group">Group</option>
-                          <option value="ServiceAccount">ServiceAccount</option>
-                        </select>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <span className="attributeKey" style={{ minWidth: '80px' }}>Name:</span>
-                        <input
-                          className="filterInput"
-                          style={{ flex: 1 }}
-                          value={subject.name || ""}
-                          onChange={(e) => {
-                            const updated = [...draftRbacSubjects];
-                            updated[idx] = { ...updated[idx], name: e.target.value };
-                            setDraftRbacSubjects(updated);
-                          }}
-                          placeholder="e.g., user@example.com"
-                        />
-                      </div>
-                      {draftRbacSubjects.length > 1 && (
-                        <button
-                          className="btn btn-sm"
-                          style={{ position: 'absolute', top: '8px', right: '8px', padding: '2px 8px', fontSize: '12px' }}
-                          onClick={() => {
-                            const updated = draftRbacSubjects.filter((_, i) => i !== idx);
-                            setDraftRbacSubjects(updated);
-                          }}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    className="btn btn-sm btn-primary"
-                    style={{ marginTop: '8px' }}
-                    onClick={() => {
-                      setDraftRbacSubjects([...draftRbacSubjects, { kind: "User", name: "" }]);
-                    }}
-                  >
-                    + Add Subject
-                  </button>
-                </div>
-                {/* RoleRef Section - Edit Mode */}
-                <div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Role Reference</h4>
-                  <div style={{ padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                      <span className="attributeKey" style={{ minWidth: '80px' }}>Kind:</span>
-                      <select
-                        className="filterInput"
-                        style={{ flex: 1 }}
-                        value={draftRbacRoleRefKind || "ClusterRole"}
-                        onChange={(e) => setDraftRbacRoleRefKind(e.target.value)}
-                      >
-                        <option value="ClusterRole">ClusterRole</option>
-                        <option value="Role">Role</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span className="attributeKey" style={{ minWidth: '80px' }}>Name:</span>
-                      <input
-                        className="filterInput"
-                        style={{ flex: 1 }}
-                        value={draftRbacRoleRefName}
-                        onChange={(e) => setDraftRbacRoleRefName(e.target.value)}
-                        placeholder="e.g., cluster-admin, view"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              Object.keys(rbac).length > 0 ? (
-                <div>
-                  {/* Subjects Section */}
-                  {rbac.subjects && Array.isArray(rbac.subjects) && rbac.subjects.length > 0 && (
-                    <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Subjects</h4>
-                      {rbac.subjects.map((subject, idx) => (
-                        <div key={idx} style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                          {Object.entries(subject).map(([key, value]) => (
-                            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                              <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
-                              <span className="attributeValue">{String(value)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* RoleRef Section */}
-                  {rbac.roleRef && typeof rbac.roleRef === 'object' && (
-                    <div>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Role Reference</h4>
-                      <div style={{ padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                        {Object.entries(rbac.roleRef).map(([key, value]) => (
-                          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
-                            <span className="attributeValue">{String(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Other RBAC fields */}
-                  {Object.entries(rbac).filter(([key]) => key !== 'subjects' && key !== 'roleRef').length > 0 && (
-                    <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #e9ecef' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#495057' }}>Other</h4>
-                      <div className="attributesGrid">
-                        {Object.entries(rbac).filter(([key]) => key !== 'subjects' && key !== 'roleRef').map(([key, value]) => (
-                          <div key={key} className="attributeItem">
-                            <span className="attributeKey">{key}:</span>
-                            <span className="attributeValue">{formatValue(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="muted">No RBAC information available</p>
-              )
             )}
           </div>
         </div>
