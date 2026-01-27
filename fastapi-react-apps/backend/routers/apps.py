@@ -2,10 +2,20 @@ from fastapi import APIRouter, HTTPException
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import shutil
+import re
 
 import yaml
 
+from pydantic import BaseModel
+
 router = APIRouter(tags=["apps"])
+
+
+class AppCreate(BaseModel):
+    appname: str
+    description: Optional[str] = ""
+    managedby: Optional[str] = ""
+    clusters: Optional[List[str]] = None
 
 
 def _config_path() -> Path:
@@ -338,6 +348,7 @@ def list_apps(env: Optional[str] = None):
         appinfo_path = child / "appinfo.yaml"
         description = ""
         managedby = ""
+        clusters: List[str] = []
 
         if appinfo_path.exists() and appinfo_path.is_file():
             try:
@@ -345,9 +356,13 @@ def list_apps(env: Optional[str] = None):
                 if isinstance(appinfo, dict):
                     description = str(appinfo.get("description", "") or "")
                     managedby = str(appinfo.get("managedby", "") or "")
+                    raw_clusters = appinfo.get("clusters")
+                    if isinstance(raw_clusters, list):
+                        clusters = [str(c) for c in raw_clusters if c is not None and str(c).strip()]
             except Exception:
                 description = ""
                 managedby = ""
+                clusters = []
 
         totalns = 0
         try:
@@ -359,10 +374,54 @@ def list_apps(env: Optional[str] = None):
             "appname": appname,
             "description": description,
             "managedby": managedby,
+            "clusters": clusters,
             "totalns": totalns,
         }
 
     return apps_out
+
+
+@router.post("/apps")
+def create_app(payload: AppCreate, env: Optional[str] = None):
+    env = _require_env(env)
+    requests_root = _require_initialized_workspace()
+
+    appname = str(payload.appname or "").strip()
+    if not appname:
+        raise HTTPException(status_code=400, detail="appname is required")
+    if not re.match(r"^[A-Za-z0-9_.-]+$", appname):
+        raise HTTPException(status_code=400, detail="Invalid appname")
+
+    env_dir = requests_root / env
+    if not env_dir.exists() or not env_dir.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    app_dir = env_dir / appname
+    if app_dir.exists():
+        raise HTTPException(status_code=409, detail=f"App already exists: {appname}")
+
+    try:
+        app_dir.mkdir(parents=True, exist_ok=False)
+        clusters = payload.clusters or []
+        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
+        appinfo = {
+            "description": str(payload.description or ""),
+            "managedby": str(payload.managedby or ""),
+            "clusters": clusters,
+        }
+        (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create app: {e}")
+
+    return {
+        "appname": appname,
+        "description": str(payload.description or ""),
+        "managedby": str(payload.managedby or ""),
+        "clusters": clusters,
+        "totalns": 0,
+    }
 
 
 @router.delete("/apps/{appname}")

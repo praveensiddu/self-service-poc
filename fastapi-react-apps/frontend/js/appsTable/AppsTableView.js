@@ -11,9 +11,114 @@ function AppsTableView({
   onSelectAll,
   onDeleteApp,
   onViewDetails,
+  onCreateApp,
 }) {
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [newAppName, setNewAppName] = React.useState("");
+  const [newDescription, setNewDescription] = React.useState("");
+  const [newManagedBy, setNewManagedBy] = React.useState("");
+  const [newClusters, setNewClusters] = React.useState("");
+
   return (
     <div className="card">
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 12px 0 12px" }}>
+        <button className="btn btn-primary" type="button" onClick={() => setShowCreate(true)}>
+          Add App
+        </button>
+      </div>
+
+      {showCreate ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreate(false);
+          }}
+        >
+          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Create App</div>
+              <button className="btn" type="button" onClick={() => setShowCreate(false)}>
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>App Name</div>
+                <input className="filterInput" value={newAppName} onChange={(e) => setNewAppName(e.target.value)} />
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Description</div>
+                <input className="filterInput" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Managed By</div>
+                <input className="filterInput" value={newManagedBy} onChange={(e) => setNewManagedBy(e.target.value)} />
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Clusters</div>
+                <input
+                  className="filterInput"
+                  placeholder="01,02,03"
+                  value={newClusters}
+                  onChange={(e) => setNewClusters(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  setNewAppName("");
+                  setNewDescription("");
+                  setNewManagedBy("");
+                  setNewClusters("");
+                }}
+              >
+                Clear
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={async () => {
+                  try {
+                    if (typeof onCreateApp !== "function") return;
+                    await onCreateApp({
+                      appname: newAppName,
+                      description: newDescription,
+                      managedby: newManagedBy,
+                      clusters: newClusters,
+                    });
+                    setShowCreate(false);
+                    setNewAppName("");
+                    setNewDescription("");
+                    setNewManagedBy("");
+                    setNewClusters("");
+                  } catch (e) {
+                    alert(e?.message || String(e));
+                  }
+                }}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <table>
         <thead>
           <tr>

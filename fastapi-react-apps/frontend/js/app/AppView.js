@@ -12,6 +12,8 @@ function AppView({
   setRequestsRepo,
   renderedManifestsRepo,
   setRenderedManifestsRepo,
+  controlRepo,
+  setControlRepo,
   onSaveConfig,
   onUseDefaults,
   envKeys,
@@ -34,6 +36,7 @@ function AppView({
   onSelectAllFromFiltered,
   deleteApp,
   openNamespaces,
+  onCreateApp,
   detailNamespace,
   detailNamespaceName,
   namespaces,
@@ -52,7 +55,10 @@ function AppView({
 }) {
   const showProvisioningTabs = Boolean(configComplete);
   const canSaveConfig = Boolean(
-    (workspace || "").trim() && (requestsRepo || "").trim() && (renderedManifestsRepo || "").trim(),
+    (workspace || "").trim() &&
+      (requestsRepo || "").trim() &&
+      (renderedManifestsRepo || "").trim() &&
+      (controlRepo || "").trim(),
   );
 
   return (
@@ -122,6 +128,13 @@ function AppView({
                   <div className="muted">Git repo which contains the fullly processed kubernetes rendered manifests ready for ArgoCD to apply to the clusters(for example: https://github.com/praveensiddu/kselfservice-rendered).</div>
                 </div>
                 <input className="filterInput" value={renderedManifestsRepo} onChange={(e) => setRenderedManifestsRepo(e.target.value)} />
+              </div>
+              <div>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
+                  <div className="muted" style={{ fontWeight: 700 }}>ControlRepo</div>
+                  <div className="muted">Git repo used for control-plane automation (for example: https://github.com/praveensiddu/kselfservice-control).</div>
+                </div>
+                <input className="filterInput" value={controlRepo} onChange={(e) => setControlRepo(e.target.value)} />
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -233,6 +246,7 @@ function AppView({
                 onSelectAll={onSelectAllFromFiltered}
                 onDeleteApp={deleteApp}
                 onViewDetails={(appname) => openNamespaces(appname, true)}
+                onCreateApp={onCreateApp}
               />
             ) : view === "namespaceDetails" ? (
               <NamespaceDetails

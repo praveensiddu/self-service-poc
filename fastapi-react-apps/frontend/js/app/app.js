@@ -105,6 +105,7 @@ function App() {
   const [workspace, setWorkspace] = React.useState("");
   const [requestsRepo, setRequestsRepo] = React.useState("");
   const [renderedManifestsRepo, setRenderedManifestsRepo] = React.useState("");
+  const [controlRepo, setControlRepo] = React.useState("");
   const [persistedConfigComplete, setPersistedConfigComplete] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
 
@@ -186,6 +187,7 @@ function App() {
         setWorkspace(cfg?.workspace || "");
         setRequestsRepo(cfg?.requestsRepo || "");
         setRenderedManifestsRepo(cfg?.renderedManifestsRepo || "");
+        setControlRepo(cfg?.controlRepo || "");
 
         const keys = Object.keys(envList);
         setEnvKeys(keys);
@@ -199,7 +201,10 @@ function App() {
         }
 
         const isComplete = Boolean(
-          (cfg?.workspace || "").trim() && (cfg?.requestsRepo || "").trim() && (cfg?.renderedManifestsRepo || "").trim()
+          (cfg?.workspace || "").trim() &&
+            (cfg?.requestsRepo || "").trim() &&
+            (cfg?.renderedManifestsRepo || "").trim() &&
+            (cfg?.controlRepo || "").trim()
         );
         setPersistedConfigComplete(isComplete);
 
@@ -668,6 +673,34 @@ function App() {
     }
   }
 
+  async function createApp(payload) {
+    const appname = String(payload?.appname || "").trim();
+    const description = String(payload?.description || "");
+    const managedby = String(payload?.managedby || "");
+    const clusters = String(payload?.clusters || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (!appname) throw new Error("App Name is required.");
+
+    await postJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`, {
+      appname,
+      description,
+      managedby,
+      clusters,
+    });
+
+    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    setApps(appsResp);
+
+    const nextClusters = {};
+    for (const [k, app] of Object.entries(appsResp || {})) {
+      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
+    }
+    setClustersByApp(nextClusters);
+  }
+
   async function onSaveConfig() {
     try {
       setLoading(true);
@@ -677,14 +710,19 @@ function App() {
         workspace,
         requestsRepo,
         renderedManifestsRepo,
+        controlRepo,
       });
 
       setWorkspace(saved?.workspace || "");
       setRequestsRepo(saved?.requestsRepo || "");
       setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
+      setControlRepo(saved?.controlRepo || "");
 
       const isComplete = Boolean(
-        (saved?.workspace || "").trim() && (saved?.requestsRepo || "").trim() && (saved?.renderedManifestsRepo || "").trim(),
+        (saved?.workspace || "").trim() &&
+          (saved?.requestsRepo || "").trim() &&
+          (saved?.renderedManifestsRepo || "").trim() &&
+          (saved?.controlRepo || "").trim(),
       );
       setPersistedConfigComplete(isComplete);
       if (isComplete) setTopTab("Request provisioning");
@@ -704,16 +742,19 @@ function App() {
         workspace: "~/workspace",
         requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
         renderedManifestsRepo: "https://github.com/praveensiddu/kselfservice-rendered",
+        controlRepo: "https://github.com/praveensiddu/kselfservice-control",
       });
 
       setWorkspace(saved?.workspace || "");
       setRequestsRepo(saved?.requestsRepo || "");
       setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
+      setControlRepo(saved?.controlRepo || "");
 
       const isComplete = Boolean(
         (saved?.workspace || "").trim() &&
           (saved?.requestsRepo || "").trim() &&
-          (saved?.renderedManifestsRepo || "").trim(),
+          (saved?.renderedManifestsRepo || "").trim() &&
+          (saved?.controlRepo || "").trim(),
       );
       setPersistedConfigComplete(isComplete);
       if (isComplete) setTopTab("Request provisioning");
@@ -744,6 +785,8 @@ function App() {
       setRequestsRepo={setRequestsRepo}
       renderedManifestsRepo={renderedManifestsRepo}
       setRenderedManifestsRepo={setRenderedManifestsRepo}
+      controlRepo={controlRepo}
+      setControlRepo={setControlRepo}
       onSaveConfig={onSaveConfig}
       onUseDefaults={onUseDefaults}
       onEnvClick={(env) => {
@@ -773,6 +816,7 @@ function App() {
       deleteNamespace={deleteNamespace}
       viewNamespaceDetails={viewNamespaceDetails}
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
+      onCreateApp={createApp}
       detailAppName={detailAppName}
       l4IngressItems={l4IngressItems}
       egressIpItems={egressIpItems}

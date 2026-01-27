@@ -13,6 +13,7 @@ class KSelfServeConfig(BaseModel):
     workspace: str = ""
     requestsRepo: str = ""
     renderedManifestsRepo: str = ""
+    controlRepo: str = ""
 
 
 def _config_path() -> Path:
@@ -38,6 +39,7 @@ def get_config():
         renderedManifestsRepo=str(
             raw.get("renderedManifestsRepo", raw.get("RenderedManifestsRepo", "")) or ""
         ),
+        controlRepo=str(raw.get("controlRepo", raw.get("ControlRepo", "")) or ""),
     )
 
 
@@ -59,10 +61,17 @@ def save_config(cfg: KSelfServeConfig):
 
         cloned_repos_dir = workspace_path / "kselfserv" / "cloned-repositories"
         requests_clone_dir = cloned_repos_dir / "requests"
+        control_clone_dir = cloned_repos_dir / "control"
         if requests_clone_dir.exists() and not requests_clone_dir.is_dir():
             raise HTTPException(
                 status_code=400,
                 detail=f"Expected requests clone path to be a directory: {requests_clone_dir}",
+            )
+
+        if control_clone_dir.exists() and not control_clone_dir.is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected control clone path to be a directory: {control_clone_dir}",
             )
 
         if not requests_clone_dir.exists():
@@ -81,11 +90,28 @@ def save_config(cfg: KSelfServeConfig):
                     detail=f"Failed to clone requestsRepo into {requests_clone_dir}: {stderr}",
                 )
 
+        if not control_clone_dir.exists():
+            cloned_repos_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                subprocess.run(
+                    ["git", "clone", str(cfg.controlRepo or ""), str(control_clone_dir)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                stderr = (e.stderr or "").strip()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to clone controlRepo into {control_clone_dir}: {stderr}",
+                )
+
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "workspace": cfg.workspace or "",
             "requestsRepo": cfg.requestsRepo or "",
             "renderedManifestsRepo": cfg.renderedManifestsRepo or "",
+            "controlRepo": cfg.controlRepo or "",
         }
         cfg_path.write_text(yaml.safe_dump(data, sort_keys=False))
     except HTTPException:
