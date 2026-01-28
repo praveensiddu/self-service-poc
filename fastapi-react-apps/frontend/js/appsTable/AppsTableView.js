@@ -21,7 +21,7 @@ function AppsTableView({
 
   return (
     <div className="card">
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 12px 0 12px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 12px 12px 12px" }}>
         <button className="btn btn-primary" type="button" onClick={() => setShowCreate(true)}>
           Add App
         </button>

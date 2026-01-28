@@ -1,4 +1,4 @@
-function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onViewDetails }) {
+function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onViewDetails, onCreateNamespace }) {
   const [filters, setFilters] = React.useState({
     name: "",
     clusters: "",
@@ -43,6 +43,20 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
     return `${count} bindings (${roleKind}: ${roleName}, ...)`;
   }
 
+  function formatResourceQuota(resources) {
+    if (!resources || !resources.requests) return "None";
+    const cpu = resources.requests.cpu || "N/A";
+    const memory = resources.requests.memory || "N/A";
+    return `CPU: ${cpu}, Memory: ${memory}`;
+  }
+
+  function formatLimitRange(resources) {
+    if (!resources || !resources.limits) return "None";
+    const cpu = resources.limits.cpu || "N/A";
+    const memory = resources.limits.memory || "N/A";
+    return `CPU: ${cpu}, Memory: ${memory}`;
+  }
+
   const keys = Object.keys(namespaces || {});
   const filteredRows = keys
     .map((k) => {
@@ -55,12 +69,13 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         Boolean(ns?.enable_pod_based_egress_ip),
       )}`;
       const egressFirewallText = formatValue(ns?.file_index?.egress);
-      const resourcesText = formatValue(ns?.resources);
+      const resourceQuotaText = formatResourceQuota(ns?.resources);
+      const limitRangeText = formatLimitRange(ns?.resources);
       const rbacText = formatRbac(ns?.rbac);
       const statusText = formatValue(ns?.status);
       const policyText = formatValue(ns?.policy);
 
-      const attributesSearch = `${statusText} ${resourcesText} ${rbacText} ${policyText}`;
+      const attributesSearch = `${statusText} ${resourceQuotaText} ${limitRangeText} ${rbacText} ${policyText}`;
 
       return {
         namespace: ns,
@@ -69,7 +84,8 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         clustersText,
         egressIpText,
         egressFirewallText,
-        resourcesText,
+        resourceQuotaText,
+        limitRangeText,
         rbacText,
         statusText,
         policyText,
@@ -103,6 +119,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       selectedNamespaces={selectedNamespaces}
       onViewDetails={onViewDetails}
       onDeleteNamespace={onDeleteNamespace}
+      onCreateNamespace={onCreateNamespace}
     />
   );
 }

@@ -9,9 +9,131 @@ function NamespacesTableView({
   selectedNamespaces,
   onViewDetails,
   onDeleteNamespace,
+  onCreateNamespace,
 }) {
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [newNamespace, setNewNamespace] = React.useState("");
+  const [newClusters, setNewClusters] = React.useState("");
+  const [newManagedByArgo, setNewManagedByArgo] = React.useState(false);
+  const [newEgressNameId, setNewEgressNameId] = React.useState("");
+
   return (
     <div className="card">
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 12px 12px 12px" }}>
+        <button className="btn btn-primary" type="button" onClick={() => setShowCreate(true)}>
+          Add Namespace
+        </button>
+      </div>
+
+      {showCreate ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreate(false);
+          }}
+        >
+          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Create Namespace</div>
+              <button className="btn" type="button" onClick={() => setShowCreate(false)}>
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Namespace Name</div>
+                <input
+                  className="filterInput"
+                  value={newNamespace}
+                  onChange={(e) => setNewNamespace(e.target.value)}
+                  placeholder="e.g., app1-dev-ns1"
+                />
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Clusters</div>
+                <input
+                  className="filterInput"
+                  placeholder="01,02,03"
+                  value={newClusters}
+                  onChange={(e) => setNewClusters(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Managed by Argo</div>
+                <select
+                  className="filterInput"
+                  value={newManagedByArgo ? "Yes" : "No"}
+                  onChange={(e) => setNewManagedByArgo(e.target.value === "Yes")}
+                >
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Egress Name ID</div>
+                <input
+                  className="filterInput"
+                  value={newEgressNameId}
+                  onChange={(e) => setNewEgressNameId(e.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  setNewNamespace("");
+                  setNewClusters("");
+                  setNewManagedByArgo(false);
+                  setNewEgressNameId("");
+                }}
+              >
+                Clear
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={async () => {
+                  try {
+                    if (typeof onCreateNamespace !== "function") return;
+                    await onCreateNamespace({
+                      namespace: newNamespace,
+                      clusters: newClusters,
+                      need_argo: newManagedByArgo,
+                      egress_nameid: newEgressNameId,
+                    });
+                    setShowCreate(false);
+                    setNewNamespace("");
+                    setNewClusters("");
+                    setNewManagedByArgo(false);
+                    setNewEgressNameId("");
+                  } catch (e) {
+                    alert(e?.message || String(e));
+                  }
+                }}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <table>
         <thead>
           <tr>
@@ -114,15 +236,19 @@ function NamespacesTableView({
                         <div className="attrValue">{r.statusText}</div>
                       </div>
                       <div className="attrCell">
-                        <div className="attrTitle">Resources</div>
-                        <div className="attrValue">{r.resourcesText}</div>
+                        <div className="attrTitle">ResourceQuota</div>
+                        <div className="attrValue">{r.resourceQuotaText}</div>
                       </div>
+                      <div className="attrCell">
+                        <div className="attrTitle">LimitRange</div>
+                        <div className="attrValue">{r.limitRangeText}</div>
+                      </div>
+                    </div>
+                    <div className="attrRow">
                       <div className="attrCell">
                         <div className="attrTitle">RBAC</div>
                         <div className="attrValue">{r.rbacText}</div>
                       </div>
-                    </div>
-                    <div className="attrRow">
                       <div className="attrCell">
                         <div className="attrTitle">Policy</div>
                         <div className="attrValue">{r.policyText}</div>

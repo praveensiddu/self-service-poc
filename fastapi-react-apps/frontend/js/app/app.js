@@ -701,6 +701,47 @@ function App() {
     setClustersByApp(nextClusters);
   }
 
+  async function createNamespace(payload) {
+    const appname = detailAppName;
+    if (!appname) throw new Error("No application selected.");
+
+    const namespace = String(payload?.namespace || "").trim();
+    const clusters = String(payload?.clusters || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const need_argo = Boolean(payload?.need_argo);
+    const egress_nameid = String(payload?.egress_nameid || "").trim();
+
+    if (!namespace) throw new Error("Namespace name is required.");
+
+    await postJson(
+      `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+      {
+        namespace,
+        clusters,
+        need_argo,
+        egress_nameid: egress_nameid || undefined,
+      }
+    );
+
+    // Refresh the namespaces list
+    const resp = await fetchJson(
+      `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`
+    );
+    setNamespaces(resp || {});
+
+    // Refresh the apps list to update totalns count
+    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    setApps(appsResp);
+
+    const nextClusters = {};
+    for (const [k, app] of Object.entries(appsResp || {})) {
+      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
+    }
+    setClustersByApp(nextClusters);
+  }
+
   async function onSaveConfig() {
     try {
       setLoading(true);
@@ -817,6 +858,7 @@ function App() {
       viewNamespaceDetails={viewNamespaceDetails}
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
       onCreateApp={createApp}
+      onCreateNamespace={createNamespace}
       detailAppName={detailAppName}
       l4IngressItems={l4IngressItems}
       egressIpItems={egressIpItems}

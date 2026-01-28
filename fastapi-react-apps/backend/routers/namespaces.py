@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 import shutil
+import re
 
 import yaml
 
@@ -9,6 +10,13 @@ from pydantic import BaseModel
 from backend.routers.apps import _require_env, _require_initialized_workspace
 
 router = APIRouter(tags=["namespaces"])
+
+
+class NamespaceCreate(BaseModel):
+    namespace: str
+    clusters: Optional[List[str]] = None
+    need_argo: Optional[bool] = None
+    egress_nameid: Optional[str] = None
 
 
 class NamespaceInfoUpdate(BaseModel):
@@ -168,6 +176,89 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         }
 
     return out
+
+
+@router.post("/apps/{appname}/namespaces")
+def create_namespace(appname: str, payload: NamespaceCreate, env: Optional[str] = None):
+    """Create a new namespace for an application
+
+    Args:
+        appname: The application name
+        payload: Namespace creation data
+        env: The environment (dev/qa/prd)
+    """
+    env = _require_env(env)
+    requests_root = _require_initialized_workspace()
+
+    namespace = str(payload.namespace or "").strip()
+    if not namespace:
+        raise HTTPException(status_code=400, detail="namespace is required")
+    if not re.match(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", namespace):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid namespace name. Must be lowercase alphanumeric with hyphens."
+        )
+
+    app_dir = requests_root / env / appname
+    if not app_dir.exists() or not app_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+
+    ns_dir = app_dir / namespace
+    if ns_dir.exists():
+        raise HTTPException(status_code=409, detail=f"Namespace already exists: {namespace}")
+
+    try:
+        ns_dir.mkdir(parents=True, exist_ok=False)
+
+        clusters = payload.clusters or []
+        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
+
+        need_argo = bool(payload.need_argo) if payload.need_argo is not None else False
+        egress_nameid = str(payload.egress_nameid or "").strip()
+
+        ns_info = {
+            "clusters": clusters,
+            "need_argo": need_argo,
+        }
+
+        if egress_nameid:
+            ns_info["egress_nameid"] = egress_nameid
+
+        ns_info_path = ns_dir / "namespace_info.yaml"
+        ns_info_path.write_text(yaml.safe_dump(ns_info, sort_keys=False))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Clean up if something went wrong
+        if ns_dir.exists():
+            shutil.rmtree(ns_dir)
+        raise HTTPException(status_code=500, detail=f"Failed to create namespace: {e}")
+
+    status = "Argo used" if need_argo else "Argo not used"
+
+    return {
+        "name": namespace,
+        "description": "",
+        "clusters": clusters,
+        "egress_nameid": egress_nameid if egress_nameid else None,
+        "enable_pod_based_egress_ip": False,
+        "allow_all_egress": False,
+        "need_argo": need_argo,
+        "generate_argo_app": False,
+        "status": status,
+        "resources": {
+            "requests": {
+                "cpu": None,
+                "memory": None,
+            },
+            "limits": {
+                "cpu": None,
+                "memory": None,
+            },
+        },
+        "rbac": [],
+    }
 
 
 @router.delete("/apps/{appname}/namespaces")
