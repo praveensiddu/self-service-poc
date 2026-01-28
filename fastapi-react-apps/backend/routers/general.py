@@ -2,12 +2,15 @@ from fastapi import APIRouter, HTTPException
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from pathlib import Path
+import logging
 import os
 import subprocess
 
 import yaml
 
 router = APIRouter(tags=["general"])
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class KSelfServeConfig(BaseModel):
@@ -21,7 +24,7 @@ def _config_path() -> Path:
     return Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
 
 
-def _require_initialized_workspace() -> Path:
+def _require_workspace_path() -> Path:
     cfg_path = _config_path()
     if not cfg_path.exists():
         raise HTTPException(status_code=400, detail="not initialized")
@@ -41,6 +44,12 @@ def _require_initialized_workspace() -> Path:
     workspace_path = Path(workspace).expanduser()
     if not workspace_path.exists() or not workspace_path.is_dir():
         raise HTTPException(status_code=400, detail="not initialized")
+
+    return workspace_path
+
+
+def _require_initialized_workspace() -> Path:
+    workspace_path = _require_workspace_path()
 
     requests_root = (
         workspace_path
@@ -55,26 +64,8 @@ def _require_initialized_workspace() -> Path:
     return requests_root
 
 
-def _require_control_clusters_root() -> Path:
-    cfg_path = _config_path()
-    if not cfg_path.exists():
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    try:
-        raw_cfg = yaml.safe_load(cfg_path.read_text()) or {}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
-
-    if not isinstance(raw_cfg, dict):
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    workspace = str(raw_cfg.get("workspace", "") or "").strip()
-    if not workspace:
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    workspace_path = Path(workspace).expanduser()
-    if not workspace_path.exists() or not workspace_path.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
+def _require_control_clusters_root() -> Optional[Path]:
+    workspace_path = _require_workspace_path()
 
     clusters_root = (
         workspace_path
@@ -84,7 +75,11 @@ def _require_control_clusters_root() -> Path:
         / "clusters"
     )
     if not clusters_root.exists() or not clusters_root.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
+        logger.error(
+            "Control clusters directory not found or not a directory: %s",
+            str(clusters_root),
+        )
+        return None
 
     return clusters_root
 
@@ -123,6 +118,43 @@ def _parse_cluster_documents(path: Path) -> List[Dict[str, Any]]:
     elif isinstance(raw, dict):
         items.append(raw)
     return items
+
+
+def _clusters_file_for_env(clusters_root: Path, env: str) -> Path:
+    key = str(env or "").strip().lower()
+    return clusters_root / f"{key}_clusters.yaml"
+
+
+def _load_clusters_from_file(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists() or not path.is_file():
+        return []
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except Exception:
+        return []
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [x for x in raw if isinstance(x, dict)]
+    if isinstance(raw, dict):
+        return [raw]
+    return []
+
+
+def _normalize_cluster_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    raw_clustername = item.get("clustername", item.get("clusterName", item.get("name")))
+    clustername = str(raw_clustername or "").strip()
+    if not clustername:
+        return None
+    purpose = str(item.get("purpose", "") or "")
+    datacenter = str(item.get("datacenter", "") or "")
+    applications = _as_string_list(item.get("applications"))
+    return {
+        "clustername": clustername,
+        "purpose": purpose,
+        "datacenter": datacenter,
+        "applications": sorted(set(applications), key=lambda s: s.lower()),
+    }
 
 
 @router.get("/config", response_model=KSelfServeConfig)
@@ -284,34 +316,33 @@ def get_envlist():
 @router.get("/clusters")
 def get_clusters(env: Optional[str] = None):
     clusters_root = _require_control_clusters_root()
+    if clusters_root is None:
+        return {}
+
     try:
         requests_root = _require_initialized_workspace()
     except HTTPException:
         requests_root = None
 
-    env_dir_by_key: Dict[str, str] = {}
-    for p in clusters_root.iterdir():
-        if p.is_dir():
-            env_dir_by_key[p.name.lower()] = p.name
+    if env is not None and not str(env or "").strip():
+        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
 
+    envs: List[str]
     if env is not None:
-        key = str(env or "").strip()
-        if not key:
-            raise HTTPException(status_code=400, detail="Missing required query parameter: env")
-        key_lower = key.lower()
-        if key_lower not in env_dir_by_key:
-            raise HTTPException(status_code=400, detail=f"Unknown env: {key}")
-
-    envs: List[str] = sorted(env_dir_by_key.values(), key=lambda s: s.lower())
+        envs = [str(env).strip()]
+    else:
+        envs = []
+        try:
+            envs = [k for k in yaml.safe_load((requests_root / "env_info.yaml").read_text()).get("env_order", [])] if requests_root is not None else []
+        except Exception:
+            envs = []
+        if not envs:
+            envs = sorted({p.name.split("_clusters.yaml")[0] for p in clusters_root.iterdir() if p.is_file() and p.name.endswith("_clusters.yaml")})
 
     out: Dict[str, List[Dict[str, Any]]] = {}
     for e in envs:
-        env_clusters_dir = clusters_root / e
-        if not env_clusters_dir.exists() or not env_clusters_dir.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
-
         derived_apps_by_cluster: Dict[str, List[str]] = {}
-        env_requests_dir = (requests_root / e) if requests_root is not None else None
+        env_requests_dir = (requests_root / str(e).strip().lower()) if requests_root is not None else None
         if env_requests_dir is not None and env_requests_dir.exists() and env_requests_dir.is_dir():
             for app_dir in env_requests_dir.iterdir():
                 if not app_dir.is_dir():
@@ -330,38 +361,120 @@ def get_clusters(env: Optional[str] = None):
                 for c in clusters:
                     derived_apps_by_cluster.setdefault(c, []).append(appname)
 
+        file_path = _clusters_file_for_env(clusters_root, str(e))
+        items = _load_clusters_from_file(file_path)
         rows: List[Dict[str, Any]] = []
-        for f in sorted(env_clusters_dir.iterdir()):
-            if not f.is_file():
+        for item in items:
+            normalized = _normalize_cluster_item(item)
+            if not normalized:
                 continue
-            if f.suffix.lower() not in (".yaml", ".yml"):
-                continue
-
-            for item in _parse_cluster_documents(f):
-                raw_clustername = item.get("clustername", item.get("clusterName", item.get("name")))
-                clustername = str(raw_clustername or "").strip()
-                if not clustername:
-                    continue
-
-                purpose = str(item.get("purpose", "") or "")
-                datacenter = str(item.get("datacenter", "") or "")
-                applications = _as_string_list(item.get("applications"))
-                if not applications:
-                    applications = _as_string_list(derived_apps_by_cluster.get(clustername))
-
-                rows.append(
-                    {
-                        "clustername": clustername,
-                        "purpose": purpose,
-                        "datacenter": datacenter,
-                        "applications": sorted(set(applications), key=lambda s: s.lower()),
-                    }
+            if not normalized.get("applications"):
+                cname = str(normalized.get("clustername") or "")
+                normalized["applications"] = sorted(
+                    set(_as_string_list(derived_apps_by_cluster.get(cname))),
+                    key=lambda s: s.lower(),
                 )
+            rows.append(normalized)
 
         rows = sorted(rows, key=lambda r: str(r.get("clustername") or "").lower())
-        out[e.upper()] = rows
+        out[str(e).strip().upper()] = rows
 
     return out
+
+
+class ClusterUpsert(BaseModel):
+    clustername: str
+    purpose: str = ""
+    datacenter: str = ""
+    applications: Optional[List[str]] = None
+
+
+@router.post("/clusters")
+def add_cluster(payload: ClusterUpsert, env: Optional[str] = None):
+    clusters_root = _require_control_clusters_root()
+    if clusters_root is None:
+        workspace_path = _require_workspace_path()
+        clusters_root = (
+            workspace_path
+            / "kselfserv"
+            / "cloned-repositories"
+            / "control"
+            / "clusters"
+        )
+        clusters_root.mkdir(parents=True, exist_ok=True)
+
+    env_key = str(env or "").strip().lower()
+    if not env_key:
+        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
+
+    clustername = str(payload.clustername or "").strip()
+    if not clustername:
+        raise HTTPException(status_code=400, detail="clustername is required")
+
+    file_path = _clusters_file_for_env(clusters_root, env_key)
+    clusters = _load_clusters_from_file(file_path)
+
+    normalized = {
+        "clustername": clustername,
+        "purpose": str(payload.purpose or ""),
+        "datacenter": str(payload.datacenter or ""),
+        "applications": sorted(set(_as_string_list(payload.applications)), key=lambda s: s.lower()),
+    }
+
+    replaced = False
+    for i, item in enumerate(clusters):
+        raw = item.get("clustername", item.get("clusterName", item.get("name"))) if isinstance(item, dict) else None
+        if str(raw or "").strip().lower() == clustername.lower():
+            clusters[i] = normalized
+            replaced = True
+            break
+    if not replaced:
+        clusters.append(normalized)
+
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(yaml.safe_dump(clusters, sort_keys=False))
+    except Exception as e:
+        logger.error("Failed to write clusters file %s: %s", str(file_path), str(e))
+        raise HTTPException(status_code=500, detail="failed")
+
+    return {"env": env_key.upper(), "cluster": normalized}
+
+
+@router.delete("/clusters/{clustername}")
+def delete_cluster(clustername: str, env: Optional[str] = None):
+    clusters_root = _require_control_clusters_root()
+    if clusters_root is None:
+        return {"deleted": False}
+
+    env_key = str(env or "").strip().lower()
+    if not env_key:
+        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
+
+    name = str(clustername or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="clustername is required")
+
+    file_path = _clusters_file_for_env(clusters_root, env_key)
+    clusters = _load_clusters_from_file(file_path)
+
+    next_items: List[Dict[str, Any]] = []
+    deleted = False
+    for item in clusters:
+        raw = item.get("clustername", item.get("clusterName", item.get("name"))) if isinstance(item, dict) else None
+        if str(raw or "").strip().lower() == name.lower():
+            deleted = True
+            continue
+        next_items.append(item)
+
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(yaml.safe_dump(next_items, sort_keys=False))
+    except Exception as e:
+        logger.error("Failed to write clusters file %s: %s", str(file_path), str(e))
+        raise HTTPException(status_code=500, detail="failed")
+
+    return {"deleted": deleted}
 
 
 @router.get("/deployment_type")

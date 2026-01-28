@@ -7,6 +7,18 @@ async function fetchJson(url) {
   return await res.json();
 }
 
+async function deleteJson(url) {
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+  }
+  return await res.json();
+}
+
 async function postJson(url, body) {
   const res = await fetch(url, {
     method: "POST",
@@ -225,14 +237,6 @@ function App() {
           pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname, ns: initial.ns }, true);
         }
 
-        if (isClustersPath()) {
-          window.history.replaceState(
-            { topTab: isComplete ? "Clusters" : "Home" },
-            "",
-            clustersUrlWithEnv(initialEnv),
-          );
-        }
-
         const isComplete = Boolean(
           (cfg?.workspace || "").trim() &&
             (cfg?.requestsRepo || "").trim() &&
@@ -240,6 +244,14 @@ function App() {
             (cfg?.controlRepo || "").trim()
         );
         setPersistedConfigComplete(isComplete);
+
+        if (isClustersPath()) {
+          window.history.replaceState(
+            { topTab: isComplete ? "Clusters" : "Home" },
+            "",
+            clustersUrlWithEnv(initialEnv),
+          );
+        }
 
         if (isHomePath()) {
           setTopTab("Home");
@@ -512,6 +524,13 @@ function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, [envKeys, activeEnv, configComplete]);
 
+  async function refreshClusters(env) {
+    const effectiveEnv = env || activeEnv || (envKeys[0] || "");
+    const q = effectiveEnv ? `?env=${encodeURIComponent(effectiveEnv)}` : "";
+    const data = await fetchJson(`/api/clusters${q}`);
+    setClustersByEnv(data || {});
+  }
+
   React.useEffect(() => {
     if (!configComplete) return;
     if (topTab !== "Clusters") return;
@@ -523,9 +542,7 @@ function App() {
       try {
         setLoading(true);
         setError("");
-        const q = effectiveEnv ? `?env=${encodeURIComponent(effectiveEnv)}` : "";
-        const data = await fetchJson(`/api/clusters${q}`);
-        setClustersByEnv(data || {});
+        await refreshClusters(effectiveEnv);
       } catch (e) {
         setError(e?.message || String(e));
       } finally {
@@ -533,6 +550,62 @@ function App() {
       }
     })();
   }, [topTab, configComplete, activeEnv, envKeys]);
+
+  async function onAddCluster(payload) {
+    const env = activeEnv || (envKeys[0] || "");
+    if (!env) {
+      setError("No environment selected.");
+      return;
+    }
+
+    const clustername = String(payload?.clustername || "").trim();
+    if (!clustername) {
+      setError("clustername is required.");
+      return;
+    }
+
+    const purpose = String(payload?.purpose || "");
+    const datacenter = String(payload?.datacenter || "");
+    const applications = Array.isArray(payload?.applications) ? payload.applications : [];
+
+    try {
+      setLoading(true);
+      setError("");
+      await postJson(`/api/clusters?env=${encodeURIComponent(env)}`, {
+        clustername,
+        purpose,
+        datacenter,
+        applications,
+      });
+      await refreshClusters(env);
+    } catch (e) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onDeleteCluster(clustername) {
+    const env = activeEnv || (envKeys[0] || "");
+    if (!env) {
+      setError("No environment selected.");
+      return;
+    }
+
+    const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setLoading(true);
+      setError("");
+      await deleteJson(`/api/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
+      await refreshClusters(env);
+    } catch (e) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function toggleSelectAll(checked) {
     if (checked) {
@@ -853,6 +926,8 @@ function App() {
       configComplete={configComplete}
       onTopTabChange={setTopTabWithUrl}
       clustersByEnv={clustersByEnv}
+      onAddCluster={onAddCluster}
+      onDeleteCluster={onDeleteCluster}
       workspace={workspace}
       setWorkspace={setWorkspace}
       requestsRepo={requestsRepo}
