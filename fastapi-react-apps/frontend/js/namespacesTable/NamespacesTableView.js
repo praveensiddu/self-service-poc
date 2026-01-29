@@ -36,11 +36,12 @@ function NamespacesTableView({
           onClick={(e) => {
             if (e.target === e.currentTarget) onCloseCreate();
           }}
+          data-testid="create-namespace-modal"
         >
           <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700 }}>Create Namespace</div>
-              <button className="btn" type="button" onClick={onCloseCreate}>
+              <button className="btn" type="button" onClick={onCloseCreate} data-testid="close-namespace-modal-btn">
                 Close
               </button>
             </div>
@@ -53,6 +54,7 @@ function NamespacesTableView({
                   value={newNamespace}
                   onChange={(e) => setNewNamespace(e.target.value)}
                   placeholder="e.g., app1-dev-ns1"
+                  data-testid="input-namespace"
                 />
               </div>
 
@@ -63,6 +65,7 @@ function NamespacesTableView({
                   placeholder="01,02,03"
                   value={newClusters}
                   onChange={(e) => setNewClusters(e.target.value)}
+                  data-testid="input-namespace-clusters"
                 />
               </div>
 
@@ -72,6 +75,7 @@ function NamespacesTableView({
                   className="filterInput"
                   value={newManagedByArgo ? "Yes" : "No"}
                   onChange={(e) => setNewManagedByArgo(e.target.value === "Yes")}
+                  data-testid="input-managed-by-argo"
                 >
                   <option value="No">No</option>
                   <option value="Yes">Yes</option>
@@ -85,6 +89,7 @@ function NamespacesTableView({
                   value={newEgressNameId}
                   onChange={(e) => setNewEgressNameId(e.target.value)}
                   placeholder="Optional"
+                  data-testid="input-egress-nameid"
                 />
               </div>
             </div>
@@ -99,6 +104,7 @@ function NamespacesTableView({
                   setNewManagedByArgo(false);
                   setNewEgressNameId("");
                 }}
+                data-testid="clear-namespace-form-btn"
               >
                 Clear
               </button>
@@ -123,6 +129,7 @@ function NamespacesTableView({
                     alert(e?.message || String(e));
                   }
                 }}
+                data-testid="submit-namespace-btn"
               >
                 Create
               </button>
@@ -131,7 +138,7 @@ function NamespacesTableView({
         </div>
       ) : null}
 
-      <table>
+      <table data-testid="namespaces-table">
         <thead>
           <tr>
             <th>
@@ -143,6 +150,7 @@ function NamespacesTableView({
                   onSelectAll(e.target.checked, names);
                 }}
                 aria-label="Select all namespaces"
+                data-testid="select-all-namespaces-checkbox"
               />
             </th>
             <th>Name</th>
@@ -160,6 +168,7 @@ function NamespacesTableView({
                 className="filterInput"
                 value={filters.name}
                 onChange={(e) => setFilters((p) => ({ ...p, name: e.target.value }))}
+                data-testid="filter-namespace-name"
               />
             </th>
             <th>
@@ -167,6 +176,7 @@ function NamespacesTableView({
                 className="filterInput"
                 value={filters.clusters}
                 onChange={(e) => setFilters((p) => ({ ...p, clusters: e.target.value }))}
+                data-testid="filter-namespace-clusters"
               />
             </th>
             <th>
@@ -174,6 +184,7 @@ function NamespacesTableView({
                 className="filterInput"
                 value={filters.egressIp}
                 onChange={(e) => setFilters((p) => ({ ...p, egressIp: e.target.value }))}
+                data-testid="filter-egress-ip"
               />
             </th>
             <th>
@@ -181,6 +192,7 @@ function NamespacesTableView({
                 className="filterInput"
                 value={filters.egressFirewall}
                 onChange={(e) => setFilters((p) => ({ ...p, egressFirewall: e.target.value }))}
+                data-testid="filter-egress-firewall"
               />
             </th>
             <th>
@@ -188,6 +200,7 @@ function NamespacesTableView({
                 className="filterInput"
                 value={filters.managedByArgo}
                 onChange={(e) => setFilters((p) => ({ ...p, managedByArgo: e.target.value }))}
+                data-testid="filter-managed-by-argo"
               />
             </th>
             <th>
@@ -195,6 +208,7 @@ function NamespacesTableView({
                 className="filterInput"
                 value={filters.attributes}
                 onChange={(e) => setFilters((p) => ({ ...p, attributes: e.target.value }))}
+                data-testid="filter-attributes"
               />
             </th>
             <th></th>
@@ -203,21 +217,22 @@ function NamespacesTableView({
         <tbody>
           {keysLength === 0 ? (
             <tr>
-              <td colSpan={8} className="muted">No namespaces found.</td>
+              <td colSpan={8} className="muted" data-testid="no-namespaces-message">No namespaces found.</td>
             </tr>
           ) : filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="muted">No matches.</td>
+              <td colSpan={8} className="muted" data-testid="no-matches-message">No matches.</td>
             </tr>
           ) : (
             filteredRows.map((r) => (
-              <tr key={r.name}>
+              <tr key={r.name} data-testid={`namespace-row-${r.name}`}>
                 <td>
                   <input
                     type="checkbox"
                     checked={selectedNamespaces?.has(r.name) || false}
                     onChange={(e) => onToggleNamespace(r.name, e.target.checked)}
                     aria-label={`Select ${r.name}`}
+                    data-testid={`namespace-checkbox-${r.name}`}
                   />
                 </td>
                 <td>{r.name}</td>
@@ -260,6 +275,7 @@ function NamespacesTableView({
                       onClick={() => onViewDetails(r.name, r.namespace)}
                       aria-label={`View details for ${r.name}`}
                       title="View namespace details"
+                      data-testid={`view-namespace-${r.name}`}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
@@ -271,6 +287,7 @@ function NamespacesTableView({
                       onClick={() => onDeleteNamespace(r.name)}
                       aria-label={`Delete ${r.name}`}
                       title="Delete namespace"
+                      data-testid={`delete-namespace-${r.name}`}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>

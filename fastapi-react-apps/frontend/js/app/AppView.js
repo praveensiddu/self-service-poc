@@ -226,7 +226,7 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  <button className="btn btn-primary" type="button" onClick={onOpenCreateApp}>
+                  <button className="btn btn-primary" type="button" onClick={onOpenCreateApp} data-testid="add-app-btn">
                     Add App
                   </button>
                 </>
@@ -249,7 +249,7 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  <button className="btn btn-primary" type="button" onClick={onOpenCreateNamespace}>
+                  <button className="btn btn-primary" type="button" onClick={onOpenCreateNamespace} data-testid="add-namespace-btn">
                     Add Namespace
                   </button>
                 </div>
