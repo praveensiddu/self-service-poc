@@ -62,11 +62,17 @@ function ClustersTableView({
           onClick={(e) => {
             if (e.target === e.currentTarget) onCloseCreate();
           }}
+          data-testid="create-cluster-modal"
         >
           <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700 }}>Add Cluster ({envKey})</div>
-              <button className="btn" type="button" onClick={onCloseCreate}>
+              <button
+                className="btn"
+                type="button"
+                onClick={onCloseCreate}
+                data-testid="close-modal-btn"
+              >
                 Close
               </button>
             </div>
@@ -78,6 +84,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={draft.clustername}
                   onChange={(e) => setDraft((p) => ({ ...p, clustername: e.target.value }))}
+                  data-testid="input-clustername"
                 />
               </div>
               <div>
@@ -86,6 +93,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={draft.purpose}
                   onChange={(e) => setDraft((p) => ({ ...p, purpose: e.target.value }))}
+                  data-testid="input-purpose"
                 />
               </div>
               <div>
@@ -94,6 +102,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={draft.datacenter}
                   onChange={(e) => setDraft((p) => ({ ...p, datacenter: e.target.value }))}
+                  data-testid="input-datacenter"
                 />
               </div>
               <div>
@@ -103,6 +112,7 @@ function ClustersTableView({
                   placeholder="comma-separated"
                   value={draft.applications}
                   onChange={(e) => setDraft((p) => ({ ...p, applications: e.target.value }))}
+                  data-testid="input-applications"
                 />
               </div>
 
@@ -113,10 +123,17 @@ function ClustersTableView({
                   onClick={() => {
                     setDraft({ clustername: "", purpose: "", datacenter: "", applications: "" });
                   }}
+                  data-testid="clear-form-btn"
                 >
                   Clear
                 </button>
-                <button className="btn btn-primary" type="button" onClick={onSubmitAdd} disabled={loading}>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={onSubmitAdd}
+                  disabled={loading}
+                  data-testid="submit-cluster-btn"
+                >
                   Create
                 </button>
               </div>
@@ -132,6 +149,7 @@ function ClustersTableView({
             className={env === activeEnv ? "tab active" : "tab"}
             onClick={() => onEnvClick(env)}
             type="button"
+            data-testid={`env-tab-${env}`}
           >
             {env}
           </button>
@@ -139,13 +157,19 @@ function ClustersTableView({
       </div>
 
       <div className="actions" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-        <button className="btn btn-primary" type="button" onClick={onOpenCreate} disabled={loading}>
+        <button
+          className="btn btn-primary"
+          type="button"
+          onClick={onOpenCreate}
+          disabled={loading}
+          data-testid="add-cluster-btn"
+        >
           Add Cluster
         </button>
       </div>
 
       <div className="card">
-        <table>
+        <table data-testid="clusters-table">
           <thead>
             <tr>
               <th>
@@ -154,6 +178,7 @@ function ClustersTableView({
                   checked={allSelected}
                   onChange={(e) => onSelectAll(e.target.checked)}
                   aria-label="Select all clusters"
+                  data-testid="select-all-checkbox"
                 />
               </th>
               <th>Clustername</th>
@@ -169,6 +194,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={filters.clustername}
                   onChange={(e) => setFilters((p) => ({ ...p, clustername: e.target.value }))}
+                  data-testid="filter-clustername"
                 />
               </th>
               <th>
@@ -176,6 +202,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={filters.purpose}
                   onChange={(e) => setFilters((p) => ({ ...p, purpose: e.target.value }))}
+                  data-testid="filter-purpose"
                 />
               </th>
               <th>
@@ -183,6 +210,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={filters.datacenter}
                   onChange={(e) => setFilters((p) => ({ ...p, datacenter: e.target.value }))}
+                  data-testid="filter-datacenter"
                 />
               </th>
               <th>
@@ -190,6 +218,7 @@ function ClustersTableView({
                   className="filterInput"
                   value={filters.applications}
                   onChange={(e) => setFilters((p) => ({ ...p, applications: e.target.value }))}
+                  data-testid="filter-applications"
                 />
               </th>
               <th></th>
