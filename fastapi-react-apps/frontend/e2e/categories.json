@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Product Defects",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*AssertionError.*"
+  },
+  {
+    "name": "Test Defects",
+    "matchedStatuses": ["broken"],
+    "messageRegex": ".*"
+  },
+  {
+    "name": "Timeout Issues",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*TimeoutError.*|.*Timeout.*exceeded.*"
+  },
+  {
+    "name": "Element Not Found",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*not visible.*|.*not found.*|.*Cannot find.*"
+  },
+  {
+    "name": "Network Issues",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*net::ERR.*|.*Network.*|.*fetch.*failed.*"
+  },
+  {
+    "name": "Dialog Issues",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*dialog.*already handled.*"
+  }
+]

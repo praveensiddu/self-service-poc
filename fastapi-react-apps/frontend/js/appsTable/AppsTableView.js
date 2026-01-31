@@ -39,11 +39,12 @@ function AppsTableView({
           onClick={(e) => {
             if (e.target === e.currentTarget) onCloseCreate();
           }}
+          data-testid="create-app-modal"
         >
           <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700 }}>Create App</div>
-              <button className="btn" type="button" onClick={onCloseCreate}>
+              <button className="btn" type="button" onClick={onCloseCreate} data-testid="close-app-modal-btn">
                 Close
               </button>
             </div>
@@ -51,17 +52,17 @@ function AppsTableView({
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div className="muted" style={{ marginBottom: 4 }}>App Name</div>
-                <input className="filterInput" value={newAppName} onChange={(e) => setNewAppName(e.target.value)} />
+                <input className="filterInput" value={newAppName} onChange={(e) => setNewAppName(e.target.value)} data-testid="input-appname" />
               </div>
 
               <div>
                 <div className="muted" style={{ marginBottom: 4 }}>Description</div>
-                <input className="filterInput" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
+                <input className="filterInput" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} data-testid="input-description" />
               </div>
 
               <div>
                 <div className="muted" style={{ marginBottom: 4 }}>Managed By</div>
-                <input className="filterInput" value={newManagedBy} onChange={(e) => setNewManagedBy(e.target.value)} />
+                <input className="filterInput" value={newManagedBy} onChange={(e) => setNewManagedBy(e.target.value)} data-testid="input-managedby" />
               </div>
 
               <div>
@@ -70,22 +71,26 @@ function AppsTableView({
                   className="filterInput"
                   multiple
                   value={newClusters}
-                  onChange={(e) => {
-                    const values = Array.from(e.target.selectedOptions || []).map((o) => o.value);
-                    setNewClusters(values);
-                  }}
-                  style={{ minHeight: 120 }}
-                >
-                  {(availableClusters || []).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(e) => setNewClusters(e.target.value)}
+                  data-testid="input-clusters"
+                />
               </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  setNewAppName("");
+                  setNewDescription("");
+                  setNewManagedBy("");
+                  setNewClusters("");
+                }}
+                data-testid="clear-app-form-btn"
+              >
+                Clear
+              </button>
               <button
                 className="btn btn-primary"
                 type="button"
@@ -107,6 +112,7 @@ function AppsTableView({
                     alert(e?.message || String(e));
                   }
                 }}
+                data-testid="submit-app-btn"
               >
                 Create
               </button>
@@ -115,7 +121,7 @@ function AppsTableView({
         </div>
       ) : null}
 
-      <table>
+      <table data-testid="apps-table">
         <thead>
           <tr>
             <th>
@@ -124,6 +130,7 @@ function AppsTableView({
                 checked={allSelected}
                 onChange={(e) => onSelectAll(e.target.checked, filteredRows.map((a) => a.appname))}
                 aria-label="Select all rows"
+                data-testid="select-all-apps-checkbox"
               />
             </th>
             <th>App Name</th>
@@ -142,6 +149,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.appname}
                 onChange={(e) => setFilters((p) => ({ ...p, appname: e.target.value }))}
+                data-testid="filter-appname"
               />
             </th>
             <th>
@@ -149,6 +157,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.description}
                 onChange={(e) => setFilters((p) => ({ ...p, description: e.target.value }))}
+                data-testid="filter-description"
               />
             </th>
             <th>
@@ -156,6 +165,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.managedby}
                 onChange={(e) => setFilters((p) => ({ ...p, managedby: e.target.value }))}
+                data-testid="filter-managedby"
               />
             </th>
             <th>
@@ -163,6 +173,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.clusters}
                 onChange={(e) => setFilters((p) => ({ ...p, clusters: e.target.value }))}
+                data-testid="filter-clusters"
               />
             </th>
             <th>
@@ -170,6 +181,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.namespaces}
                 onChange={(e) => setFilters((p) => ({ ...p, namespaces: e.target.value }))}
+                data-testid="filter-namespaces"
               />
             </th>
             <th>
@@ -177,6 +189,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.l4ips}
                 onChange={(e) => setFilters((p) => ({ ...p, l4ips: e.target.value }))}
+                data-testid="filter-l4ips"
               />
             </th>
             <th>
@@ -184,6 +197,7 @@ function AppsTableView({
                 className="filterInput"
                 value={filters.egressips}
                 onChange={(e) => setFilters((p) => ({ ...p, egressips: e.target.value }))}
+                data-testid="filter-egressips"
               />
             </th>
             <th></th>
@@ -192,17 +206,18 @@ function AppsTableView({
         <tbody>
           {filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={9} className="muted">No apps found.</td>
+              <td colSpan={9} className="muted" data-testid="no-apps-message">No apps found.</td>
             </tr>
           ) : (
             filteredRows.map((a) => (
-              <tr key={a.appname}>
+              <tr key={a.appname} data-testid={`app-row-${a.appname}`}>
                 <td>
                   <input
                     type="checkbox"
                     checked={selectedApps.has(a.appname)}
                     onChange={(e) => onToggleRow(a.appname, e.target.checked)}
                     aria-label={`Select ${a.appname}`}
+                    data-testid={`app-checkbox-${a.appname}`}
                   />
                 </td>
                 <td>{a.appname}</td>
@@ -219,6 +234,7 @@ function AppsTableView({
                       onClick={() => onViewDetails(a.appname)}
                       aria-label={`View details for ${a.appname}`}
                       title="View app details"
+                      data-testid={`view-app-${a.appname}`}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
@@ -230,6 +246,7 @@ function AppsTableView({
                       onClick={() => onDeleteApp(a.appname)}
                       aria-label={`Delete ${a.appname}`}
                       title="Delete application"
+                      data-testid={`delete-app-${a.appname}`}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
