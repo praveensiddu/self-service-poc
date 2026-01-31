@@ -6,6 +6,7 @@ function AppsTableView({
   clustersByApp,
   l4IpsByApp,
   egressIpsByApp,
+  availableClusters,
   selectedApps,
   onToggleRow,
   onSelectAll,
@@ -19,7 +20,7 @@ function AppsTableView({
   const [newAppName, setNewAppName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newManagedBy, setNewManagedBy] = React.useState("");
-  const [newClusters, setNewClusters] = React.useState("");
+  const [newClusters, setNewClusters] = React.useState([]);
 
   return (
     <div className="card">
@@ -65,28 +66,26 @@ function AppsTableView({
 
               <div>
                 <div className="muted" style={{ marginBottom: 4 }}>Clusters</div>
-                <input
+                <select
                   className="filterInput"
-                  placeholder="01,02,03"
+                  multiple
                   value={newClusters}
-                  onChange={(e) => setNewClusters(e.target.value)}
-                />
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions || []).map((o) => o.value);
+                    setNewClusters(values);
+                  }}
+                  style={{ minHeight: 120 }}
+                >
+                  {(availableClusters || []).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => {
-                  setNewAppName("");
-                  setNewDescription("");
-                  setNewManagedBy("");
-                  setNewClusters("");
-                }}
-              >
-                Clear
-              </button>
               <button
                 className="btn btn-primary"
                 type="button"
@@ -103,7 +102,7 @@ function AppsTableView({
                     setNewAppName("");
                     setNewDescription("");
                     setNewManagedBy("");
-                    setNewClusters("");
+                    setNewClusters([]);
                   } catch (e) {
                     alert(e?.message || String(e));
                   }

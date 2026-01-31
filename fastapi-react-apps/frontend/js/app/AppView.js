@@ -7,6 +7,7 @@ function AppView({
   configComplete,
   onTopTabChange,
   clustersByEnv,
+  availableClusters,
   onAddCluster,
   onDeleteCluster,
   showCreateCluster,
@@ -290,6 +291,7 @@ function AppView({
                 clustersByApp={clustersByApp}
                 l4IpsByApp={l4IpsByApp}
                 egressIpsByApp={egressIpsByApp}
+                availableClusters={availableClusters}
                 selectedApps={selectedApps}
                 onToggleRow={toggleRow}
                 onSelectAll={onSelectAllFromFiltered}

@@ -151,6 +151,10 @@ function App() {
 
   const [clustersByEnv, setClustersByEnv] = React.useState({});
 
+  const availableClusters = ((clustersByEnv || {})[String(activeEnv || "").toUpperCase()] || [])
+    .map((r) => String(r?.clustername || "").trim())
+    .filter(Boolean);
+
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [pendingRoute, setPendingRoute] = React.useState(() => parseUiRouteFromLocation());
@@ -826,10 +830,12 @@ function App() {
     const appname = String(payload?.appname || "").trim();
     const description = String(payload?.description || "");
     const managedby = String(payload?.managedby || "");
-    const clusters = String(payload?.clusters || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const clusters = Array.isArray(payload?.clusters)
+      ? payload.clusters.map((s) => String(s).trim()).filter(Boolean)
+      : String(payload?.clusters || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
 
     if (!appname) throw new Error("App Name is required.");
 
@@ -970,6 +976,7 @@ function App() {
       configComplete={configComplete}
       onTopTabChange={setTopTabWithUrl}
       clustersByEnv={clustersByEnv}
+      availableClusters={availableClusters}
       onAddCluster={onAddCluster}
       onDeleteCluster={onDeleteCluster}
       showCreateCluster={showCreateCluster}
@@ -1014,7 +1021,14 @@ function App() {
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
       onCreateApp={createApp}
       showCreateApp={showCreateApp}
-      onOpenCreateApp={() => setShowCreateApp(true)}
+      onOpenCreateApp={async () => {
+        try {
+          await refreshClusters(activeEnv);
+        } catch {
+          // noop
+        }
+        setShowCreateApp(true);
+      }}
       onCloseCreateApp={() => setShowCreateApp(false)}
       onCreateNamespace={createNamespace}
       showCreateNamespace={showCreateNamespace}
