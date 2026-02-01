@@ -96,19 +96,6 @@ function NamespacesTableView({
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
               <button
-                className="btn"
-                type="button"
-                onClick={() => {
-                  setNewNamespace("");
-                  setNewClusters("");
-                  setNewManagedByArgo(false);
-                  setNewEgressNameId("");
-                }}
-                data-testid="clear-namespace-form-btn"
-              >
-                Clear
-              </button>
-              <button
                 className="btn btn-primary"
                 type="button"
                 onClick={async () => {

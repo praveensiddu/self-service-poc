@@ -4,6 +4,7 @@ function ClustersTableView({
   clustersByEnv,
   onEnvClick,
   onAddCluster,
+  onEditCluster,
   onDeleteCluster,
   loading,
   showCreate,
@@ -18,6 +19,14 @@ function ClustersTableView({
   onSelectAll,
 }) {
   const [draft, setDraft] = React.useState({
+    clustername: "",
+    purpose: "",
+    datacenter: "",
+    applications: "",
+  });
+
+  const [showEdit, setShowEdit] = React.useState(false);
+  const [editDraft, setEditDraft] = React.useState({
     clustername: "",
     purpose: "",
     datacenter: "",
@@ -41,6 +50,38 @@ function ClustersTableView({
       });
       onCloseCreate();
       setDraft({ clustername: "", purpose: "", datacenter: "", applications: "" });
+    } catch (e) {
+      alert(e?.message || String(e));
+    }
+  }
+
+  function openEditCluster(row) {
+    const r = row || {};
+    const apps = Array.isArray(r?.applications) ? r.applications.map(String) : [];
+    setEditDraft({
+      clustername: String(r?.clustername || ""),
+      purpose: String(r?.purpose || ""),
+      datacenter: String(r?.datacenter || ""),
+      applications: apps.join(","),
+    });
+    setShowEdit(true);
+  }
+
+  async function onSubmitEdit() {
+    try {
+      const applications = String(editDraft.applications || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      await onAddCluster({
+        clustername: String(editDraft.clustername || ""),
+        purpose: String(editDraft.purpose || ""),
+        datacenter: String(editDraft.datacenter || ""),
+        applications,
+      });
+
+      setShowEdit(false);
     } catch (e) {
       alert(e?.message || String(e));
     }
@@ -118,16 +159,6 @@ function ClustersTableView({
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
                 <button
-                  className="btn"
-                  type="button"
-                  onClick={() => {
-                    setDraft({ clustername: "", purpose: "", datacenter: "", applications: "" });
-                  }}
-                  data-testid="clear-form-btn"
-                >
-                  Clear
-                </button>
-                <button
                   className="btn btn-primary"
                   type="button"
                   onClick={onSubmitAdd}
@@ -135,6 +166,91 @@ function ClustersTableView({
                   data-testid="submit-cluster-btn"
                 >
                   Create
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showEdit ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowEdit(false);
+          }}
+          data-testid="edit-cluster-modal"
+        >
+          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Edit Cluster ({envKey})</div>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setShowEdit(false)}
+                data-testid="close-edit-modal-btn"
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Clustername</div>
+                <input
+                  className="filterInput"
+                  value={editDraft.clustername}
+                  disabled
+                  readOnly
+                  data-testid="edit-input-clustername"
+                />
+              </div>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Purpose</div>
+                <input
+                  className="filterInput"
+                  value={editDraft.purpose}
+                  onChange={(e) => setEditDraft((p) => ({ ...p, purpose: e.target.value }))}
+                  data-testid="edit-input-purpose"
+                />
+              </div>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Datacenter</div>
+                <input
+                  className="filterInput"
+                  value={editDraft.datacenter}
+                  onChange={(e) => setEditDraft((p) => ({ ...p, datacenter: e.target.value }))}
+                  data-testid="edit-input-datacenter"
+                />
+              </div>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Applications</div>
+                <input
+                  className="filterInput"
+                  placeholder="comma-separated"
+                  value={editDraft.applications}
+                  onChange={(e) => setEditDraft((p) => ({ ...p, applications: e.target.value }))}
+                  data-testid="edit-input-applications"
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={onSubmitEdit}
+                  disabled={loading || !(editDraft.clustername || "").trim()}
+                  data-testid="submit-edit-cluster-btn"
+                >
+                  Save
                 </button>
               </div>
             </div>
@@ -242,6 +358,23 @@ function ClustersTableView({
                 <td>{Array.isArray(r?.applications) ? r.applications.join(", ") : ""}</td>
                 <td>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      className="iconBtn iconBtn-primary"
+                      type="button"
+                      onClick={() => {
+                        if (typeof onEditCluster === "function") onEditCluster(r);
+                        else openEditCluster(r);
+                      }}
+                      disabled={loading || !(r?.clustername || "").trim()}
+                      aria-label={`Edit ${r?.clustername}`}
+                      title="Edit cluster"
+                      data-testid={`edit-cluster-${r?.clustername}`}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                        <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                      </svg>
+                    </button>
                     <button
                       className="iconBtn iconBtn-danger"
                       type="button"

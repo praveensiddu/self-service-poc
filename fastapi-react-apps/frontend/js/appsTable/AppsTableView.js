@@ -22,6 +22,38 @@ function AppsTableView({
   const [newManagedBy, setNewManagedBy] = React.useState("");
   const [newClusters, setNewClusters] = React.useState([]);
 
+  const [clusterQuery, setClusterQuery] = React.useState("");
+  const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
+
+  function normalizeCluster(v) {
+    return String(v || "").trim();
+  }
+
+  const normalizedAvailableClusters = (availableClusters || [])
+    .map(normalizeCluster)
+    .filter(Boolean);
+
+  const selectedClustersSet = new Set((newClusters || []).map(normalizeCluster).filter(Boolean));
+
+  const filteredClusterOptions = normalizedAvailableClusters
+    .filter((c) => !selectedClustersSet.has(c))
+    .filter((c) => c.toLowerCase().includes((clusterQuery || "").toLowerCase()))
+    .slice(0, 50);
+
+  function addCluster(clusterName) {
+    const c = normalizeCluster(clusterName);
+    if (!c) return;
+    if (selectedClustersSet.has(c)) return;
+    setNewClusters((prev) => [...(Array.isArray(prev) ? prev : []), c]);
+    setClusterQuery("");
+    setClusterPickerOpen(true);
+  }
+
+  function removeCluster(clusterName) {
+    const c = normalizeCluster(clusterName);
+    setNewClusters((prev) => (Array.isArray(prev) ? prev : []).filter((x) => normalizeCluster(x) !== c));
+  }
+
   return (
     <div className="card">
 
@@ -61,36 +93,141 @@ function AppsTableView({
               </div>
 
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Managed By</div>
-                <input className="filterInput" value={newManagedBy} onChange={(e) => setNewManagedBy(e.target.value)} data-testid="input-managedby" />
+                <div className="muted" style={{ marginBottom: 4 }}>Clusters</div>
+                <div
+                  style={{ position: "relative" }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) setClusterPickerOpen(false);
+                  }}
+                >
+                  <div
+                    className="filterInput"
+                    style={{
+                      minHeight: 36,
+                      height: "auto",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      alignItems: "center",
+                      padding: "6px 8px",
+                    }}
+                    onMouseDown={() => setClusterPickerOpen(true)}
+                  >
+                    {(newClusters || []).map((c) => (
+                      <span
+                        key={c}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: "rgba(0,0,0,0.06)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <span>{c}</span>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ padding: "0 6px", lineHeight: "16px" }}
+                          onClick={() => removeCluster(c)}
+                          aria-label={`Remove ${c}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      className="filterInput"
+                      style={{
+                        border: "none",
+                        outline: "none",
+                        boxShadow: "none",
+                        flex: 1,
+                        minWidth: 160,
+                        padding: 0,
+                        margin: 0,
+                        height: 22,
+                      }}
+                      value={clusterQuery}
+                      onChange={(e) => {
+                        setClusterQuery(e.target.value);
+                        setClusterPickerOpen(true);
+                      }}
+                      onFocus={() => setClusterPickerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const first = filteredClusterOptions[0];
+                          if (first) addCluster(first);
+                          return;
+                        }
+                        if (e.key === "Backspace" && !clusterQuery && (newClusters || []).length > 0) {
+                          const last = (newClusters || [])[(newClusters || []).length - 1];
+                          removeCluster(last);
+                        }
+                        if (e.key === "Escape") {
+                          setClusterPickerOpen(false);
+                        }
+                      }}
+                      placeholder={(newClusters || []).length ? "" : "Type to search clusters..."}
+                      data-testid="input-clusters"
+                    />
+                  </div>
+
+                  {clusterPickerOpen ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        zIndex: 5,
+                        left: 0,
+                        right: 0,
+                        marginTop: 4,
+                        background: "#fff",
+                        border: "1px solid rgba(0,0,0,0.12)",
+                        borderRadius: 8,
+                        maxHeight: 220,
+                        overflow: "auto",
+                      }}
+                      tabIndex={-1}
+                    >
+                      {filteredClusterOptions.length === 0 ? (
+                        <div className="muted" style={{ padding: 10 }}>No matches</div>
+                      ) : (
+                        filteredClusterOptions.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className="btn"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              border: "none",
+                              borderRadius: 0,
+                              padding: "10px 10px",
+                            }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              addCluster(c);
+                            }}
+                          >
+                            {c}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Clusters</div>
-                <select
-                  className="filterInput"
-                  multiple
-                  value={newClusters}
-                  onChange={(e) => setNewClusters(e.target.value)}
-                  data-testid="input-clusters"
-                />
+                <div className="muted" style={{ marginBottom: 4 }}>Managed By</div>
+                <input className="filterInput" value={newManagedBy} onChange={(e) => setNewManagedBy(e.target.value)} data-testid="input-managedby" />
               </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => {
-                  setNewAppName("");
-                  setNewDescription("");
-                  setNewManagedBy("");
-                  setNewClusters("");
-                }}
-                data-testid="clear-app-form-btn"
-              >
-                Clear
-              </button>
               <button
                 className="btn btn-primary"
                 type="button"
