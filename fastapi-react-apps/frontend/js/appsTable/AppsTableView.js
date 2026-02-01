@@ -21,79 +21,22 @@ function AppsTableView({
   const [newAppName, setNewAppName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
   const [newManagedBy, setNewManagedBy] = React.useState("");
-  const [newClusters, setNewClusters] = React.useState([]);
-
-  const [clusterQuery, setClusterQuery] = React.useState("");
-  const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
 
   function normalizeCluster(v) {
     return String(v || "").trim();
-  }
-
-  const normalizedAvailableClusters = (availableClusters || [])
-    .map(normalizeCluster)
-    .filter(Boolean);
-
-  const selectedClustersSet = new Set((newClusters || []).map(normalizeCluster).filter(Boolean));
-
-  const filteredClusterOptions = normalizedAvailableClusters
-    .filter((c) => !selectedClustersSet.has(c))
-    .filter((c) => c.toLowerCase().includes((clusterQuery || "").toLowerCase()))
-    .slice(0, 50);
-
-  function addCluster(clusterName) {
-    const c = normalizeCluster(clusterName);
-    if (!c) return;
-    if (selectedClustersSet.has(c)) return;
-    setNewClusters((prev) => [...(Array.isArray(prev) ? prev : []), c]);
-    setClusterQuery("");
-    setClusterPickerOpen(true);
-  }
-
-  function removeCluster(clusterName) {
-    const c = normalizeCluster(clusterName);
-    setNewClusters((prev) => (Array.isArray(prev) ? prev : []).filter((x) => normalizeCluster(x) !== c));
   }
 
   const [showEdit, setShowEdit] = React.useState(false);
   const [editAppName, setEditAppName] = React.useState("");
   const [editDescription, setEditDescription] = React.useState("");
   const [editManagedBy, setEditManagedBy] = React.useState("");
-  const [editClusters, setEditClusters] = React.useState([]);
-
-  const [editClusterQuery, setEditClusterQuery] = React.useState("");
-  const [editClusterPickerOpen, setEditClusterPickerOpen] = React.useState(false);
-
-  const selectedEditClustersSet = new Set((editClusters || []).map(normalizeCluster).filter(Boolean));
-  const filteredEditClusterOptions = normalizedAvailableClusters
-    .filter((c) => !selectedEditClustersSet.has(c))
-    .filter((c) => c.toLowerCase().includes((editClusterQuery || "").toLowerCase()))
-    .slice(0, 50);
-
-  function addEditCluster(clusterName) {
-    const c = normalizeCluster(clusterName);
-    if (!c) return;
-    if (selectedEditClustersSet.has(c)) return;
-    setEditClusters((prev) => [...(Array.isArray(prev) ? prev : []), c]);
-    setEditClusterQuery("");
-    setEditClusterPickerOpen(true);
-  }
-
-  function removeEditCluster(clusterName) {
-    const c = normalizeCluster(clusterName);
-    setEditClusters((prev) => (Array.isArray(prev) ? prev : []).filter((x) => normalizeCluster(x) !== c));
-  }
 
   function openEditApp(row) {
     const r = row || {};
     const name = String(r?.appname || "");
-    const clusters = Array.isArray(clustersByApp?.[name]) ? clustersByApp[name].map(String) : Array.isArray(r?.clusters) ? r.clusters.map(String) : [];
     setEditAppName(name);
     setEditDescription(String(r?.description || ""));
     setEditManagedBy(String(r?.managedby || ""));
-    setEditClusters(clusters.map(normalizeCluster).filter(Boolean));
-    setEditClusterQuery("");
-    setEditClusterPickerOpen(false);
     setShowEdit(true);
   }
 
@@ -106,7 +49,6 @@ function AppsTableView({
         appname: target,
         description: editDescription,
         managedby: editManagedBy,
-        clusters: editClusters,
       });
       setShowEdit(false);
     } catch (e) {
@@ -171,138 +113,6 @@ function AppsTableView({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Clusters</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Type to search, select many</div>
-                </div>
-                <div
-                  style={{ position: "relative" }}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget)) setClusterPickerOpen(false);
-                  }}
-                >
-                  <div
-                    className="filterInput"
-                    style={{
-                      minHeight: 36,
-                      height: "auto",
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      alignItems: "center",
-                      padding: "6px 8px",
-                    }}
-                    onMouseDown={() => setClusterPickerOpen(true)}
-                  >
-                    {(newClusters || []).map((c) => (
-                      <span
-                        key={c}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: "rgba(0,0,0,0.06)",
-                          fontSize: 12,
-                        }}
-                      >
-                        <span>{c}</span>
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{ padding: "0 6px", lineHeight: "16px" }}
-                          onClick={() => removeCluster(c)}
-                          aria-label={`Remove ${c}`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      className="filterInput"
-                      style={{
-                        border: "none",
-                        outline: "none",
-                        boxShadow: "none",
-                        flex: 1,
-                        minWidth: 160,
-                        padding: 0,
-                        margin: 0,
-                        height: 22,
-                      }}
-                      value={clusterQuery}
-                      onChange={(e) => {
-                        setClusterQuery(e.target.value);
-                        setClusterPickerOpen(true);
-                      }}
-                      onFocus={() => setClusterPickerOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          const first = filteredClusterOptions[0];
-                          if (first) addCluster(first);
-                          return;
-                        }
-                        if (e.key === "Backspace" && !clusterQuery && (newClusters || []).length > 0) {
-                          const last = (newClusters || [])[(newClusters || []).length - 1];
-                          removeCluster(last);
-                        }
-                        if (e.key === "Escape") {
-                          setClusterPickerOpen(false);
-                        }
-                      }}
-                      placeholder={(newClusters || []).length ? "" : "Type to search clusters..."}
-                      data-testid="input-clusters"
-                    />
-                  </div>
-
-                  {clusterPickerOpen ? (
-                    <div
-                      style={{
-                        position: "absolute",
-                        zIndex: 10001,
-                        left: 0,
-                        right: 0,
-                        marginTop: 4,
-                        background: "#fff",
-                        border: "1px solid rgba(0,0,0,0.12)",
-                        borderRadius: 8,
-                        maxHeight: 220,
-                        overflow: "auto",
-                      }}
-                      tabIndex={-1}
-                    >
-                      {filteredClusterOptions.length === 0 ? (
-                        <div className="muted" style={{ padding: 10 }}>No matches</div>
-                      ) : (
-                        filteredClusterOptions.map((c) => (
-                          <button
-                            key={c}
-                            type="button"
-                            className="btn"
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              border: "none",
-                              borderRadius: 0,
-                              padding: "10px 10px",
-                            }}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              addCluster(c);
-                            }}
-                          >
-                            {c}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Managed By</div>
                   <div className="muted" style={{ fontSize: 12 }}>Team or owner</div>
                 </div>
@@ -321,13 +131,11 @@ function AppsTableView({
                       appname: newAppName,
                       description: newDescription,
                       managedby: newManagedBy,
-                      clusters: newClusters,
                     });
                     onCloseCreate();
                     setNewAppName("");
                     setNewDescription("");
                     setNewManagedBy("");
-                    setNewClusters([]);
                   } catch (e) {
                     alert(e?.message || String(e));
                   }
@@ -380,138 +188,6 @@ function AppsTableView({
                   <div className="muted" style={{ fontSize: 12 }}>Short summary</div>
                 </div>
                 <input className="filterInput" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} data-testid="edit-input-description" />
-              </div>
-
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Clusters</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Type to search, select many</div>
-                </div>
-                <div
-                  style={{ position: "relative" }}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget)) setEditClusterPickerOpen(false);
-                  }}
-                >
-                  <div
-                    className="filterInput"
-                    style={{
-                      minHeight: 36,
-                      height: "auto",
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      alignItems: "center",
-                      padding: "6px 8px",
-                    }}
-                    onMouseDown={() => setEditClusterPickerOpen(true)}
-                  >
-                    {(editClusters || []).map((c) => (
-                      <span
-                        key={c}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: "rgba(0,0,0,0.06)",
-                          fontSize: 12,
-                        }}
-                      >
-                        <span>{c}</span>
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{ padding: "0 6px", lineHeight: "16px" }}
-                          onClick={() => removeEditCluster(c)}
-                          aria-label={`Remove ${c}`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      className="filterInput"
-                      style={{
-                        border: "none",
-                        outline: "none",
-                        boxShadow: "none",
-                        flex: 1,
-                        minWidth: 160,
-                        padding: 0,
-                        margin: 0,
-                        height: 22,
-                      }}
-                      value={editClusterQuery}
-                      onChange={(e) => {
-                        setEditClusterQuery(e.target.value);
-                        setEditClusterPickerOpen(true);
-                      }}
-                      onFocus={() => setEditClusterPickerOpen(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          const first = filteredEditClusterOptions[0];
-                          if (first) addEditCluster(first);
-                          return;
-                        }
-                        if (e.key === "Backspace" && !editClusterQuery && (editClusters || []).length > 0) {
-                          const last = (editClusters || [])[(editClusters || []).length - 1];
-                          removeEditCluster(last);
-                        }
-                        if (e.key === "Escape") {
-                          setEditClusterPickerOpen(false);
-                        }
-                      }}
-                      placeholder={(editClusters || []).length ? "" : "Type to search clusters..."}
-                      data-testid="edit-input-clusters"
-                    />
-                  </div>
-
-                  {editClusterPickerOpen ? (
-                    <div
-                      style={{
-                        position: "absolute",
-                        zIndex: 10001,
-                        left: 0,
-                        right: 0,
-                        marginTop: 4,
-                        background: "#fff",
-                        border: "1px solid rgba(0,0,0,0.12)",
-                        borderRadius: 8,
-                        maxHeight: 220,
-                        overflow: "auto",
-                      }}
-                      tabIndex={-1}
-                    >
-                      {filteredEditClusterOptions.length === 0 ? (
-                        <div className="muted" style={{ padding: 10 }}>No matches</div>
-                      ) : (
-                        filteredEditClusterOptions.map((c) => (
-                          <button
-                            key={c}
-                            type="button"
-                            className="btn"
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              border: "none",
-                              borderRadius: 0,
-                              padding: "10px 10px",
-                            }}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              addEditCluster(c);
-                            }}
-                          >
-                            {c}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
               </div>
 
               <div>

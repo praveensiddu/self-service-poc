@@ -22,6 +22,30 @@ def _config_path() -> Path:
     return Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
 
 
+def _require_workspace_path() -> Path:
+    cfg_path = _config_path()
+    if not cfg_path.exists():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    try:
+        raw_cfg = yaml.safe_load(cfg_path.read_text()) or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
+
+    if not isinstance(raw_cfg, dict):
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    workspace = str(raw_cfg.get("workspace", "") or "").strip()
+    if not workspace:
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    workspace_path = Path(workspace).expanduser()
+    if not workspace_path.exists() or not workspace_path.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    return workspace_path
+
+
 def _require_initialized_workspace() -> Path:
     cfg_path = _config_path()
     if not cfg_path.exists():
@@ -54,6 +78,84 @@ def _require_initialized_workspace() -> Path:
         raise HTTPException(status_code=400, detail="not initialized")
 
     return requests_root
+
+
+def _require_control_clusters_root() -> Path:
+    workspace_path = _require_workspace_path()
+    clusters_root = (
+        workspace_path
+        / "kselfserv"
+        / "cloned-repositories"
+        / "control"
+        / "clusters"
+    )
+    if not clusters_root.exists() or not clusters_root.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+    return clusters_root
+
+
+def _as_string_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        out: List[str] = []
+        for v in value:
+            if v is None:
+                continue
+            s = str(v).strip()
+            if s:
+                out.append(s)
+        return out
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return []
+        return [p.strip() for p in s.split(",") if p.strip()]
+    return []
+
+
+def _clusters_file_for_env(clusters_root: Path, env: str) -> Path:
+    key = str(env or "").strip().lower()
+    return clusters_root / f"{key}_clusters.yaml"
+
+
+def _load_clusters_from_file(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists() or not path.is_file():
+        return []
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except Exception:
+        return []
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [x for x in raw if isinstance(x, dict)]
+    if isinstance(raw, dict):
+        return [raw]
+    return []
+
+
+def _clusters_by_app_for_env(env: str) -> Dict[str, List[str]]:
+    clusters_root = _require_control_clusters_root()
+    file_path = _clusters_file_for_env(clusters_root, env)
+    items = _load_clusters_from_file(file_path)
+
+    out: Dict[str, List[str]] = {}
+    for item in items:
+        raw_clustername = item.get("clustername", item.get("clusterName", item.get("name")))
+        cname = str(raw_clustername or "").strip()
+        if not cname:
+            continue
+        apps = _as_string_list(item.get("applications"))
+        for appname in apps:
+            key = str(appname or "").strip()
+            if not key:
+                continue
+            out.setdefault(key, []).append(cname)
+
+    for k, v in list(out.items()):
+        out[k] = sorted(set([str(x).strip() for x in v if str(x).strip()]), key=lambda s: s.lower())
+    return out
 
 
 L4_INGRESS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
@@ -339,6 +441,12 @@ def list_apps(env: Optional[str] = None):
     if not env_dir.exists() or not env_dir.is_dir():
         raise HTTPException(status_code=400, detail="not initialized")
 
+    clusters_by_app = {}
+    try:
+        clusters_by_app = _clusters_by_app_for_env(env)
+    except Exception:
+        clusters_by_app = {}
+
     apps_out: Dict[str, Dict[str, Any]] = {}
     for child in env_dir.iterdir():
         if not child.is_dir():
@@ -348,7 +456,7 @@ def list_apps(env: Optional[str] = None):
         appinfo_path = child / "appinfo.yaml"
         description = ""
         managedby = ""
-        clusters: List[str] = []
+        clusters: List[str] = clusters_by_app.get(appname, [])
 
         if appinfo_path.exists() and appinfo_path.is_file():
             try:
@@ -356,13 +464,10 @@ def list_apps(env: Optional[str] = None):
                 if isinstance(appinfo, dict):
                     description = str(appinfo.get("description", "") or "")
                     managedby = str(appinfo.get("managedby", "") or "")
-                    raw_clusters = appinfo.get("clusters")
-                    if isinstance(raw_clusters, list):
-                        clusters = [str(c) for c in raw_clusters if c is not None and str(c).strip()]
             except Exception:
                 description = ""
                 managedby = ""
-                clusters = []
+                clusters = clusters_by_app.get(appname, [])
 
         totalns = 0
         try:
@@ -402,12 +507,9 @@ def create_app(payload: AppCreate, env: Optional[str] = None):
 
     try:
         app_dir.mkdir(parents=True, exist_ok=False)
-        clusters = payload.clusters or []
-        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
         appinfo = {
             "description": str(payload.description or ""),
             "managedby": str(payload.managedby or ""),
-            "clusters": clusters,
         }
         (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
     except HTTPException:
@@ -415,11 +517,17 @@ def create_app(payload: AppCreate, env: Optional[str] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create app: {e}")
 
+    clusters_by_app = {}
+    try:
+        clusters_by_app = _clusters_by_app_for_env(env)
+    except Exception:
+        clusters_by_app = {}
+
     return {
         "appname": appname,
         "description": str(payload.description or ""),
         "managedby": str(payload.managedby or ""),
-        "clusters": clusters,
+        "clusters": clusters_by_app.get(appname, []),
         "totalns": 0,
     }
 
@@ -447,12 +555,9 @@ def update_app(appname: str, payload: AppCreate, env: Optional[str] = None):
         raise HTTPException(status_code=400, detail="Renaming appname is not supported")
 
     try:
-        clusters = payload.clusters or []
-        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
         appinfo = {
             "description": str(payload.description or ""),
             "managedby": str(payload.managedby or ""),
-            "clusters": clusters,
         }
         (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
     except Exception as e:
@@ -464,11 +569,17 @@ def update_app(appname: str, payload: AppCreate, env: Optional[str] = None):
     except Exception:
         totalns = 0
 
+    clusters_by_app = {}
+    try:
+        clusters_by_app = _clusters_by_app_for_env(env)
+    except Exception:
+        clusters_by_app = {}
+
     return {
         "appname": target_appname,
         "description": str(payload.description or ""),
         "managedby": str(payload.managedby or ""),
-        "clusters": clusters,
+        "clusters": clusters_by_app.get(target_appname, []),
         "totalns": totalns,
     }
 
