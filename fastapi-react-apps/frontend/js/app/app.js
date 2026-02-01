@@ -856,6 +856,36 @@ function App() {
     setClustersByApp(nextClusters);
   }
 
+  async function updateApp(appname, payload) {
+    const target = String(appname || payload?.appname || "").trim();
+    const description = String(payload?.description || "");
+    const managedby = String(payload?.managedby || "");
+    const clusters = Array.isArray(payload?.clusters)
+      ? payload.clusters.map((s) => String(s).trim()).filter(Boolean)
+      : String(payload?.clusters || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+    if (!target) throw new Error("App Name is required.");
+
+    await putJson(`/api/apps/${encodeURIComponent(target)}?env=${encodeURIComponent(activeEnv)}`, {
+      appname: target,
+      description,
+      managedby,
+      clusters,
+    });
+
+    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    setApps(appsResp);
+
+    const nextClusters = {};
+    for (const [k, app] of Object.entries(appsResp || {})) {
+      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
+    }
+    setClustersByApp(nextClusters);
+  }
+
   async function createNamespace(payload) {
     const appname = detailAppName;
     if (!appname) throw new Error("No application selected.");
@@ -1020,6 +1050,7 @@ function App() {
       viewNamespaceDetails={viewNamespaceDetails}
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
       onCreateApp={createApp}
+      onUpdateApp={updateApp}
       showCreateApp={showCreateApp}
       onOpenCreateApp={async () => {
         try {

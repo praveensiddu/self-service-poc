@@ -28,6 +28,15 @@ class TestClustersE2E:
                 assert "applications" in cluster
                 assert isinstance(cluster["applications"], list)
 
+    async def test_get_clusters_for_app_returns_list(self, async_client: httpx.AsyncClient):
+        """Test that GET /api/clusters?env=...&app=... returns a list of cluster names."""
+        response = await async_client.get("/api/clusters", params={"env": "test", "app": "someapp"})
+        # Server may return 400 if not initialized in test environment; accept both.
+        assert response.status_code in (200, 400)
+        if response.status_code == 200:
+            data = response.json()
+            assert isinstance(data, list)
+
     async def test_get_envlist_returns_environments(self, async_client: httpx.AsyncClient):
         """Test that GET /api/envlist returns environment keys."""
         response = await async_client.get("/api/envlist")

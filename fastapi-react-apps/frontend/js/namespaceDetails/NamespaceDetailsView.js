@@ -9,6 +9,10 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
   const [editEnabled, setEditEnabled] = React.useState(false);
   const [draftClusters, setDraftClusters] = React.useState("");
+  const [draftClustersList, setDraftClustersList] = React.useState([]);
+  const [clusterOptions, setClusterOptions] = React.useState([]);
+  const [clusterQuery, setClusterQuery] = React.useState("");
+  const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
   const [draftManagedByArgo, setDraftManagedByArgo] = React.useState(false);
   const [draftEgressNameId, setDraftEgressNameId] = React.useState("");
   const [draftReqCpu, setDraftReqCpu] = React.useState("");
@@ -20,6 +24,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   React.useEffect(() => {
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
     setDraftClusters(initialClusters);
+    setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
     setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
     setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
     setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
@@ -44,6 +49,67 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setEditEnabled(false);
   }, [namespace, namespaceName]);
 
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadClusters() {
+      try {
+        if (!editEnabled) return;
+        if (!env || !appname) return;
+        const res = await fetch(
+          `/api/clusters?env=${encodeURIComponent(env)}&app=${encodeURIComponent(appname)}`,
+          { headers: { Accept: "application/json" } },
+        );
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`${res.status} ${res.statusText}: ${text}`);
+        }
+        const data = await res.json();
+        const list = Array.isArray(data) ? data.map(String) : [];
+        if (!mounted) return;
+        setClusterOptions(list);
+      } catch {
+        if (!mounted) return;
+        setClusterOptions([]);
+      }
+    }
+    loadClusters();
+    return () => {
+      mounted = false;
+    };
+  }, [editEnabled, env, appname]);
+
+  function addCluster(name) {
+    const v = String(name || "").trim();
+    if (!v) return;
+    setDraftClustersList((prev) => {
+      const exists = (prev || []).some((x) => String(x).toLowerCase() === v.toLowerCase());
+      const next = exists ? (prev || []) : [...(prev || []), v];
+      setDraftClusters(next.join(","));
+      return next;
+    });
+    setClusterQuery("");
+    setClusterPickerOpen(true);
+  }
+
+  function removeCluster(name) {
+    const v = String(name || "").trim();
+    if (!v) return;
+    setDraftClustersList((prev) => {
+      const next = (prev || []).filter((x) => String(x).toLowerCase() !== v.toLowerCase());
+      setDraftClusters(next.join(","));
+      return next;
+    });
+  }
+
+  const filteredClusterOptions = (clusterOptions || [])
+    .filter((c) => !draftClustersList.some((x) => String(x).toLowerCase() === String(c).toLowerCase()))
+    .filter((c) => {
+      const q = String(clusterQuery || "").trim().toLowerCase();
+      if (!q) return true;
+      return String(c || "").toLowerCase().includes(q);
+    })
+    .slice(0, 100);
+
   // Helper function to format values
   function formatValue(val) {
     if (val === null || val === undefined) return "N/A";
@@ -60,9 +126,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   }
 
   const effectiveClusters = editEnabled
-    ? draftClusters
-        .split(",")
-        .map((s) => s.trim())
+    ? (draftClustersList || [])
+        .map((s) => String(s).trim())
         .filter(Boolean)
     : Array.isArray(namespace?.clusters)
       ? namespace.clusters
@@ -128,6 +193,9 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                   onClick={() => {
                     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
                     setDraftClusters(initialClusters);
+                    setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
+                    setClusterQuery("");
+                    setClusterPickerOpen(false);
                     setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
                     setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
                     setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
@@ -163,10 +231,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     }
 
                     try {
-                      const clusters = draftClusters
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean);
+                      const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
                       const egress_nameid = (draftEgressNameId || "").trim();
 
                       await onUpdateNamespaceInfo(namespaceName, {
@@ -228,12 +293,131 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             <div className="detailRow">
               <span className="detailLabel">Clusters:</span>
               {editEnabled ? (
-                <input
-                  className="filterInput"
-                  value={draftClusters}
-                  onChange={(e) => setDraftClusters(e.target.value)}
-                  placeholder="01,02,03"
-                />
+                <div
+                  style={{ position: "relative", flex: 1 }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) setClusterPickerOpen(false);
+                  }}
+                >
+                  <div
+                    className="filterInput"
+                    style={{
+                      minHeight: 36,
+                      height: "auto",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      alignItems: "center",
+                      padding: "6px 8px",
+                    }}
+                    onMouseDown={() => setClusterPickerOpen(true)}
+                  >
+                    {(draftClustersList || []).map((c) => (
+                      <span
+                        key={c}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: "rgba(0,0,0,0.06)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <span>{c}</span>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ padding: "0 6px", lineHeight: "16px" }}
+                          onClick={() => removeCluster(c)}
+                          aria-label={`Remove ${c}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      className="filterInput"
+                      style={{
+                        border: "none",
+                        outline: "none",
+                        boxShadow: "none",
+                        flex: 1,
+                        minWidth: 160,
+                        padding: 0,
+                        margin: 0,
+                        height: 22,
+                      }}
+                      value={clusterQuery}
+                      onChange={(e) => {
+                        setClusterQuery(e.target.value);
+                        setClusterPickerOpen(true);
+                      }}
+                      onFocus={() => setClusterPickerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const first = filteredClusterOptions[0];
+                          if (first) addCluster(first);
+                          return;
+                        }
+                        if (e.key === "Backspace" && !clusterQuery && (draftClustersList || []).length > 0) {
+                          const last = (draftClustersList || [])[(draftClustersList || []).length - 1];
+                          removeCluster(last);
+                        }
+                        if (e.key === "Escape") {
+                          setClusterPickerOpen(false);
+                        }
+                      }}
+                      placeholder={(draftClustersList || []).length ? "" : "Type to search clusters..."}
+                      data-testid="ns-edit-input-clusters"
+                    />
+                  </div>
+
+                  {clusterPickerOpen ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        zIndex: 10001,
+                        left: 0,
+                        right: 0,
+                        marginTop: 4,
+                        background: "#fff",
+                        border: "1px solid rgba(0,0,0,0.12)",
+                        borderRadius: 8,
+                        maxHeight: 220,
+                        overflow: "auto",
+                      }}
+                      tabIndex={-1}
+                    >
+                      {filteredClusterOptions.length === 0 ? (
+                        <div className="muted" style={{ padding: 10 }}>No matches</div>
+                      ) : (
+                        filteredClusterOptions.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className="btn"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              border: "none",
+                              borderRadius: 0,
+                              padding: "10px 10px",
+                            }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              addCluster(c);
+                            }}
+                          >
+                            {c}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 <span className="detailValue detailValueHighlight">{clusters}</span>
               )}

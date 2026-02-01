@@ -314,7 +314,7 @@ def get_envlist():
 
 
 @router.get("/clusters")
-def get_clusters(env: Optional[str] = None):
+def get_clusters(env: Optional[str] = None, app: Optional[str] = None):
     clusters_root = _require_control_clusters_root()
     if clusters_root is None:
         return {}
@@ -323,6 +323,31 @@ def get_clusters(env: Optional[str] = None):
         requests_root = _require_initialized_workspace()
     except HTTPException:
         requests_root = None
+
+    # Special case: if env and app are provided, return the list of clusters for that app in that env.
+    # This is used by the Namespace Details edit view for cluster selection.
+    if app is not None:
+        env_key = str(env or "").strip().lower()
+        app_key = str(app or "").strip()
+        if not env_key:
+            raise HTTPException(status_code=400, detail="Missing required query parameter: env")
+        if not app_key:
+            raise HTTPException(status_code=400, detail="Missing required query parameter: app")
+
+        file_path = _clusters_file_for_env(clusters_root, env_key)
+        items = _load_clusters_from_file(file_path)
+        out_clusters: List[str] = []
+        for item in items:
+            normalized = _normalize_cluster_item(item)
+            if not normalized:
+                continue
+            apps = _as_string_list(normalized.get("applications"))
+            if any(str(a).strip().lower() == app_key.lower() for a in apps):
+                cname = str(normalized.get("clustername") or "").strip()
+                if cname:
+                    out_clusters.append(cname)
+
+        return sorted(set(out_clusters), key=lambda s: s.lower())
 
     if env is not None and not str(env or "").strip():
         raise HTTPException(status_code=400, detail="Missing required query parameter: env")

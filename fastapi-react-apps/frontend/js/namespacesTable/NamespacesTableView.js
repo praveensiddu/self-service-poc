@@ -48,7 +48,10 @@ function NamespacesTableView({
 
             <div style={{ display: "grid", gap: 12 }}>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Namespace Name</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Namespace Name</div>
+                  <div className="muted" style={{ fontSize: 12 }}>K8s namespace identifier</div>
+                </div>
                 <input
                   className="filterInput"
                   value={newNamespace}
@@ -59,7 +62,10 @@ function NamespacesTableView({
               </div>
 
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Clusters</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Clusters</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Comma-separated</div>
+                </div>
                 <input
                   className="filterInput"
                   placeholder="01,02,03"
@@ -70,7 +76,10 @@ function NamespacesTableView({
               </div>
 
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Managed by Argo</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Managed by Argo</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Create Argo resources</div>
+                </div>
                 <select
                   className="filterInput"
                   value={newManagedByArgo ? "Yes" : "No"}
@@ -83,7 +92,10 @@ function NamespacesTableView({
               </div>
 
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Egress Name ID</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Egress Name ID</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Optional</div>
+                </div>
                 <input
                   className="filterInput"
                   value={newEgressNameId}

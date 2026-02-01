@@ -25,6 +25,12 @@ function ClustersTableView({
     applications: "",
   });
 
+  function normalizeApplicationsInput(v) {
+    return String(v || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9,]/g, "");
+  }
+
   const [showEdit, setShowEdit] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState({
     clustername: "",
@@ -120,16 +126,22 @@ function ClustersTableView({
 
             <div style={{ display: "grid", gap: 12 }}>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Clustername</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Clustername</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Unique cluster identifier</div>
+                </div>
                 <input
                   className="filterInput"
                   value={draft.clustername}
-                  onChange={(e) => setDraft((p) => ({ ...p, clustername: e.target.value }))}
+                  onChange={(e) => setDraft((p) => ({ ...p, clustername: String(e.target.value || "").toLowerCase() }))}
                   data-testid="input-clustername"
                 />
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Purpose</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Purpose</div>
+                  <div className="muted" style={{ fontSize: 12 }}>What this cluster is used for</div>
+                </div>
                 <input
                   className="filterInput"
                   value={draft.purpose}
@@ -138,21 +150,27 @@ function ClustersTableView({
                 />
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Datacenter</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Datacenter</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Physical/region location</div>
+                </div>
                 <input
                   className="filterInput"
                   value={draft.datacenter}
-                  onChange={(e) => setDraft((p) => ({ ...p, datacenter: e.target.value }))}
+                  onChange={(e) => setDraft((p) => ({ ...p, datacenter: String(e.target.value || "").toLowerCase() }))}
                   data-testid="input-datacenter"
                 />
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Applications</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Applications</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Comma-separated app names</div>
+                </div>
                 <input
                   className="filterInput"
                   placeholder="comma-separated"
                   value={draft.applications}
-                  onChange={(e) => setDraft((p) => ({ ...p, applications: e.target.value }))}
+                  onChange={(e) => setDraft((p) => ({ ...p, applications: normalizeApplicationsInput(e.target.value) }))}
                   data-testid="input-applications"
                 />
               </div>
@@ -204,7 +222,10 @@ function ClustersTableView({
 
             <div style={{ display: "grid", gap: 12 }}>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Clustername</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Clustername</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Read-only</div>
+                </div>
                 <input
                   className="filterInput"
                   value={editDraft.clustername}
@@ -214,7 +235,10 @@ function ClustersTableView({
                 />
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Purpose</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Purpose</div>
+                  <div className="muted" style={{ fontSize: 12 }}>What this cluster is used for</div>
+                </div>
                 <input
                   className="filterInput"
                   value={editDraft.purpose}
@@ -223,21 +247,27 @@ function ClustersTableView({
                 />
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Datacenter</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Datacenter</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Physical/region location</div>
+                </div>
                 <input
                   className="filterInput"
                   value={editDraft.datacenter}
-                  onChange={(e) => setEditDraft((p) => ({ ...p, datacenter: e.target.value }))}
+                  onChange={(e) => setEditDraft((p) => ({ ...p, datacenter: String(e.target.value || "").toLowerCase() }))}
                   data-testid="edit-input-datacenter"
                 />
               </div>
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Applications</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Applications</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Comma-separated app names</div>
+                </div>
                 <input
                   className="filterInput"
                   placeholder="comma-separated"
                   value={editDraft.applications}
-                  onChange={(e) => setEditDraft((p) => ({ ...p, applications: e.target.value }))}
+                  onChange={(e) => setEditDraft((p) => ({ ...p, applications: normalizeApplicationsInput(e.target.value) }))}
                   data-testid="edit-input-applications"
                 />
               </div>

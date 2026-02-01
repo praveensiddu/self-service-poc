@@ -424,6 +424,55 @@ def create_app(payload: AppCreate, env: Optional[str] = None):
     }
 
 
+@router.put("/apps/{appname}")
+def update_app(appname: str, payload: AppCreate, env: Optional[str] = None):
+    env = _require_env(env)
+    requests_root = _require_initialized_workspace()
+
+    target_appname = str(appname or "").strip()
+    if not target_appname:
+        raise HTTPException(status_code=400, detail="appname is required")
+
+    env_dir = requests_root / env
+    if not env_dir.exists() or not env_dir.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    app_dir = env_dir / target_appname
+    if not app_dir.exists() or not app_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"App not found: {target_appname}")
+
+    # Do not allow renaming apps via update.
+    payload_name = str(payload.appname or "").strip()
+    if payload_name and payload_name != target_appname:
+        raise HTTPException(status_code=400, detail="Renaming appname is not supported")
+
+    try:
+        clusters = payload.clusters or []
+        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
+        appinfo = {
+            "description": str(payload.description or ""),
+            "managedby": str(payload.managedby or ""),
+            "clusters": clusters,
+        }
+        (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update app: {e}")
+
+    totalns = 0
+    try:
+        totalns = sum(1 for p in app_dir.iterdir() if p.is_dir())
+    except Exception:
+        totalns = 0
+
+    return {
+        "appname": target_appname,
+        "description": str(payload.description or ""),
+        "managedby": str(payload.managedby or ""),
+        "clusters": clusters,
+        "totalns": totalns,
+    }
+
+
 @router.delete("/apps/{appname}")
 def delete_app(appname: str, env: Optional[str] = None):
     """Delete an application and all its associated data (namespaces, L4 ingress, pull requests)"""
