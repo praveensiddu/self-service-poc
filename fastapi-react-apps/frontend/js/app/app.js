@@ -216,10 +216,9 @@ function App() {
         setLoading(true);
         setError("");
 
-        const [deploymentType, user, envList, cfg] = await Promise.all([
+        const [deploymentType, user, cfg] = await Promise.all([
           fetchJson("/api/deployment_type"),
           fetchJson("/api/current-user"),
-          fetchJson("/api/envlist"),
           fetchJson("/api/config"),
         ]);
 
@@ -233,17 +232,6 @@ function App() {
         setRenderedManifestsRepo(cfg?.renderedManifestsRepo || "");
         setControlRepo(cfg?.controlRepo || "");
 
-        const keys = Object.keys(envList);
-        setEnvKeys(keys);
-        const first = keys[0] || "";
-        const initial = parseUiRouteFromLocation();
-        const initialEnv = keys.includes(initial.env) ? initial.env : first;
-        setPendingRoute(initial);
-        setActiveEnv(initialEnv);
-        if (!isHomePath() && !isPrsPath() && !isClustersPath()) {
-          pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname, ns: initial.ns }, true);
-        }
-
         const isComplete = Boolean(
           (cfg?.workspace || "").trim() &&
             (cfg?.requestsRepo || "").trim() &&
@@ -251,6 +239,24 @@ function App() {
             (cfg?.controlRepo || "").trim()
         );
         setPersistedConfigComplete(isComplete);
+
+        const initial = parseUiRouteFromLocation();
+        setPendingRoute(initial);
+
+        let keys = [];
+        let initialEnv = "";
+        if (isComplete) {
+          const envList = await fetchJson("/api/envlist");
+          if (cancelled) return;
+          keys = Object.keys(envList);
+          initialEnv = keys.includes(initial.env) ? initial.env : (keys[0] || "");
+        }
+
+        setEnvKeys(keys);
+        setActiveEnv(initialEnv);
+        if (isComplete && initialEnv && !isHomePath() && !isPrsPath() && !isClustersPath()) {
+          pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname, ns: initial.ns }, true);
+        }
 
         if (isClustersPath()) {
           window.history.replaceState(
@@ -939,7 +945,16 @@ function App() {
           (saved?.controlRepo || "").trim(),
       );
       setPersistedConfigComplete(isComplete);
-      if (isComplete) setTopTab("Request provisioning");
+      if (isComplete) {
+        const envList = await fetchJson("/api/envlist");
+        const keys = Object.keys(envList);
+        setEnvKeys(keys);
+        const initialEnv = keys[0] || "";
+        setActiveEnv(initialEnv);
+        setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
+        if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
+        setTopTab("Request provisioning");
+      }
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
@@ -971,7 +986,16 @@ function App() {
           (saved?.controlRepo || "").trim(),
       );
       setPersistedConfigComplete(isComplete);
-      if (isComplete) setTopTab("Request provisioning");
+      if (isComplete) {
+        const envList = await fetchJson("/api/envlist");
+        const keys = Object.keys(envList);
+        setEnvKeys(keys);
+        const initialEnv = keys[0] || "";
+        setActiveEnv(initialEnv);
+        setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
+        if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
+        setTopTab("Request provisioning");
+      }
     } catch (e) {
       setError(e?.message || String(e));
     } finally {

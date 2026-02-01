@@ -39,6 +39,13 @@ function ClustersTableView({
     applications: "",
   });
 
+  const canSubmitCreate = Boolean(
+    (draft.clustername || "").trim() &&
+      (draft.purpose || "").trim() &&
+      (draft.datacenter || "").trim() &&
+      (draft.applications || "").trim(),
+  );
+
   const envKey = String(activeEnv || "").toUpperCase();
 
   async function onSubmitAdd() {
@@ -180,7 +187,7 @@ function ClustersTableView({
                   className="btn btn-primary"
                   type="button"
                   onClick={onSubmitAdd}
-                  disabled={loading}
+                  disabled={loading || !canSubmitCreate}
                   data-testid="submit-cluster-btn"
                 >
                   Create
