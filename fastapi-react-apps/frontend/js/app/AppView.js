@@ -179,7 +179,7 @@ function AppView({
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <button className="btn" type="button" onClick={onUseDefaults} disabled={loading}>
-                  Use Defaults
+                  Use Pre-prepared Samples
                 </button>
                 <button className="btn btn-primary" type="button" onClick={onSaveConfig} disabled={!canSaveConfig || loading}>
                   Save
