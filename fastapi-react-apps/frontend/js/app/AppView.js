@@ -219,9 +219,6 @@ function AppView({
               {view === "apps" ? (
                 <>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <button className="btn" type="button" onClick={onViewNamespaces}>
-                      View Namespaces
-                    </button>
                     <button className="btn" type="button" onClick={onViewL4Ingress}>
                       View L4 ingress IPs
                     </button>
