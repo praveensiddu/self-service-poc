@@ -294,7 +294,6 @@ function AppView({
                 onToggleRow={toggleRow}
                 onSelectAll={onSelectAllFromFiltered}
                 onDeleteApp={deleteApp}
-                onViewDetails={(appname) => openNamespaces(appname, true)}
                 onCreateApp={onCreateApp}
                 onUpdateApp={onUpdateApp}
                 showCreate={showCreateApp}

@@ -1,4 +1,4 @@
-function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egressIpsByApp, availableClusters, selectedApps, onToggleRow, onSelectAll, onDeleteApp, onViewDetails, onCreateApp, onUpdateApp, showCreate, onOpenCreate, onCloseCreate }) {
+function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egressIpsByApp, availableClusters, selectedApps, onToggleRow, onSelectAll, onDeleteApp, onCreateApp, onUpdateApp, showCreate, onOpenCreate, onCloseCreate }) {
   const [filters, setFilters] = React.useState({
     appname: "",
     description: "",
@@ -60,7 +60,6 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
       onToggleRow={onToggleRow}
       onSelectAll={onSelectAll}
       onDeleteApp={onDeleteApp}
-      onViewDetails={onViewDetails}
       onCreateApp={onCreateApp}
       onUpdateApp={onUpdateApp}
       showCreate={showCreate}
