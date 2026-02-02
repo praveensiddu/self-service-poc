@@ -27,13 +27,13 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
     return String(val);
   }
 
-  function formatRbac(rbac) {
-    if (!rbac) return "";
-    if (!Array.isArray(rbac) || rbac.length === 0) return "None";
+  function formatRolebindings(rolebindings) {
+    if (!rolebindings) return "";
+    if (!Array.isArray(rolebindings) || rolebindings.length === 0) return "None";
 
     // Show count and summary of first binding
-    const count = rbac.length;
-    const first = rbac[0];
+    const count = rolebindings.length;
+    const first = rolebindings[0];
     const roleName = first.roleRef?.name || "N/A";
     const roleKind = first.roleRef?.kind || "N/A";
 
@@ -71,11 +71,11 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       const egressFirewallText = formatValue(ns?.file_index?.egress);
       const resourceQuotaText = formatResourceQuota(ns?.resources);
       const limitRangeText = formatLimitRange(ns?.resources);
-      const rbacText = formatRbac(ns?.rbac);
+      const rolebindingsText = formatRolebindings(ns?.rolebindings);
       const statusText = formatValue(ns?.status);
       const policyText = formatValue(ns?.policy);
 
-      const attributesSearch = `${statusText} ${resourceQuotaText} ${limitRangeText} ${rbacText} ${policyText}`;
+      const attributesSearch = `${statusText} ${resourceQuotaText} ${limitRangeText} ${rolebindingsText} ${policyText}`;
 
       return {
         namespace: ns,
@@ -86,7 +86,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         egressFirewallText,
         resourceQuotaText,
         limitRangeText,
-        rbacText,
+        rolebindingsText,
         statusText,
         policyText,
         attributesSearch,

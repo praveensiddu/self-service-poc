@@ -19,7 +19,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
   const [draftLimCpu, setDraftLimCpu] = React.useState("");
   const [draftLimMemory, setDraftLimMemory] = React.useState("");
-  const [draftRbacEntries, setDraftRbacEntries] = React.useState([]);
+  const [draftRoleBindingsEntries, setDraftRoleBindingsEntries] = React.useState([]);
 
   React.useEffect(() => {
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
@@ -32,19 +32,19 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
 
-    // Initialize RBAC draft values
-    // Backend now returns rbac as array of bindings: [{ subject: {...}, roleRef: {...} }, ...]
-    let rbacEntries = [];
+    // Initialize RoleBindings draft values
+    // Backend now returns rolebindings as array of bindings: [{ subject: {...}, roleRef: {...} }, ...]
+    let rolebindingsEntries = [];
 
-    if (Array.isArray(namespace?.rbac)) {
+    if (Array.isArray(namespace?.rolebindings)) {
       // New format: array of bindings
-      rbacEntries = namespace.rbac.map(binding => ({
+      rolebindingsEntries = namespace.rolebindings.map(binding => ({
         subject: { ...(binding.subject || {}) },
         roleRef: { ...(binding.roleRef || {}) }
       }));
     }
 
-    setDraftRbacEntries(rbacEntries);
+    setDraftRoleBindingsEntries(rolebindingsEntries);
 
     setEditEnabled(false);
   }, [namespace, namespaceName]);
@@ -85,7 +85,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
 
     const resp = await fetch(
-      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/rbac/rolebinding_yaml?env=${encodeURIComponent(envKey)}`,
+      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/rolebindings/rolebinding_yaml?env=${encodeURIComponent(envKey)}`,
       {
         method: "POST",
         headers: { Accept: "text/yaml", "Content-Type": "application/json" },
@@ -199,7 +199,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   // Extract detailed attributes
   const status = effectiveNamespace?.status || {};
   const resources = effectiveNamespace?.resources || {};
-  const rbac = effectiveNamespace?.rbac || {};
+  const rolebindings = effectiveNamespace?.rolebindings || {};
   const policy = effectiveNamespace?.policy || {};
 
   return (
@@ -236,18 +236,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
                     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
 
-                    // Reset RBAC draft values
-                    let rbacEntries = [];
+                    // Reset RoleBindings draft values
+                    let rolebindingsEntries = [];
 
-                    if (Array.isArray(namespace?.rbac)) {
+                    if (Array.isArray(namespace?.rolebindings)) {
                       // New format: array of bindings
-                      rbacEntries = namespace.rbac.map(binding => ({
+                      rolebindingsEntries = namespace.rolebindings.map(binding => ({
                         subject: { ...(binding.subject || {}) },
                         roleRef: { ...(binding.roleRef || {}) }
                       }));
                     }
 
-                    setDraftRbacEntries(rbacEntries);
+                    setDraftRoleBindingsEntries(rolebindingsEntries);
 
                     setEditEnabled(false);
                   }}
@@ -283,8 +283,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                             memory: (draftLimMemory || "").trim(),
                           },
                         },
-                        rbac: {
-                          bindings: draftRbacEntries.map(entry => ({
+                        rolebindings: {
+                          bindings: draftRoleBindingsEntries.map(entry => ({
                             subject: {
                               kind: entry.subject?.kind || "User",
                               name: entry.subject?.name || ""
@@ -537,13 +537,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 className="btn btn-primary"
                 style={{ marginLeft: 'auto' }}
                 onClick={() => {
-                  setDraftRbacEntries([...draftRbacEntries, {
+                  setDraftRoleBindingsEntries([...draftRoleBindingsEntries, {
                     subject: { kind: "User", name: "" },
                     roleRef: { kind: "ClusterRole", name: "" }
                   }]);
                 }}
               >
-                + Add RBAC Entry
+                + Add RoleBinding Entry
               </button>
             )}
           </div>
@@ -561,26 +561,26 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 </thead>
                 <tbody>
                   {editEnabled ? (
-                    draftRbacEntries.length === 0 ? (
+                    draftRoleBindingsEntries.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
                           No RoleBinding entries. Click "+ Add RoleBinding Entry" to add one.
                         </td>
                       </tr>
                     ) : (
-                      draftRbacEntries.map((entry, idx) => (
+                      draftRoleBindingsEntries.map((entry, idx) => (
                         <tr key={idx}>
                           <td>
                             <select
                               className="filterInput"
                               value={entry.roleRef?.kind || "ClusterRole"}
                               onChange={(e) => {
-                                const updated = [...draftRbacEntries];
+                                const updated = [...draftRoleBindingsEntries];
                                 updated[idx] = {
                                   ...updated[idx],
                                   roleRef: { ...updated[idx].roleRef, kind: e.target.value }
                                 };
-                                setDraftRbacEntries(updated);
+                                setDraftRoleBindingsEntries(updated);
                               }}
                             >
                               <option value="ClusterRole">ClusterRole</option>
@@ -592,12 +592,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               className="filterInput"
                               value={entry.roleRef?.name || ""}
                               onChange={(e) => {
-                                const updated = [...draftRbacEntries];
+                                const updated = [...draftRoleBindingsEntries];
                                 updated[idx] = {
                                   ...updated[idx],
                                   roleRef: { ...updated[idx].roleRef, name: e.target.value }
                                 };
-                                setDraftRbacEntries(updated);
+                                setDraftRoleBindingsEntries(updated);
                               }}
                               placeholder="e.g., cluster-admin, view"
                             />
@@ -607,12 +607,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               className="filterInput"
                               value={entry.subject?.kind || "User"}
                               onChange={(e) => {
-                                const updated = [...draftRbacEntries];
+                                const updated = [...draftRoleBindingsEntries];
                                 updated[idx] = {
                                   ...updated[idx],
                                   subject: { ...updated[idx].subject, kind: e.target.value }
                                 };
-                                setDraftRbacEntries(updated);
+                                setDraftRoleBindingsEntries(updated);
                               }}
                             >
                               <option value="User">User</option>
@@ -625,12 +625,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               className="filterInput"
                               value={entry.subject?.name || ""}
                               onChange={(e) => {
-                                const updated = [...draftRbacEntries];
+                                const updated = [...draftRoleBindingsEntries];
                                 updated[idx] = {
                                   ...updated[idx],
                                   subject: { ...updated[idx].subject, name: e.target.value }
                                 };
-                                setDraftRbacEntries(updated);
+                                setDraftRoleBindingsEntries(updated);
                               }}
                               placeholder="e.g., user@example.com"
                             />
@@ -654,7 +654,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
                                   const header = document.createElement('div');
                                   header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RBAC Role Details</h3>';
+                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
 
                                   const closeBtn = document.createElement('button');
                                   closeBtn.innerHTML = '&times;';
@@ -703,11 +703,11 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               <button
                                 className="iconBtn iconBtn-danger"
                                 onClick={() => {
-                                  const updated = draftRbacEntries.filter((_, i) => i !== idx);
-                                  setDraftRbacEntries(updated);
+                                  const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
+                                  setDraftRoleBindingsEntries(updated);
                                 }}
                                 aria-label="Delete entry"
-                                title="Delete RBAC entry"
+                                title="Delete RoleBinding entry"
                               >
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                                   <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
@@ -720,8 +720,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       ))
                     )
                   ) : (
-                    Array.isArray(rbac) && rbac.length > 0 ? (
-                      rbac.map((binding, idx) => (
+                    Array.isArray(rolebindings) && rolebindings.length > 0 ? (
+                      rolebindings.map((binding, idx) => (
                         <tr key={idx}>
                           <td>{binding.roleRef?.kind || "N/A"}</td>
                           <td>{binding.roleRef?.name || "N/A"}</td>
@@ -746,7 +746,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
                                   const header = document.createElement('div');
                                   header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RBAC Role Details</h3>';
+                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
 
                                   const closeBtn = document.createElement('button');
                                   closeBtn.innerHTML = '&times;';
@@ -799,7 +799,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     ) : (
                       <tr>
                         <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
-                          No RBAC information available
+                          No RoleBinding information available
                         </td>
                       </tr>
                     )

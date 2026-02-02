@@ -59,7 +59,7 @@ class RoleBindingList(BaseModel):
 class NamespaceUpdate(BaseModel):
     namespace_info: Optional[NamespaceInfoUpdate] = None
     resources: Optional[NamespaceResourcesUpdate] = None
-    rbac: Optional[RoleBindingList] = None
+    rolebindings: Optional[RoleBindingList] = None
 
 
 def _parse_bool(v) -> bool:
@@ -172,7 +172,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": role_bindings,
+            "rolebindings": role_bindings,
         }
 
     return out
@@ -257,7 +257,7 @@ def create_namespace(appname: str, payload: NamespaceCreate, env: Optional[str] 
                 "memory": None,
             },
         },
-        "rbac": [],
+        "rolebindings": [],
     }
 
 
@@ -372,13 +372,13 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
 
-    # RBAC validation and update - outside try-except so validation errors return proper 400 status
-    if payload.rbac is not None and payload.rbac.bindings is not None:
+    # RoleBindings validation and update - outside try-except so validation errors return proper 400 status
+    if payload.rolebindings is not None and payload.rolebindings.bindings is not None:
         rolebinding_path = ns_dir / "rolebinding_requests.yaml"
 
         # Convert bindings to array format for storage with validation
-        rbac_data = []
-        for idx, binding in enumerate(payload.rbac.bindings):
+        rolebindings_data = []
+        for idx, binding in enumerate(payload.rolebindings.bindings):
             # Validate mandatory fields - all must be non-empty
             subject_kind = str(binding.subject.kind).strip() if binding.subject.kind is not None else ""
             subject_name = str(binding.subject.name).strip() if binding.subject.name is not None else ""
@@ -417,11 +417,11 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     "name": roleref_name
                 }
             }
-            rbac_data.append(binding_dict)
+            rolebindings_data.append(binding_dict)
 
-        # Write rbac data - even if array is empty, write it to clear previous values
+        # Write rolebindings data - even if array is empty, write it to clear previous values
         try:
-            rolebinding_path.write_text(yaml.safe_dump(rbac_data, sort_keys=False))
+            rolebinding_path.write_text(yaml.safe_dump(rolebindings_data, sort_keys=False))
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to write RoleBinding: {e}")
 
@@ -495,7 +495,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": role_bindings,
+            "rolebindings": role_bindings,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")

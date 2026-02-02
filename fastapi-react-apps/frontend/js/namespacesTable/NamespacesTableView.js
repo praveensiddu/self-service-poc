@@ -436,7 +436,7 @@ function NamespacesTableView({
                     <div className="attrRow">
                       <div className="attrCell">
                         <div className="attrTitle">RoleBinding</div>
-                        <div className="attrValue">{r.rbacText}</div>
+                        <div className="attrValue">{r.rolebindingsText}</div>
                       </div>
                     </div>
                   </div>

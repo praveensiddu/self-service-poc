@@ -18,7 +18,7 @@ class RoleBindingYamlRequest(BaseModel):
     binding_name: Optional[str] = None
 
 
-@router.post("/apps/{appname}/namespaces/{namespace}/rbac/rolebinding_yaml")
+@router.post("/apps/{appname}/namespaces/{namespace}/rolebindings/rolebinding_yaml")
 def get_rolebinding_yaml(appname: str, namespace: str, payload: RoleBindingYamlRequest, env: Optional[str] = None):
     env = _require_env(env)
 
