@@ -615,8 +615,55 @@ function AppsTableView({
                       title="Add ArgoCD details"
                       data-testid={`argocd-app-${a.appname}`}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.63 3.134 8.53 7.4 9.64.54.1.74-.23.74-.52v-1.82c-3.01.65-3.64-1.45-3.64-1.45-.49-1.25-1.2-1.58-1.2-1.58-.98-.67.08-.66.08-.66 1.08.08 1.65 1.11 1.65 1.11.97 1.66 2.54 1.18 3.16.9.1-.7.38-1.18.69-1.45-2.4-.27-4.92-1.2-4.92-5.34 0-1.18.42-2.15 1.11-2.9-.11-.27-.48-1.37.1-2.85 0 0 .9-.29 2.95 1.11.86-.24 1.78-.36 2.7-.36.92 0 1.84.12 2.7.36 2.05-1.4 2.95-1.11 2.95-1.11.58 1.48.21 2.58.1 2.85.69.75 1.11 1.72 1.11 2.9 0 4.15-2.53 5.06-4.94 5.33.39.34.74 1.01.74 2.03v3.01c0 .29.2.62.75.52C18.87 20.53 22 16.63 22 12c0-5.523-4.477-10-10-10z"/>
+                      <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
+                        <circle cx="32" cy="32" r="29" fill="#e8f6ff" stroke="#7cc7ff" strokeWidth="3" />
+                        <circle cx="23" cy="20" r="4" fill="#ffffff" opacity="0.8" />
+                        <g>
+                          <path
+                            d="M32 18c-9 0-16 6.3-16 14.1 0 5.4 3.2 9.1 7.2 11.4 2.8 1.6 6.3 2.5 8.8 2.5s6-.9 8.8-2.5c4-2.3 7.2-6 7.2-11.4C48 24.3 41 18 32 18z"
+                            fill="#ff6a3d"
+                          />
+                          <path
+                            d="M18 44c2.5 3.8 6.1 6.8 10.5 8.4 1 .4 2-.4 1.9-1.5-.2-1.8-1.1-3.2-2.1-4.7-.8-1.2-1.7-2.4-2.3-3.9"
+                            fill="none"
+                            stroke="#ff6a3d"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M26 46c.8 4.5 3.6 8.2 7.6 10.5 1 .6 2.3-.1 2.4-1.3.2-2.3-.2-4.2-.7-6.1-.4-1.5-.8-3.1-.8-5"
+                            fill="none"
+                            stroke="#ff6a3d"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M38 46c-.8 4.5-3.6 8.2-7.6 10.5-1 .6-2.3-.1-2.4-1.3-.2-2.3.2-4.2.7-6.1.4-1.5.8-3.1.8-5"
+                            fill="none"
+                            stroke="#ff6a3d"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M46 44c-2.5 3.8-6.1 6.8-10.5 8.4-1 .4-2-.4-1.9-1.5.2-1.8 1.1-3.2 2.1-4.7.8-1.2 1.7-2.4 2.3-3.9"
+                            fill="none"
+                            stroke="#ff6a3d"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+
+                          <circle cx="26" cy="31" r="5" fill="#ffffff" />
+                          <circle cx="38" cy="31" r="5" fill="#ffffff" />
+                          <circle cx="26.5" cy="31.5" r="2" fill="#1a1a1a" />
+                          <circle cx="38.5" cy="31.5" r="2" fill="#1a1a1a" />
+                          <path
+                            d="M28 38c2 2.4 6 2.4 8 0"
+                            fill="none"
+                            stroke="#ffffff"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+                        </g>
                       </svg>
                     </button>
                     <button
