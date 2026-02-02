@@ -704,10 +704,35 @@ function App() {
     if (!appname) throw new Error("No application selected.");
     if (!namespaceName) throw new Error("No namespace selected.");
 
+    const nextUpdates = { ...(updates || {}) };
+    const ni = nextUpdates?.namespace_info ? { ...(nextUpdates.namespace_info || {}) } : null;
+    const nextNeedArgo = ni && Object.prototype.hasOwnProperty.call(ni, "need_argo")
+      ? Boolean(ni.need_argo)
+      : null;
+    if (ni && Object.prototype.hasOwnProperty.call(ni, "need_argo")) {
+      delete ni.need_argo;
+      nextUpdates.namespace_info = ni;
+    }
+
     const updated = await putJson(
       `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info?env=${encodeURIComponent(activeEnv)}`,
-      updates || {},
+      nextUpdates || {},
     );
+
+    if (nextNeedArgo !== null) {
+      await putJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+        { need_argo: nextNeedArgo },
+      );
+
+      const refreshed = await fetchJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+      );
+      setNamespaces(refreshed || {});
+      const refreshedNs = (refreshed || {})[namespaceName] || updated;
+      setDetailNamespace(refreshedNs);
+      return refreshedNs;
+    }
 
     setDetailNamespace(updated);
     setNamespaces((prev) => ({ ...(prev || {}), [namespaceName]: updated }));
@@ -901,9 +926,13 @@ function App() {
       {
         namespace,
         clusters,
-        need_argo,
         egress_nameid: egress_nameid || undefined,
       }
+    );
+
+    await putJson(
+      `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespace)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+      { need_argo },
     );
 
     // Refresh the namespaces list

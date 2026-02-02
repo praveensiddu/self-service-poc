@@ -102,9 +102,21 @@ def put_app_argocd(appname: str, payload: AppArgoCdDetails, env: Optional[str] =
         "gitrepourl": str(payload.gitrepourl or "").strip(),
     }
 
+    to_write: Dict[str, Any] = {
+        "argocd_sync_strategy": out["argocd_sync_strategy"],
+        "gitrepourl": out["gitrepourl"],
+    }
+
+    if out["argocd_admin_groups"]:
+        to_write["argocd_admin_groups"] = out["argocd_admin_groups"]
+    if out["argocd_operator_groups"]:
+        to_write["argocd_operator_groups"] = out["argocd_operator_groups"]
+    if out["argocd_readonly_groups"]:
+        to_write["argocd_readonly_groups"] = out["argocd_readonly_groups"]
+
     cfg_path = _argocd_yaml_path(app_dir)
     try:
-        cfg_path.write_text(yaml.safe_dump(out, sort_keys=False))
+        cfg_path.write_text(yaml.safe_dump(to_write, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write argocd.yaml: {e}")
 

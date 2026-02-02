@@ -15,13 +15,11 @@ router = APIRouter(tags=["namespaces"])
 class NamespaceCreate(BaseModel):
     namespace: str
     clusters: Optional[List[str]] = None
-    need_argo: Optional[bool] = None
     egress_nameid: Optional[str] = None
 
 
 class NamespaceInfoUpdate(BaseModel):
     clusters: Optional[List[str]] = None
-    need_argo: Optional[bool] = None
     egress_nameid: Optional[str] = None
 
 
@@ -73,6 +71,16 @@ def _parse_bool(v) -> bool:
     return s in {"true", "1", "yes", "y", "on"}
 
 
+def _read_yaml_dict(path) -> dict:
+    if not path.exists() or not path.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
 @router.get("/apps/{appname}/namespaces")
 def get_namespaces(appname: str, env: Optional[str] = None):
     env = _require_env(env)
@@ -108,6 +116,9 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     ns_info = parsed
             except Exception:
                 ns_info = {}
+
+        nsargocd_path = child / "nsargocd.yaml"
+        nsargocd = _read_yaml_dict(nsargocd_path)
 
         limits = {}
         if limits_path.exists() and limits_path.is_file():
@@ -156,7 +167,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             clusters = []
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
-        need_argo = _parse_bool(ns_info.get("need_argo"))
+        need_argo = _parse_bool(nsargocd.get("need_argo"))
         if not argocd_exists:
             need_argo = False
         status = "Argo used" if need_argo else "Argo not used"
@@ -221,13 +232,10 @@ def create_namespace(appname: str, payload: NamespaceCreate, env: Optional[str] 
 
         clusters = payload.clusters or []
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
-
-        need_argo = bool(payload.need_argo) if payload.need_argo is not None else False
         egress_nameid = str(payload.egress_nameid or "").strip()
 
         ns_info = {
             "clusters": clusters,
-            "need_argo": need_argo,
         }
 
         if egress_nameid:
@@ -244,6 +252,7 @@ def create_namespace(appname: str, payload: NamespaceCreate, env: Optional[str] 
             shutil.rmtree(ns_dir)
         raise HTTPException(status_code=500, detail=f"Failed to create namespace: {e}")
 
+    need_argo = False
     status = "Argo used" if need_argo else "Argo not used"
 
     return {
@@ -341,8 +350,6 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             ni = payload.namespace_info
             if ni.clusters is not None:
                 existing["clusters"] = [str(c) for c in ni.clusters if c is not None and str(c).strip()]
-            if ni.need_argo is not None:
-                existing["need_argo"] = bool(ni.need_argo)
             if ni.egress_nameid is not None:
                 existing["egress_nameid"] = str(ni.egress_nameid)
 
@@ -479,7 +486,9 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             clusters = []
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
-        need_argo = _parse_bool(existing.get("need_argo"))
+        nsargocd_path = ns_dir / "nsargocd.yaml"
+        nsargocd = _read_yaml_dict(nsargocd_path)
+        need_argo = _parse_bool(nsargocd.get("need_argo"))
         argocd_exists = False
         try:
             argocd_path = (requests_root / env / appname) / "argocd.yaml"
