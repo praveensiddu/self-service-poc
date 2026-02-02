@@ -82,6 +82,13 @@ def get_namespaces(appname: str, env: Optional[str] = None):
     if not app_dir.exists() or not app_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
 
+    argocd_exists = False
+    try:
+        argocd_path = app_dir / "argocd.yaml"
+        argocd_exists = argocd_path.exists() and argocd_path.is_file()
+    except Exception:
+        argocd_exists = False
+
     out = {}
     for child in app_dir.iterdir():
         if not child.is_dir():
@@ -150,6 +157,8 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
         need_argo = _parse_bool(ns_info.get("need_argo"))
+        if not argocd_exists:
+            need_argo = False
         status = "Argo used" if need_argo else "Argo not used"
 
         out[ns_name] = {
@@ -471,6 +480,14 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
         need_argo = _parse_bool(existing.get("need_argo"))
+        argocd_exists = False
+        try:
+            argocd_path = (requests_root / env / appname) / "argocd.yaml"
+            argocd_exists = argocd_path.exists() and argocd_path.is_file()
+        except Exception:
+            argocd_exists = False
+        if not argocd_exists:
+            need_argo = False
         status = "Argo used" if need_argo else "Argo not used"
 
         return {
