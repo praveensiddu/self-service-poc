@@ -350,7 +350,15 @@ function AppsTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">argocd_sync_strategy</div>
-                  <div className="muted" style={{ fontSize: 12 }}>https://argo-cd.readthedocs.io/en/latest/user-guide/auto_sync/</div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    <a
+                      href="https://argo-cd.readthedocs.io/en/latest/user-guide/auto_sync/"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      https://argo-cd.readthedocs.io/en/latest/user-guide/auto_sync/
+                    </a>
+                  </div>
                 </div>
                 <select
                   className="filterInput"
@@ -366,13 +374,22 @@ function AppsTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">gitrepourl</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Git repository which contains application k8s manifests for each cluster and namespace</div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    Git repository which contains application k8s manifests for each cluster and namespace. Example:{" "}
+                    <a
+                      href="https://github.com/praveensiddu/kselfservice-app1-argocd"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      https://github.com/praveensiddu/kselfservice-app1-argocd
+                    </a>
+                  </div>
                 </div>
                 <input
                   className="filterInput"
                   value={argoCdGitUrl}
                   onChange={(e) => setArgoCdGitUrl(e.target.value)}
-                  placeholder="url"
+                  placeholder="https://github.com/praveensiddu/kselfservice-app1-argocd"
                   data-testid="argocd-input-gitrepourl"
                 />
               </div>

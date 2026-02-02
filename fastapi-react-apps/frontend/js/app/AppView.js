@@ -140,21 +140,39 @@ function AppView({
               <div>
                 <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
                   <div className="muted" style={{ fontWeight: 700 }}>RequestsRepo</div>
-                  <div className="muted">Git repo where incoming provisioning requests are stored (for example: https://github.com/praveensiddu/kselfservice-requests).</div>
+                  <div className="muted">
+                    Git repo where incoming provisioning requests are stored (for example:{" "}
+                    <a href="https://github.com/praveensiddu/kselfservice-requests" target="_blank" rel="noreferrer">
+                      https://github.com/praveensiddu/kselfservice-requests
+                    </a>
+                    ).
+                  </div>
                 </div>
                 <input className="filterInput" value={requestsRepo} onChange={(e) => setRequestsRepo(e.target.value)} />
               </div>
               <div>
                 <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
                   <div className="muted" style={{ fontWeight: 700 }}>RenderedManifestsRepo</div>
-                  <div className="muted">Git repo which contains the kubernetes rendered manifests ready for ArgoCD to apply to the clusters(for example: https://github.com/praveensiddu/kselfservice-rendered).</div>
+                  <div className="muted">
+                    Git repo which contains the kubernetes rendered manifests ready for ArgoCD to apply to the clusters(for example:{" "}
+                    <a href="https://github.com/praveensiddu/kselfservice-rendered" target="_blank" rel="noreferrer">
+                      https://github.com/praveensiddu/kselfservice-rendered
+                    </a>
+                    ).
+                  </div>
                 </div>
                 <input className="filterInput" value={renderedManifestsRepo} onChange={(e) => setRenderedManifestsRepo(e.target.value)} />
               </div>
               <div>
                 <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
                   <div className="muted" style={{ fontWeight: 700 }}>ControlRepo</div>
-                  <div className="muted">Git repo used for control-plane automation (for example: https://github.com/praveensiddu/kselfservice-control).</div>
+                  <div className="muted">
+                    Git repo used for control-plane automation (for example:{" "}
+                    <a href="https://github.com/praveensiddu/kselfservice-control" target="_blank" rel="noreferrer">
+                      https://github.com/praveensiddu/kselfservice-control
+                    </a>
+                    ).
+                  </div>
                 </div>
                 <input className="filterInput" value={controlRepo} onChange={(e) => setControlRepo(e.target.value)} />
               </div>
