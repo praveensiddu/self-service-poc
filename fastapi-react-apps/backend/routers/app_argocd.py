@@ -44,13 +44,45 @@ def get_app_argocd(appname: str, env: Optional[str] = None):
     cfg_path = _argocd_yaml_path(app_dir)
     data = _read_argocd_yaml(cfg_path)
 
+    exists = False
+    try:
+        exists = cfg_path.exists() and cfg_path.is_file()
+    except Exception:
+        exists = False
+
     return {
+        "exists": exists,
         "argocd_admin_groups": str(data.get("argocd_admin_groups", "") or ""),
         "argocd_operator_groups": str(data.get("argocd_operator_groups", "") or ""),
         "argocd_readonly_groups": str(data.get("argocd_readonly_groups", "") or ""),
         "argocd_sync_strategy": str(data.get("argocd_sync_strategy", "auto") or "auto"),
         "gitrepourl": str(data.get("gitrepourl", "") or ""),
     }
+
+
+@router.delete("/apps/{appname}/argocd")
+def delete_app_argocd(appname: str, env: Optional[str] = None):
+    env = _require_env(env)
+    requests_root = _require_initialized_workspace()
+
+    app_dir = requests_root / env / appname
+    if not app_dir.exists() or not app_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+
+    cfg_path = _argocd_yaml_path(app_dir)
+    existed = False
+    try:
+        existed = cfg_path.exists() and cfg_path.is_file()
+    except Exception:
+        existed = False
+
+    if existed:
+        try:
+            cfg_path.unlink()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete argocd.yaml: {e}")
+
+    return {"deleted": existed}
 
 
 @router.put("/apps/{appname}/argocd")

@@ -475,12 +475,20 @@ def list_apps(env: Optional[str] = None):
         except Exception:
             totalns = 0
 
+        argocd = False
+        try:
+            argocd_path = child / "argocd.yaml"
+            argocd = argocd_path.exists() and argocd_path.is_file()
+        except Exception:
+            argocd = False
+
         apps_out[appname] = {
             "appname": appname,
             "description": description,
             "managedby": managedby,
             "clusters": clusters,
             "totalns": totalns,
+            "argocd": argocd,
         }
 
     return apps_out

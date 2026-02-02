@@ -45,6 +45,7 @@ function AppView({
   openNamespaces,
   onCreateApp,
   onUpdateApp,
+  onRefreshApps,
   showCreateApp,
   onOpenCreateApp,
   onCloseCreateApp,
@@ -284,6 +285,7 @@ function AppView({
               <AppsTable
                 rows={appRows}
                 env={activeEnv}
+                onRefreshApps={onRefreshApps}
                 clustersByApp={clustersByApp}
                 l4IpsByApp={l4IpsByApp}
                 egressIpsByApp={egressIpsByApp}

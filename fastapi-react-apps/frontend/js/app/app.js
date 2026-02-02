@@ -856,6 +856,18 @@ function App() {
     setClustersByApp(nextClusters);
   }
 
+  async function refreshApps() {
+    if (!activeEnv) return;
+    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    setApps(appsResp);
+
+    const nextClusters = {};
+    for (const [k, app] of Object.entries(appsResp || {})) {
+      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
+    }
+    setClustersByApp(nextClusters);
+  }
+
   async function updateApp(appname, payload) {
     const target = String(appname || payload?.appname || "").trim();
     const description = String(payload?.description || "");
@@ -1065,6 +1077,7 @@ function App() {
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
       onCreateApp={createApp}
       onUpdateApp={updateApp}
+      onRefreshApps={refreshApps}
       showCreateApp={showCreateApp}
       onOpenCreateApp={async () => {
         try {

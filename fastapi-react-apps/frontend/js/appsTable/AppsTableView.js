@@ -4,6 +4,7 @@ function AppsTableView({
   filters,
   setFilters,
   env,
+  onRefreshApps,
   clustersByApp,
   l4IpsByApp,
   egressIpsByApp,
@@ -38,16 +39,20 @@ function AppsTableView({
 
   const [showArgoCd, setShowArgoCd] = React.useState(false);
   const [argoCdAppName, setArgoCdAppName] = React.useState("");
+  const [argoCdExists, setArgoCdExists] = React.useState(false);
   const [argoCdAdminGroups, setArgoCdAdminGroups] = React.useState("");
   const [argoCdOperatorGroups, setArgoCdOperatorGroups] = React.useState("");
   const [argoCdReadonlyGroups, setArgoCdReadonlyGroups] = React.useState("");
   const [argoCdSyncStrategy, setArgoCdSyncStrategy] = React.useState("auto");
   const [argoCdGitUrl, setArgoCdGitUrl] = React.useState("");
 
+  const canSubmitArgoCd = Boolean(String(argoCdGitUrl || "").trim());
+
   async function openArgoCd(row) {
     const r = row || {};
     const name = String(r?.appname || "");
     setArgoCdAppName(name);
+    setArgoCdExists(Boolean(r?.argocd));
 
     setArgoCdAdminGroups("");
     setArgoCdOperatorGroups("");
@@ -65,6 +70,7 @@ function AppsTableView({
       );
       if (resp.ok) {
         const parsed = await resp.json();
+        setArgoCdExists(Boolean(parsed?.exists));
         setArgoCdAdminGroups(String(parsed?.argocd_admin_groups || ""));
         setArgoCdOperatorGroups(String(parsed?.argocd_operator_groups || ""));
         setArgoCdReadonlyGroups(String(parsed?.argocd_readonly_groups || ""));
@@ -105,8 +111,41 @@ function AppsTableView({
         const text = await resp.text();
         throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
       }
-
+      setArgoCdExists(true);
       setShowArgoCd(false);
+      if (typeof onRefreshApps === "function") {
+        await onRefreshApps();
+      }
+    } catch (e) {
+      alert(e?.message || String(e));
+    }
+  }
+
+  async function onDeleteArgoCd() {
+    try {
+      const name = String(argoCdAppName || "").trim();
+      if (!name) throw new Error("App Name is required.");
+      if (!env) throw new Error("Environment is required.");
+
+      const resp = await fetch(
+        `/api/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
+        { method: "DELETE", headers: { Accept: "application/json" } }
+      );
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+      }
+
+      setArgoCdExists(false);
+      setArgoCdAdminGroups("");
+      setArgoCdOperatorGroups("");
+      setArgoCdReadonlyGroups("");
+      setArgoCdSyncStrategy("auto");
+      setArgoCdGitUrl("");
+      setShowArgoCd(false);
+      if (typeof onRefreshApps === "function") {
+        await onRefreshApps();
+      }
     } catch (e) {
       alert(e?.message || String(e));
     }
@@ -311,7 +350,7 @@ function AppsTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">argocd_sync_strategy</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Example: auto</div>
+                  <div className="muted" style={{ fontSize: 12 }}>https://argo-cd.readthedocs.io/en/latest/user-guide/auto_sync/</div>
                 </div>
                 <select
                   className="filterInput"
@@ -327,7 +366,7 @@ function AppsTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">gitrepourl</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Example: url</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Git repository which contains application k8s manifests for each cluster and namespace</div>
                 </div>
                 <input
                   className="filterInput"
@@ -340,7 +379,23 @@ function AppsTableView({
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button className="btn btn-primary" type="button" onClick={onSubmitArgoCd} data-testid="submit-argocd-btn">
+              {argoCdExists ? (
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={onDeleteArgoCd}
+                  data-testid="delete-argocd-btn"
+                >
+                  Delete
+                </button>
+              ) : null}
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={onSubmitArgoCd}
+                disabled={!canSubmitArgoCd}
+                data-testid="submit-argocd-btn"
+              >
                 Save
               </button>
             </div>
@@ -433,6 +488,7 @@ function AppsTableView({
             <th>Managed By</th>
             <th>Clusters</th>
             <th>Namespaces</th>
+            <th>ArgoCD</th>
             <th>L4 IPs</th>
             <th>Egress IPs</th>
             <th>Actions</th>
@@ -479,6 +535,7 @@ function AppsTableView({
                 data-testid="filter-namespaces"
               />
             </th>
+            <th></th>
             <th>
               <input
                 className="filterInput"
@@ -501,7 +558,7 @@ function AppsTableView({
         <tbody>
           {filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={9} className="muted" data-testid="no-apps-message">No apps found.</td>
+              <td colSpan={10} className="muted" data-testid="no-apps-message">No apps found.</td>
             </tr>
           ) : (
             filteredRows.map((a) => (
@@ -520,6 +577,7 @@ function AppsTableView({
                 <td>{a.managedby || ""}</td>
                 <td>{(clustersByApp?.[a.appname] || []).join(", ")}</td>
                 <td>{a.totalns ?? ""}</td>
+                <td>{String(Boolean(a?.argocd))}</td>
                 <td>{(l4IpsByApp?.[a.appname] || []).join(", ")}</td>
                 <td>{(egressIpsByApp?.[a.appname] || []).join(", ")}</td>
                 <td>
