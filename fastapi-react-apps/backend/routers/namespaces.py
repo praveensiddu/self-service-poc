@@ -98,7 +98,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         ns_info_path = child / "namespace_info.yaml"
         limits_path = child / "limits.yaml"
         requests_path = child / "requests.yaml"
-        rbac_path = child / "rbac.yaml"
+        rolebinding_path = child / "rolebinding_requests.yaml"
 
         ns_info = {}
         if ns_info_path.exists() and ns_info_path.is_file():
@@ -128,9 +128,9 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                 reqs = {}
 
         rbac = None
-        if rbac_path.exists() and rbac_path.is_file():
+        if rolebinding_path.exists() and rolebinding_path.is_file():
             try:
-                parsed = yaml.safe_load(rbac_path.read_text())
+                parsed = yaml.safe_load(rolebinding_path.read_text())
                 if parsed is not None:
                     rbac = parsed
             except Exception:
@@ -381,7 +381,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
 
     # RBAC validation and update - outside try-except so validation errors return proper 400 status
     if payload.rbac is not None and payload.rbac.bindings is not None:
-        rbac_path = ns_dir / "rbac.yaml"
+        rolebinding_path = ns_dir / "rolebinding_requests.yaml"
 
         # Convert bindings to array format for storage with validation
         rbac_data = []
@@ -428,7 +428,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
 
         # Write rbac data - even if array is empty, write it to clear previous values
         try:
-            rbac_path.write_text(yaml.safe_dump(rbac_data, sort_keys=False))
+            rolebinding_path.write_text(yaml.safe_dump(rbac_data, sort_keys=False))
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to write RoleBinding: {e}")
 
@@ -437,7 +437,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
     try:
         limits_path = ns_dir / "limits.yaml"
         requests_path = ns_dir / "requests.yaml"
-        rbac_path = ns_dir / "rbac.yaml"
+        rolebinding_path = ns_dir / "rolebinding_requests.yaml"
 
         limits = {}
         if limits_path.exists() and limits_path.is_file():
@@ -452,8 +452,8 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                 reqs = parsed
 
         rbac = None
-        if rbac_path.exists() and rbac_path.is_file():
-            parsed = yaml.safe_load(rbac_path.read_text())
+        if rolebinding_path.exists() and rolebinding_path.is_file():
+            parsed = yaml.safe_load(rolebinding_path.read_text())
             if parsed is not None:
                 rbac = parsed
 
