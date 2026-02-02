@@ -168,6 +168,8 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
         need_argo = _parse_bool(nsargocd.get("need_argo"))
+        argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
+        gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
         if not argocd_exists:
             need_argo = False
         status = "Argo used" if need_argo else "Argo not used"
@@ -180,6 +182,8 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             "enable_pod_based_egress_ip": _parse_bool(ns_info.get("enable_pod_based_egress_ip")),
             "allow_all_egress": _parse_bool(ns_info.get("allow_all_egress")),
             "need_argo": need_argo,
+            "argocd_sync_strategy": argocd_sync_strategy,
+            "gitrepourl": gitrepourl,
             "generate_argo_app": _parse_bool(ns_info.get("generate_argo_app")),
             "status": status,
             "resources": {
@@ -489,6 +493,8 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         nsargocd_path = ns_dir / "nsargocd.yaml"
         nsargocd = _read_yaml_dict(nsargocd_path)
         need_argo = _parse_bool(nsargocd.get("need_argo"))
+        argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
+        gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
         argocd_exists = False
         try:
             argocd_path = (requests_root / env / appname) / "argocd.yaml"
@@ -509,6 +515,8 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             "enable_pod_based_egress_ip": _parse_bool(existing.get("enable_pod_based_egress_ip")),
             "allow_all_egress": _parse_bool(existing.get("allow_all_egress")),
             "need_argo": need_argo,
+            "argocd_sync_strategy": argocd_sync_strategy,
+            "gitrepourl": gitrepourl,
             "generate_argo_app": _parse_bool(existing.get("generate_argo_app")),
             "status": status,
             "resources": {

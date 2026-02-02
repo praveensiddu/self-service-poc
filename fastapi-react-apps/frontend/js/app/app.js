@@ -714,16 +714,32 @@ function App() {
       nextUpdates.namespace_info = ni;
     }
 
+    const nsargocdUpdates = nextUpdates && nextUpdates.nsargocd ? { ...(nextUpdates.nsargocd || {}) } : null;
+    if (nextUpdates && Object.prototype.hasOwnProperty.call(nextUpdates, "nsargocd")) {
+      delete nextUpdates.nsargocd;
+    }
+
     const updated = await putJson(
       `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info?env=${encodeURIComponent(activeEnv)}`,
       nextUpdates || {},
     );
 
-    if (nextNeedArgo !== null) {
-      await putJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
-        { need_argo: nextNeedArgo },
-      );
+    const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;
+    if (shouldWriteNsArgo) {
+      const payload = { ...(nsargocdUpdates || {}) };
+      if (nextNeedArgo !== null) payload.need_argo = nextNeedArgo;
+
+      if (payload.need_argo === false) {
+        await fetch(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+          { method: "DELETE", headers: { Accept: "application/json" } },
+        );
+      } else {
+        await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+          payload,
+        );
+      }
 
       const refreshed = await fetchJson(
         `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
@@ -930,10 +946,12 @@ function App() {
       }
     );
 
-    await putJson(
-      `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespace)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
-      { need_argo },
-    );
+    if (need_argo) {
+      await putJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespace)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+        { need_argo },
+      );
+    }
 
     // Refresh the namespaces list
     const resp = await fetchJson(

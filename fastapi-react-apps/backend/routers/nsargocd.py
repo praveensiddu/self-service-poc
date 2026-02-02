@@ -12,6 +12,8 @@ router = APIRouter(tags=["nsargocd"])
 
 class NsArgoCdDetails(BaseModel):
     need_argo: Optional[bool] = None
+    argocd_sync_strategy: Optional[str] = None
+    gitrepourl: Optional[str] = None
 
 
 def _nsargocd_yaml_path(ns_dir) -> Any:
@@ -60,6 +62,8 @@ def get_ns_argocd(appname: str, namespace: str, env: Optional[str] = None):
     return {
         "exists": exists,
         "need_argo": _parse_bool(data.get("need_argo")),
+        "argocd_sync_strategy": str(data.get("argocd_sync_strategy", "") or ""),
+        "gitrepourl": str(data.get("gitrepourl", "") or ""),
     }
 
 
@@ -74,7 +78,15 @@ def put_ns_argocd(appname: str, namespace: str, payload: NsArgoCdDetails, env: O
 
     out: Dict[str, Any] = {}
     if payload.need_argo is not None:
-        out["need_argo"] = bool(payload.need_argo)
+        out["need_argo"] = "true" if bool(payload.need_argo) else "false"
+
+    sync_strategy = str(payload.argocd_sync_strategy or "").strip()
+    if sync_strategy:
+        out["argocd_sync_strategy"] = sync_strategy
+
+    gitrepourl = str(payload.gitrepourl or "").strip()
+    if gitrepourl:
+        out["gitrepourl"] = gitrepourl
 
     cfg_path = _nsargocd_yaml_path(ns_dir)
     try:
@@ -82,4 +94,33 @@ def put_ns_argocd(appname: str, namespace: str, payload: NsArgoCdDetails, env: O
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write nsargocd.yaml: {e}")
 
-    return {"need_argo": bool(out.get("need_argo", False))}
+    return {
+        "need_argo": _parse_bool(out.get("need_argo")),
+        "argocd_sync_strategy": str(out.get("argocd_sync_strategy", "") or ""),
+        "gitrepourl": str(out.get("gitrepourl", "") or ""),
+    }
+
+
+@router.delete("/apps/{appname}/namespaces/{namespace}/nsargocd")
+def delete_ns_argocd(appname: str, namespace: str, env: Optional[str] = None):
+    env = _require_env(env)
+    requests_root = _require_initialized_workspace()
+
+    ns_dir = requests_root / env / appname / namespace
+    if not ns_dir.exists() or not ns_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Namespace folder not found: {ns_dir}")
+
+    cfg_path = _nsargocd_yaml_path(ns_dir)
+    existed = False
+    try:
+        existed = cfg_path.exists() and cfg_path.is_file()
+    except Exception:
+        existed = False
+
+    if existed:
+        try:
+            cfg_path.unlink()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete nsargocd.yaml: {e}")
+
+    return {"deleted": existed}

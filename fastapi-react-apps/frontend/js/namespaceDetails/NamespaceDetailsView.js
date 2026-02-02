@@ -14,6 +14,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [clusterQuery, setClusterQuery] = React.useState("");
   const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
   const [draftManagedByArgo, setDraftManagedByArgo] = React.useState(false);
+  const [draftNsArgoSyncStrategy, setDraftNsArgoSyncStrategy] = React.useState("auto");
+  const [draftNsArgoGitRepoUrl, setDraftNsArgoGitRepoUrl] = React.useState("");
   const [draftEgressNameId, setDraftEgressNameId] = React.useState("");
   const [draftReqCpu, setDraftReqCpu] = React.useState("");
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
@@ -26,6 +28,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftClusters(initialClusters);
     setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
     setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
+    setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
+    setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
     setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
     setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
     setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
@@ -172,6 +176,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         clusters: effectiveClusters,
         egress_nameid: draftEgressNameId ? draftEgressNameId : null,
         need_argo: Boolean(draftManagedByArgo),
+        argocd_sync_strategy: String(draftNsArgoSyncStrategy || "auto") || "auto",
+        gitrepourl: String(draftNsArgoGitRepoUrl || ""),
         generate_argo_app: false,
         status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
         resources: {
@@ -200,7 +206,6 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const status = effectiveNamespace?.status || {};
   const resources = effectiveNamespace?.resources || {};
   const rolebindings = effectiveNamespace?.rolebindings || {};
-  const policy = effectiveNamespace?.policy || {};
 
   return (
     <div>
@@ -230,6 +235,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     setClusterQuery("");
                     setClusterPickerOpen(false);
                     setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
+                    setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
+                    setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
                     setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
                     setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
                     setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
@@ -270,8 +277,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       await onUpdateNamespaceInfo(namespaceName, {
                         namespace_info: {
                           clusters,
-                          need_argo: Boolean(draftManagedByArgo),
                           egress_nameid,
+                        },
+                        nsargocd: {
+                          need_argo: Boolean(draftManagedByArgo),
+                          argocd_sync_strategy: String(draftNsArgoSyncStrategy || "").trim(),
+                          gitrepourl: String(draftNsArgoGitRepoUrl || "").trim(),
                         },
                         resources: {
                           requests: {
@@ -470,6 +481,38 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 <span className={`detailBadge ${managedByArgo === 'Yes' ? 'detailBadgeSuccess' : 'detailBadgeSecondary'}`}>
                   {managedByArgo}
                 </span>
+              )}
+            </div>
+
+            <div className="detailRow">
+              <span className="detailLabel">ArgoCD Sync Strategy:</span>
+              {editEnabled ? (
+                <select
+                  className="filterInput"
+                  value={draftNsArgoSyncStrategy}
+                  onChange={(e) => setDraftNsArgoSyncStrategy(e.target.value)}
+                  disabled={!draftManagedByArgo}
+                >
+                  <option value="auto">auto</option>
+                  <option value="manual">manual</option>
+                </select>
+              ) : (
+                <span className="detailValue">{formatValue(effectiveNamespace?.argocd_sync_strategy || "")}</span>
+              )}
+            </div>
+
+            <div className="detailRow">
+              <span className="detailLabel">ArgoCD Git Repo URL:</span>
+              {editEnabled ? (
+                <input
+                  className="filterInput"
+                  value={draftNsArgoGitRepoUrl}
+                  onChange={(e) => setDraftNsArgoGitRepoUrl(e.target.value)}
+                  placeholder="https://github.com/org/repo"
+                  disabled={!draftManagedByArgo}
+                />
+              ) : (
+                <span className="detailValue">{formatValue(effectiveNamespace?.gitrepourl || "")}</span>
               )}
             </div>
           </div>
@@ -1028,29 +1071,6 @@ spec:
           </div>
         </div>
 
-        {/* Policy Card */}
-        <div className="dashboardCard">
-          <div className="dashboardCardHeader">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
-            </svg>
-            <h3>Policy</h3>
-          </div>
-          <div className="dashboardCardBody">
-            {Object.keys(policy).length > 0 ? (
-              <div className="attributesGrid">
-                {Object.entries(policy).map(([key, value]) => (
-                  <div key={key} className="attributeItem">
-                    <span className="attributeKey">{key}:</span>
-                    <span className="attributeValue">{formatValue(value)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">No policy information available</p>
-            )}
-          </div>
-        </div>
       </div>
 
     </div>

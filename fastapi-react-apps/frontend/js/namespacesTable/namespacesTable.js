@@ -68,7 +68,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       const egressIpText = `${formatValue(ns?.egress_nameid)} ${formatValue(
         Boolean(ns?.enable_pod_based_egress_ip),
       )}`;
-      const egressFirewallText = formatValue(ns?.file_index?.egress);
+      const egressFirewallText = ns?.allow_all_egress ? "false" : "true";
       const resourceQuotaText = formatResourceQuota(ns?.resources);
       const limitRangeText = formatLimitRange(ns?.resources);
       const rolebindingsText = formatRolebindings(ns?.rolebindings);
