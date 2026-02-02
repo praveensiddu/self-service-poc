@@ -5,6 +5,7 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
     managedby: "",
     clusters: "",
     namespaces: "",
+    argocd: "",
     l4ips: "",
     egressips: "",
   });
@@ -28,6 +29,7 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
     const managedby = formatValue(a?.managedby).toLowerCase();
     const clusters = formatValue((clustersByApp?.[a?.appname] || []).join(", ")).toLowerCase();
     const namespacesCount = formatValue(a?.totalns).toLowerCase();
+    const argocd = String(Boolean(a?.argocd)).toLowerCase();
     const l4ips = formatValue((l4IpsByApp?.[a?.appname] || []).join(", ")).toLowerCase();
     const egressips = formatValue((egressIpsByApp?.[a?.appname] || []).join(", ")).toLowerCase();
 
@@ -37,6 +39,7 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
       managedby.includes((filters.managedby || "").toLowerCase()) &&
       clusters.includes((filters.clusters || "").toLowerCase()) &&
       namespacesCount.includes((filters.namespaces || "").toLowerCase()) &&
+      argocd.includes((filters.argocd || "").toLowerCase()) &&
       l4ips.includes((filters.l4ips || "").toLowerCase()) &&
       egressips.includes((filters.egressips || "").toLowerCase())
     );

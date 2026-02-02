@@ -535,7 +535,14 @@ function AppsTableView({
                 data-testid="filter-namespaces"
               />
             </th>
-            <th></th>
+            <th>
+              <input
+                className="filterInput"
+                value={filters.argocd}
+                onChange={(e) => setFilters((p) => ({ ...p, argocd: e.target.value }))}
+                data-testid="filter-argocd"
+              />
+            </th>
             <th>
               <input
                 className="filterInput"
