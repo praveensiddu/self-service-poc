@@ -81,6 +81,16 @@ def _read_yaml_dict(path) -> dict:
         return {}
 
 
+def _read_yaml_list(path) -> list:
+    if not path.exists() or not path.is_file():
+        return []
+    try:
+        raw = yaml.safe_load(path.read_text())
+        return raw if isinstance(raw, list) else []
+    except Exception:
+        return []
+
+
 @router.get("/apps/{appname}/namespaces")
 def get_namespaces(appname: str, env: Optional[str] = None):
     env = _require_env(env)
@@ -107,6 +117,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         limits_path = child / "limits.yaml"
         requests_path = child / "requests.yaml"
         rolebinding_path = child / "rolebinding_requests.yaml"
+        egress_firewall_path = child / "egress_firewall_requests.yaml"
 
         ns_info = {}
         if ns_info_path.exists() and ns_info_path.is_file():
@@ -162,6 +173,10 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     "roleRef": role_ref
                 })
 
+        egress_firewall_rules = _read_yaml_list(egress_firewall_path)
+        if not all(isinstance(r, dict) for r in egress_firewall_rules):
+            egress_firewall_rules = [r for r in egress_firewall_rules if isinstance(r, dict)]
+
         clusters = ns_info.get("clusters")
         if not isinstance(clusters, list):
             clusters = []
@@ -197,6 +212,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                 },
             },
             "rolebindings": role_bindings,
+            "egress_firewall_rules": egress_firewall_rules,
         }
 
     return out
@@ -395,6 +411,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
     # RoleBindings validation and update - outside try-except so validation errors return proper 400 status
     if payload.rolebindings is not None and payload.rolebindings.bindings is not None:
         rolebinding_path = ns_dir / "rolebinding_requests.yaml"
+        egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
 
         # Convert bindings to array format for storage with validation
         rolebindings_data = []
@@ -451,6 +468,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         limits_path = ns_dir / "limits.yaml"
         requests_path = ns_dir / "requests.yaml"
         rolebinding_path = ns_dir / "rolebinding_requests.yaml"
+        egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
 
         limits = {}
         if limits_path.exists() and limits_path.is_file():
@@ -484,6 +502,10 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     "subject": subject,
                     "roleRef": role_ref
                 })
+
+        egress_firewall_rules = _read_yaml_list(egress_firewall_path)
+        if not all(isinstance(r, dict) for r in egress_firewall_rules):
+            egress_firewall_rules = [r for r in egress_firewall_rules if isinstance(r, dict)]
 
         clusters = existing.get("clusters")
         if not isinstance(clusters, list):
@@ -530,6 +552,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                 },
             },
             "rolebindings": role_bindings,
+            "egress_firewall_rules": egress_firewall_rules,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")

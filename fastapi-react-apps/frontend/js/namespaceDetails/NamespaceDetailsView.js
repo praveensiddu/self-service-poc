@@ -17,6 +17,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftNsArgoSyncStrategy, setDraftNsArgoSyncStrategy] = React.useState("auto");
   const [draftNsArgoGitRepoUrl, setDraftNsArgoGitRepoUrl] = React.useState("");
   const [draftEgressNameId, setDraftEgressNameId] = React.useState("");
+  const [draftEgressFirewallEntries, setDraftEgressFirewallEntries] = React.useState([]);
   const [draftReqCpu, setDraftReqCpu] = React.useState("");
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
   const [draftLimCpu, setDraftLimCpu] = React.useState("");
@@ -49,6 +50,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     }
 
     setDraftRoleBindingsEntries(rolebindingsEntries);
+
+    let egressFirewallEntries = [];
+    if (Array.isArray(namespace?.egress_firewall_rules)) {
+      egressFirewallEntries = namespace.egress_firewall_rules
+        .filter((r) => r && typeof r === "object")
+        .map((r) => ({
+          egressType: String(r.egressType || "dnsName"),
+          egressValue: String(r.egressValue || ""),
+          ports: Array.isArray(r.ports)
+            ? r.ports
+              .filter((p) => p && typeof p === "object")
+              .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
+            : [],
+        }));
+    }
+    setDraftEgressFirewallEntries(egressFirewallEntries);
 
     setEditEnabled(false);
   }, [namespace, namespaceName]);
@@ -199,7 +216,9 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const clusters = formatValue(effectiveNamespace?.clusters);
   const egressNameId = formatValue(effectiveNamespace?.egress_nameid);
   const podBasedEgress = effectiveNamespace?.enable_pod_based_egress_ip ? "Enabled" : "Disabled";
-  const egressFirewall = formatValue(effectiveNamespace?.file_index?.egress);
+  const egressFirewallRules = Array.isArray(effectiveNamespace?.egress_firewall_rules)
+    ? effectiveNamespace.egress_firewall_rules
+    : [];
   const managedByArgo = effectiveNamespace?.need_argo || effectiveNamespace?.generate_argo_app ? "Yes" : "No";
 
   // Extract detailed attributes
@@ -256,6 +275,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
                     setDraftRoleBindingsEntries(rolebindingsEntries);
 
+                    let egressFirewallEntries = [];
+                    if (Array.isArray(namespace?.egress_firewall_rules)) {
+                      egressFirewallEntries = namespace.egress_firewall_rules
+                        .filter((r) => r && typeof r === "object")
+                        .map((r) => ({
+                          egressType: String(r.egressType || "dnsName"),
+                          egressValue: String(r.egressValue || ""),
+                          ports: Array.isArray(r.ports)
+                            ? r.ports
+                              .filter((p) => p && typeof p === "object")
+                              .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
+                            : [],
+                        }));
+                    }
+                    setDraftEgressFirewallEntries(egressFirewallEntries);
+
                     setEditEnabled(false);
                   }}
                 >
@@ -305,6 +340,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               name: entry.roleRef?.name || ""
                             }
                           }))
+                        },
+                        egressfirewall: {
+                          rules: draftEgressFirewallEntries
+                            .map((r) => ({
+                              egressType: String(r.egressType || "").trim(),
+                              egressValue: String(r.egressValue || "").trim(),
+                              ports: String(r.egressType || "").trim() === "cidrSelector"
+                                ? (Array.isArray(r.ports) ? r.ports : [])
+                                  .map((p) => ({
+                                    protocol: String(p.protocol || "").trim(),
+                                    port: p.port === "" ? null : Number(p.port),
+                                  }))
+                                  .filter((p) => p.protocol && Number.isFinite(p.port))
+                                : undefined,
+                            }))
+                            .filter((r) => r.egressType && r.egressValue),
                         },
                       });
                       setEditEnabled(false);
@@ -548,19 +599,199 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           </div>
         </div>
 
-        {/* Egress Firewall Card */}
+        {/* Resources Card */}
         <div className="dashboardCard">
           <div className="dashboardCardHeader">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
+              <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
             </svg>
-            <h3>Egress Firewall</h3>
+            <h3>Resources</h3>
           </div>
           <div className="dashboardCardBody">
-            <div className="detailRow">
-              <span className="detailLabel">Rules:</span>
-              <span className="detailValue">{egressFirewall}</span>
-            </div>
+            {editEnabled ? (
+              <div>
+                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <span className="attributeKey" style={{ minWidth: '80px' }}>CPU:</span>
+                    <input className="filterInput" style={{ flex: 1 }} value={draftReqCpu} onChange={(e) => setDraftReqCpu(e.target.value)} placeholder="e.g., 100m" />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="attributeKey" style={{ minWidth: '80px' }}>Memory:</span>
+                    <input className="filterInput" style={{ flex: 1 }} value={draftReqMemory} onChange={(e) => setDraftReqMemory(e.target.value)} placeholder="e.g., 128Mi" />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <span className="attributeKey" style={{ minWidth: '80px' }}>CPU:</span>
+                    <input className="filterInput" style={{ flex: 1 }} value={draftLimCpu} onChange={(e) => setDraftLimCpu(e.target.value)} placeholder="e.g., 500m" />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="attributeKey" style={{ minWidth: '80px' }}>Memory:</span>
+                    <input className="filterInput" style={{ flex: 1 }} value={draftLimMemory} onChange={(e) => setDraftLimMemory(e.target.value)} placeholder="e.g., 512Mi" />
+                  </div>
+                </div>
+              </div>
+            ) : Object.keys(resources).length > 0 ? (
+              <div>
+                {resources.requests && (
+                  <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
+                      <button
+                        className="iconBtn iconBtn-primary"
+                        onClick={() => {
+                          const cpu = resources.requests?.cpu || "0";
+                          const memory = resources.requests?.memory || "0";
+                          const resourceQuotaYaml = `apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: ${namespaceName}-quota\n  namespace: ${namespaceName}\nspec:\n  hard:\n    requests.cpu: "${cpu}"\n    requests.memory: "${memory}"`;
+                          const modal = document.createElement('div');
+                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                          const modalContent = document.createElement('div');
+                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                          const header = document.createElement('div');
+                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
+
+                          const closeBtn = document.createElement('button');
+                          closeBtn.innerHTML = '&times;';
+                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                          closeBtn.onclick = () => modal.remove();
+                          header.appendChild(closeBtn);
+
+                          const pre = document.createElement('pre');
+                          pre.textContent = resourceQuotaYaml;
+                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                          const footer = document.createElement('div');
+                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                          const copyBtn = document.createElement('button');
+                          copyBtn.textContent = 'Copy';
+                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                          copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
+                          };
+
+                          const closeBtn2 = document.createElement('button');
+                          closeBtn2.textContent = 'Close';
+                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                          closeBtn2.onclick = () => modal.remove();
+
+                          footer.appendChild(copyBtn);
+                          footer.appendChild(closeBtn2);
+
+                          modalContent.appendChild(header);
+                          modalContent.appendChild(pre);
+                          modalContent.appendChild(footer);
+                          modal.appendChild(modalContent);
+
+                          document.body.appendChild(modal);
+                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                        }}
+                        aria-label="View YAML"
+                        title="View ResourceQuota YAML definition"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                        </svg>
+                      </button>
+                    </div>
+                    {Object.entries(resources.requests).map(([key, value]) => (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                        <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
+                        <span className="attributeValue">{formatValue(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {resources.limits && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
+                      <button
+                        className="iconBtn iconBtn-primary"
+                        onClick={() => {
+                          const cpu = resources.limits?.cpu || "0";
+                          const memory = resources.limits?.memory || "0";
+                          const limitRangeYaml = `apiVersion: v1\nkind: LimitRange\nmetadata:\n  name: ${namespaceName}-limitrange\n  namespace: ${namespaceName}\nspec:\n  limits:\n  - max:\n      cpu: "${cpu}"\n      memory: "${memory}"\n    type: Container`;
+                          const modal = document.createElement('div');
+                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                          const modalContent = document.createElement('div');
+                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                          const header = document.createElement('div');
+                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">LimitRange Definition</h3>';
+
+                          const closeBtn = document.createElement('button');
+                          closeBtn.innerHTML = '&times;';
+                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                          closeBtn.onclick = () => modal.remove();
+                          header.appendChild(closeBtn);
+
+                          const pre = document.createElement('pre');
+                          pre.textContent = limitRangeYaml;
+                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                          const footer = document.createElement('div');
+                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                          const copyBtn = document.createElement('button');
+                          copyBtn.textContent = 'Copy';
+                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                          copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(limitRangeYaml).then(() => alert('Copied to clipboard!'));
+                          };
+
+                          const closeBtn2 = document.createElement('button');
+                          closeBtn2.textContent = 'Close';
+                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                          closeBtn2.onclick = () => modal.remove();
+
+                          footer.appendChild(copyBtn);
+                          footer.appendChild(closeBtn2);
+
+                          modalContent.appendChild(header);
+                          modalContent.appendChild(pre);
+                          modalContent.appendChild(footer);
+                          modal.appendChild(modalContent);
+
+                          document.body.appendChild(modal);
+                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                        }}
+                        aria-label="View YAML"
+                        title="View LimitRange YAML definition"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                        </svg>
+                      </button>
+                    </div>
+                    {Object.entries(resources.limits).map(([key, value]) => (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                        <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
+                        <span className="attributeValue">{formatValue(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!resources.requests && !resources.limits && (
+                  <p className="muted">No resource information available</p>
+                )}
+              </div>
+            ) : (
+              <p className="muted">No resource information available</p>
+            )}
           </div>
         </div>
       </div>
@@ -853,220 +1084,193 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           </div>
         </div>
 
-        {/* Resources Card */}
-        <div className="dashboardCard">
+        <div className="dashboardCard" style={{ gridColumn: 'span 2' }}>
           <div className="dashboardCardHeader">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
+              <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
             </svg>
-            <h3>Resources</h3>
+            <h3>Egress Firewall</h3>
           </div>
           <div className="dashboardCardBody">
             {editEnabled ? (
-              <div>
-                {/* ResourceQuota Section */}
-                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>CPU:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftReqCpu} onChange={(e) => setDraftReqCpu(e.target.value)} placeholder="e.g., 100m" />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>Memory:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftReqMemory} onChange={(e) => setDraftReqMemory(e.target.value)} placeholder="e.g., 128Mi" />
-                  </div>
+              <div style={{ overflowX: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={() => {
+                      setDraftEgressFirewallEntries([
+                        ...draftEgressFirewallEntries,
+                        { egressType: "dnsName", egressValue: "", ports: [] },
+                      ]);
+                    }}
+                  >
+                    + Add Egress Entry
+                  </button>
                 </div>
-                {/* LimitRange Section */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>CPU:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftLimCpu} onChange={(e) => setDraftLimCpu(e.target.value)} placeholder="e.g., 500m" />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>Memory:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftLimMemory} onChange={(e) => setDraftLimMemory(e.target.value)} placeholder="e.g., 512Mi" />
-                  </div>
-                </div>
-              </div>
-            ) : Object.keys(resources).length > 0 ? (
-              <div>
-                {/* ResourceQuota Section */}
-                {resources.requests && (
-                  <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        onClick={() => {
-                          const cpu = resources.requests?.cpu || "0";
-                          const memory = resources.requests?.memory || "0";
-                          const resourceQuotaYaml = `apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: ${namespaceName}-quota
-  namespace: ${namespaceName}
-spec:
-  hard:
-    requests.cpu: "${cpu}"
-    requests.memory: "${memory}"`;
-                          const modal = document.createElement('div');
-                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                          const modalContent = document.createElement('div');
-                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                          const header = document.createElement('div');
-                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
-
-                          const closeBtn = document.createElement('button');
-                          closeBtn.innerHTML = '&times;';
-                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                          closeBtn.onclick = () => modal.remove();
-                          header.appendChild(closeBtn);
-
-                          const pre = document.createElement('pre');
-                          pre.textContent = resourceQuotaYaml;
-                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                          const footer = document.createElement('div');
-                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                          const copyBtn = document.createElement('button');
-                          copyBtn.textContent = 'Copy';
-                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                          copyBtn.onclick = () => {
-                            navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
-                          };
-
-                          const closeBtn2 = document.createElement('button');
-                          closeBtn2.textContent = 'Close';
-                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                          closeBtn2.onclick = () => modal.remove();
-
-                          footer.appendChild(copyBtn);
-                          footer.appendChild(closeBtn2);
-
-                          modalContent.appendChild(header);
-                          modalContent.appendChild(pre);
-                          modalContent.appendChild(footer);
-                          modal.appendChild(modalContent);
-
-                          document.body.appendChild(modal);
-                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                        }}
-                        aria-label="View YAML"
-                        title="View ResourceQuota YAML definition"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                        </svg>
-                      </button>
-                    </div>
-                    {Object.entries(resources.requests).map(([key, value]) => (
-                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
-                        <span className="attributeValue">{formatValue(value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* LimitRange Section */}
-                {resources.limits && (
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        onClick={() => {
-                          const cpu = resources.limits?.cpu || "0";
-                          const memory = resources.limits?.memory || "0";
-                          const limitRangeYaml = `apiVersion: v1
-kind: LimitRange
-metadata:
-  name: ${namespaceName}-limitrange
-  namespace: ${namespaceName}
-spec:
-  limits:
-  - max:
-      cpu: "${cpu}"
-      memory: "${memory}"
-    type: Container`;
-                          const modal = document.createElement('div');
-                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                          const modalContent = document.createElement('div');
-                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                          const header = document.createElement('div');
-                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">LimitRange Definition</h3>';
-
-                          const closeBtn = document.createElement('button');
-                          closeBtn.innerHTML = '&times;';
-                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                          closeBtn.onclick = () => modal.remove();
-                          header.appendChild(closeBtn);
-
-                          const pre = document.createElement('pre');
-                          pre.textContent = limitRangeYaml;
-                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                          const footer = document.createElement('div');
-                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                          const copyBtn = document.createElement('button');
-                          copyBtn.textContent = 'Copy';
-                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                          copyBtn.onclick = () => {
-                            navigator.clipboard.writeText(limitRangeYaml).then(() => alert('Copied to clipboard!'));
-                          };
-
-                          const closeBtn2 = document.createElement('button');
-                          closeBtn2.textContent = 'Close';
-                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                          closeBtn2.onclick = () => modal.remove();
-
-                          footer.appendChild(copyBtn);
-                          footer.appendChild(closeBtn2);
-
-                          modalContent.appendChild(header);
-                          modalContent.appendChild(pre);
-                          modalContent.appendChild(footer);
-                          modal.appendChild(modalContent);
-
-                          document.body.appendChild(modal);
-                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                        }}
-                        aria-label="View YAML"
-                        title="View LimitRange YAML definition"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                        </svg>
-                      </button>
-                    </div>
-                    {Object.entries(resources.limits).map(([key, value]) => (
-                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
-                        <span className="attributeValue">{formatValue(value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!resources.requests && !resources.limits && (
-                  <p className="muted">No resource information available</p>
-                )}
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Egress Type</th>
+                      <th>Egress Value</th>
+                      <th>Ports (cidrSelector only)</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftEgressFirewallEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="muted" style={{ textAlign: 'center' }}>
+                          No Egress entries. Click "+ Add Egress Entry" to add one.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftEgressFirewallEntries.map((entry, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <select
+                              className="filterInput"
+                              value={entry.egressType || "dnsName"}
+                              onChange={(e) => {
+                                const updated = [...draftEgressFirewallEntries];
+                                const nextType = e.target.value;
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  egressType: nextType,
+                                  ports: nextType === "cidrSelector" ? (updated[idx].ports || []) : [],
+                                };
+                                setDraftEgressFirewallEntries(updated);
+                              }}
+                            >
+                              <option value="dnsName">dnsName</option>
+                              <option value="cidrSelector">cidrSelector</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="filterInput"
+                              value={entry.egressValue || ""}
+                              onChange={(e) => {
+                                const updated = [...draftEgressFirewallEntries];
+                                updated[idx] = { ...updated[idx], egressValue: e.target.value };
+                                setDraftEgressFirewallEntries(updated);
+                              }}
+                              placeholder={entry.egressType === "cidrSelector" ? "e.g., 10.0.0.0/8" : "e.g., github.com"}
+                            />
+                          </td>
+                          <td>
+                            {entry.egressType === "cidrSelector" ? (
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                                  <button
+                                    className="btn"
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...draftEgressFirewallEntries];
+                                      const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                      ports.push({ protocol: "TCP", port: "" });
+                                      updated[idx] = { ...updated[idx], ports };
+                                      setDraftEgressFirewallEntries(updated);
+                                    }}
+                                  >
+                                    + Add Port
+                                  </button>
+                                </div>
+                                {(Array.isArray(entry.ports) ? entry.ports : []).length === 0 ? (
+                                  <div className="muted">No ports</div>
+                                ) : (
+                                  (entry.ports || []).map((p, pidx) => (
+                                    <div key={pidx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                                      <select
+                                        className="filterInput"
+                                        value={p.protocol || "TCP"}
+                                        onChange={(e) => {
+                                          const updated = [...draftEgressFirewallEntries];
+                                          const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                          ports[pidx] = { ...(ports[pidx] || {}), protocol: e.target.value };
+                                          updated[idx] = { ...updated[idx], ports };
+                                          setDraftEgressFirewallEntries(updated);
+                                        }}
+                                      >
+                                        <option value="TCP">TCP</option>
+                                        <option value="UDP">UDP</option>
+                                      </select>
+                                      <input
+                                        className="filterInput"
+                                        style={{ width: 120 }}
+                                        value={p.port == null ? "" : String(p.port)}
+                                        onChange={(e) => {
+                                          const updated = [...draftEgressFirewallEntries];
+                                          const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                          ports[pidx] = { ...(ports[pidx] || {}), port: e.target.value };
+                                          updated[idx] = { ...updated[idx], ports };
+                                          setDraftEgressFirewallEntries(updated);
+                                        }}
+                                        placeholder="Port"
+                                      />
+                                      <button
+                                        className="iconBtn iconBtn-danger"
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...draftEgressFirewallEntries];
+                                          const ports = Array.isArray(updated[idx].ports) ? updated[idx].ports.filter((_, i) => i !== pidx) : [];
+                                          updated[idx] = { ...updated[idx], ports };
+                                          setDraftEgressFirewallEntries(updated);
+                                        }}
+                                        aria-label="Delete port"
+                                        title="Delete port"
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                          <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            ) : (
+                              <span className="muted">N/A</span>
+                            )}
+                          </td>
+                          <td>
+                            <button
+                              className="iconBtn iconBtn-danger"
+                              type="button"
+                              onClick={() => {
+                                const updated = draftEgressFirewallEntries.filter((_, i) => i !== idx);
+                                setDraftEgressFirewallEntries(updated);
+                              }}
+                              aria-label="Delete entry"
+                              title="Delete Egress entry"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             ) : (
-              <p className="muted">No resource information available</p>
+              <div>
+                {egressFirewallRules.length === 0 ? (
+                  <p className="muted">No egress firewall rules</p>
+                ) : (
+                  <div className="attributesGrid">
+                    {egressFirewallRules.map((r, idx) => (
+                      <div key={idx} className="attributeItem">
+                        <span className="attributeKey">{r.egressType}:</span>
+                        <span className="attributeValue">{formatValue(r.egressValue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

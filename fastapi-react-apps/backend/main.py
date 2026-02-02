@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from backend.routers import apps, general, clusters, namespaces, l4_ingress, pull_requests, egress_ip, rolebindings, app_argocd, nsargocd
+from backend.routers import apps, general, clusters, namespaces, l4_ingress, pull_requests, egress_ip, rolebindings, app_argocd, nsargocd, egressfirewall
 
 app = FastAPI(title="Application Management API")
 # execute the following command to run
@@ -15,6 +15,7 @@ app.include_router(app_argocd.router, prefix="/api")
 app.include_router(nsargocd.router, prefix="/api")
 app.include_router(namespaces.router, prefix="/api")
 app.include_router(rolebindings.router, prefix="/api")
+app.include_router(egressfirewall.router, prefix="/api")
 app.include_router(l4_ingress.router, prefix="/api")
 app.include_router(pull_requests.router, prefix="/api")
 app.include_router(egress_ip.router, prefix="/api")

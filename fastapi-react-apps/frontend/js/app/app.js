@@ -719,12 +719,20 @@ function App() {
       delete nextUpdates.nsargocd;
     }
 
+    const egressFirewallUpdates = nextUpdates && nextUpdates.egressfirewall ? { ...(nextUpdates.egressfirewall || {}) } : null;
+    if (nextUpdates && Object.prototype.hasOwnProperty.call(nextUpdates, "egressfirewall")) {
+      delete nextUpdates.egressfirewall;
+    }
+
     const updated = await putJson(
       `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info?env=${encodeURIComponent(activeEnv)}`,
       nextUpdates || {},
     );
 
     const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;
+    const shouldWriteEgressFirewall = Boolean(egressFirewallUpdates);
+    let didSideEffectWrite = false;
+
     if (shouldWriteNsArgo) {
       const payload = { ...(nsargocdUpdates || {}) };
       if (nextNeedArgo !== null) payload.need_argo = nextNeedArgo;
@@ -740,7 +748,26 @@ function App() {
           payload,
         );
       }
+      didSideEffectWrite = true;
+    }
 
+    if (shouldWriteEgressFirewall) {
+      const rules = Array.isArray(egressFirewallUpdates.rules) ? egressFirewallUpdates.rules : [];
+      if (rules.length === 0) {
+        await fetch(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
+          { method: "DELETE", headers: { Accept: "application/json" } },
+        );
+      } else {
+        await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
+          { rules },
+        );
+      }
+      didSideEffectWrite = true;
+    }
+
+    if (didSideEffectWrite) {
       const refreshed = await fetchJson(
         `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
       );
