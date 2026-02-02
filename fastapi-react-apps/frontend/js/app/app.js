@@ -468,12 +468,6 @@ function App() {
     }
   }
 
-  async function onViewNamespaces() {
-    const appname = getDetailOrSelectedApp();
-    if (!appname) return;
-    await openNamespaces(appname, true);
-  }
-
   function onBackToApps() {
     setView("apps");
     setDetailAppName("");
@@ -682,12 +676,6 @@ function App() {
   function getDetailOrSelectedApp() {
     if (detailAppName) return detailAppName;
     return requireExactlyOneSelectedApp();
-  }
-
-  async function onViewNamespaces() {
-    const appname = getDetailOrSelectedApp();
-    if (!appname) return;
-    await openNamespaces(appname, true);
   }
 
   async function onViewL4Ingress() {
@@ -1052,7 +1040,6 @@ function App() {
         setActiveEnv(env);
         pushUiUrl({ view: "apps", env, appname: "" }, false);
       }}
-      onViewNamespaces={onViewNamespaces}
       onViewL4Ingress={onViewL4Ingress}
       onViewEgressIps={onViewEgressIps}
       onBackToApps={onBackToApps}

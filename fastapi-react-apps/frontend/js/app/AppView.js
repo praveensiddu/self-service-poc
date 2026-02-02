@@ -29,7 +29,6 @@ function AppView({
   view,
   error,
   onEnvClick,
-  onViewNamespaces,
   onViewL4Ingress,
   onViewEgressIps,
   onBackToApps,
