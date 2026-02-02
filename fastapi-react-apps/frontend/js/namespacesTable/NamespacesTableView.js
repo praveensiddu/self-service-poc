@@ -80,7 +80,20 @@ function NamespacesTableView({
   );
 
   return (
-    <div className="card">
+    <div>
+      <div style={{ position: 'relative', marginBottom: '24px', marginTop: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ flex: 1 }} />
+          <div style={{ flex: 2, textAlign: 'center' }}>
+            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '600', color: '#0d6efd' }}>
+              {appname}
+            </h2>
+          </div>
+          <div style={{ flex: 1 }} />
+        </div>
+      </div>
+
+      <div className="card">
 
       {showCreate ? (
         <div
@@ -99,6 +112,11 @@ function NamespacesTableView({
           data-testid="create-namespace-modal"
         >
           <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '600', color: '#0d6efd' }}>
+                {appname}
+              </h2>
+            </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700 }}>Create Namespace</div>
               <button className="btn" type="button" onClick={onCloseCreate} data-testid="close-namespace-modal-btn">
@@ -474,6 +492,7 @@ function NamespacesTableView({
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

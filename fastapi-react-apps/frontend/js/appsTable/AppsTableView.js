@@ -3,6 +3,7 @@ function AppsTableView({
   allSelected,
   filters,
   setFilters,
+  env,
   clustersByApp,
   l4IpsByApp,
   egressIpsByApp,
@@ -34,6 +35,82 @@ function AppsTableView({
   const [editAppName, setEditAppName] = React.useState("");
   const [editDescription, setEditDescription] = React.useState("");
   const [editManagedBy, setEditManagedBy] = React.useState("");
+
+  const [showArgoCd, setShowArgoCd] = React.useState(false);
+  const [argoCdAppName, setArgoCdAppName] = React.useState("");
+  const [argoCdAdminGroups, setArgoCdAdminGroups] = React.useState("");
+  const [argoCdOperatorGroups, setArgoCdOperatorGroups] = React.useState("");
+  const [argoCdReadonlyGroups, setArgoCdReadonlyGroups] = React.useState("");
+  const [argoCdSyncStrategy, setArgoCdSyncStrategy] = React.useState("auto");
+  const [argoCdGitUrl, setArgoCdGitUrl] = React.useState("");
+
+  async function openArgoCd(row) {
+    const r = row || {};
+    const name = String(r?.appname || "");
+    setArgoCdAppName(name);
+
+    setArgoCdAdminGroups("");
+    setArgoCdOperatorGroups("");
+    setArgoCdReadonlyGroups("");
+    setArgoCdSyncStrategy("auto");
+    setArgoCdGitUrl("");
+
+    setShowArgoCd(true);
+
+    try {
+      if (!env) throw new Error("Missing env");
+      const resp = await fetch(
+        `/api/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (resp.ok) {
+        const parsed = await resp.json();
+        setArgoCdAdminGroups(String(parsed?.argocd_admin_groups || ""));
+        setArgoCdOperatorGroups(String(parsed?.argocd_operator_groups || ""));
+        setArgoCdReadonlyGroups(String(parsed?.argocd_readonly_groups || ""));
+        setArgoCdSyncStrategy(String(parsed?.argocd_sync_strategy || "auto") || "auto");
+        setArgoCdGitUrl(String(parsed?.gitrepourl || ""));
+      }
+    } catch {
+      // Best-effort prefill; keep modal open with defaults.
+    }
+  }
+
+  function closeArgoCd() {
+    setShowArgoCd(false);
+  }
+
+  async function onSubmitArgoCd() {
+    try {
+      const name = String(argoCdAppName || "").trim();
+      if (!name) throw new Error("App Name is required.");
+      if (!env) throw new Error("Environment is required.");
+      const payload = {
+        argocd_admin_groups: String(argoCdAdminGroups || "").trim(),
+        argocd_operator_groups: String(argoCdOperatorGroups || "").trim(),
+        argocd_readonly_groups: String(argoCdReadonlyGroups || "").trim(),
+        argocd_sync_strategy: String(argoCdSyncStrategy || "").trim(),
+        gitrepourl: String(argoCdGitUrl || "").trim(),
+      };
+
+      const resp = await fetch(
+        `/api/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
+        {
+          method: "PUT",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+      }
+
+      setShowArgoCd(false);
+    } catch (e) {
+      alert(e?.message || String(e));
+    }
+  }
 
   const canSubmitEdit = Boolean(
     (editAppName || "").trim() && (editDescription || "").trim() && (editManagedBy || "").trim(),
@@ -84,6 +161,9 @@ function AppsTableView({
           data-testid="create-app-modal"
         >
           <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16, overflow: "visible" }}>
+            <div className="muted" style={{ textAlign: "center", marginBottom: 8 }}>
+              Environment: {env || ""}
+            </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700 }}>Create App</div>
               <button className="btn" type="button" onClick={onCloseCreate} data-testid="close-app-modal-btn">
@@ -158,6 +238,116 @@ function AppsTableView({
         </div>
       ) : null}
 
+      {showArgoCd ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeArgoCd();
+          }}
+          data-testid="argocd-modal"
+        >
+          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16, overflow: "visible" }}>
+            <div className="muted" style={{ textAlign: "center", marginBottom: 8 }}>
+              Environment: {env || ""} App: {argoCdAppName || ""}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>ArgoCD Details</div>
+              <button className="btn" type="button" onClick={closeArgoCd} data-testid="close-argocd-modal-btn">
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">argocd_admin_groups</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Groups which can perform admin actions on ArgoCD</div>
+                </div>
+                <input
+                  className="filterInput"
+                  value={argoCdAdminGroups}
+                  onChange={(e) => setArgoCdAdminGroups(e.target.value)}
+                  placeholder="grp1"
+                  data-testid="argocd-input-admin-groups"
+                />
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">argocd_operator_groups</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Groups which can perform operator actions on ArgoCD</div>
+                </div>
+                <input
+                  className="filterInput"
+                  value={argoCdOperatorGroups}
+                  onChange={(e) => setArgoCdOperatorGroups(e.target.value)}
+                  placeholder="grp1"
+                  data-testid="argocd-input-operator-groups"
+                />
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">argocd_readonly_groups</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Groups with readonly access to ArgoCD</div>
+                </div>
+                <input
+                  className="filterInput"
+                  value={argoCdReadonlyGroups}
+                  onChange={(e) => setArgoCdReadonlyGroups(e.target.value)}
+                  placeholder="grp1"
+                  data-testid="argocd-input-readonly-groups"
+                />
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">argocd_sync_strategy</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Example: auto</div>
+                </div>
+                <select
+                  className="filterInput"
+                  value={argoCdSyncStrategy}
+                  onChange={(e) => setArgoCdSyncStrategy(e.target.value)}
+                  data-testid="argocd-input-sync-strategy"
+                >
+                  <option value="auto">auto</option>
+                  <option value="manual">manual</option>
+                </select>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">gitrepourl</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Example: url</div>
+                </div>
+                <input
+                  className="filterInput"
+                  value={argoCdGitUrl}
+                  onChange={(e) => setArgoCdGitUrl(e.target.value)}
+                  placeholder="url"
+                  data-testid="argocd-input-gitrepourl"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button className="btn btn-primary" type="button" onClick={onSubmitArgoCd} data-testid="submit-argocd-btn">
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showEdit ? (
         <div
           style={{
@@ -175,6 +365,9 @@ function AppsTableView({
           data-testid="edit-app-modal"
         >
           <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16, overflow: "visible" }}>
+            <div className="muted" style={{ textAlign: "center", marginBottom: 8 }}>
+              Environment: {env || ""}
+            </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 700 }}>Edit App</div>
               <button className="btn" type="button" onClick={() => setShowEdit(false)} data-testid="close-edit-app-modal-btn">
@@ -354,6 +547,18 @@ function AppsTableView({
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
                         <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                      </svg>
+                    </button>
+                    <button
+                      className="iconBtn iconBtn-primary"
+                      type="button"
+                      onClick={() => openArgoCd(a)}
+                      aria-label={`ArgoCD details for ${a.appname}`}
+                      title="Add ArgoCD details"
+                      data-testid={`argocd-app-${a.appname}`}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.63 3.134 8.53 7.4 9.64.54.1.74-.23.74-.52v-1.82c-3.01.65-3.64-1.45-3.64-1.45-.49-1.25-1.2-1.58-1.2-1.58-.98-.67.08-.66.08-.66 1.08.08 1.65 1.11 1.65 1.11.97 1.66 2.54 1.18 3.16.9.1-.7.38-1.18.69-1.45-2.4-.27-4.92-1.2-4.92-5.34 0-1.18.42-2.15 1.11-2.9-.11-.27-.48-1.37.1-2.85 0 0 .9-.29 2.95 1.11.86-.24 1.78-.36 2.7-.36.92 0 1.84.12 2.7.36 2.05-1.4 2.95-1.11 2.95-1.11.58 1.48.21 2.58.1 2.85.69.75 1.11 1.72 1.11 2.9 0 4.15-2.53 5.06-4.94 5.33.39.34.74 1.01.74 2.03v3.01c0 .29.2.62.75.52C18.87 20.53 22 16.63 22 12c0-5.523-4.477-10-10-10z"/>
                       </svg>
                     </button>
                     <button
