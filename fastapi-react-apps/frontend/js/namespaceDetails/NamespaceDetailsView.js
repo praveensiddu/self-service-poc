@@ -78,6 +78,39 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     };
   }, [editEnabled, env, appname]);
 
+  async function fetchRoleBindingYaml({ subject, roleRef, bindingIndex }) {
+    const envKey = String(env || "").trim();
+    const appKey = String(appname || "").trim();
+    const nsKey = String(namespaceName || "").trim();
+    if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
+
+    const resp = await fetch(
+      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/rbac/rolebinding_yaml?env=${encodeURIComponent(envKey)}`,
+      {
+        method: "POST",
+        headers: { Accept: "text/yaml", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: {
+            kind: subject?.kind || "",
+            name: subject?.name || "",
+          },
+          roleRef: {
+            kind: roleRef?.kind || "",
+            name: roleRef?.name || "",
+          },
+          binding_index: typeof bindingIndex === "number" ? bindingIndex : 0,
+        }),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+    }
+
+    return await resp.text();
+  }
+
   function addCluster(name) {
     const v = String(name || "").trim();
     if (!v) return;
@@ -423,7 +456,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               )}
             </div>
             <div className="detailRow">
-              <span className="detailLabel">Managed by Argo:</span>
+              <span className="detailLabel">Managed by ArgoCD:</span>
               {editEnabled ? (
                 <select
                   className="filterInput"
@@ -492,13 +525,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       {/* Detailed Attributes Section */}
       <div className="dashboardGrid" style={{ marginTop: '20px' }}>
 
-        {/* RBAC Configuration Card - Takes 2/3 width */}
+        {/* Role Binding Card - Takes 2/3 width */}
         <div className="dashboardCard" style={{ gridColumn: 'span 2' }}>
           <div className="dashboardCardHeader">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
               <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
             </svg>
-            <h3>RBAC Configuration</h3>
+            <h3>Role Bindings</h3>
             {editEnabled && (
               <button
                 className="btn btn-primary"
@@ -531,7 +564,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     draftRbacEntries.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
-                          No RBAC entries. Click "+ Add RBAC Entry" to add one.
+                          No RoleBinding entries. Click "+ Add RoleBinding Entry" to add one.
                         </td>
                       </tr>
                     ) : (
@@ -606,20 +639,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <button
                                 className="iconBtn iconBtn-primary"
-                                onClick={() => {
-                                  const roleYaml = `apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: ${namespaceName}-binding-${idx}
-  namespace: ${namespaceName}
-subjects:
-- kind: ${entry.subject?.kind || "User"}
-  name: ${entry.subject?.name || ""}
-  apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: ${entry.roleRef?.kind || "ClusterRole"}
-  name: ${entry.roleRef?.name || ""}
-  apiGroup: rbac.authorization.k8s.io`;
+                                onClick={async () => {
+                                  const roleYaml = await fetchRoleBindingYaml({
+                                    subject: entry.subject,
+                                    roleRef: entry.roleRef,
+                                    bindingIndex: idx,
+                                  });
+
                                   const modal = document.createElement('div');
                                   modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
@@ -705,20 +731,13 @@ roleRef:
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <button
                                 className="iconBtn iconBtn-primary"
-                                onClick={() => {
-                                  const roleYaml = `apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: ${namespaceName}-binding-${idx}
-  namespace: ${namespaceName}
-subjects:
-- kind: ${binding.subject?.kind || ""}
-  name: ${binding.subject?.name || ""}
-  apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: ${binding.roleRef?.kind || ""}
-  name: ${binding.roleRef?.name || ""}
-  apiGroup: rbac.authorization.k8s.io`;
+                                onClick={async () => {
+                                  const roleYaml = await fetchRoleBindingYaml({
+                                    subject: binding.subject,
+                                    roleRef: binding.roleRef,
+                                    bindingIndex: idx,
+                                  });
+
                                   const modal = document.createElement('div');
                                   modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 

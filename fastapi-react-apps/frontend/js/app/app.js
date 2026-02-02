@@ -885,10 +885,12 @@ function App() {
     if (!appname) throw new Error("No application selected.");
 
     const namespace = String(payload?.namespace || "").trim();
-    const clusters = String(payload?.clusters || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const clusters = Array.isArray(payload?.clusters)
+      ? payload.clusters.map((s) => String(s).trim()).filter(Boolean)
+      : String(payload?.clusters || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
     const need_argo = Boolean(payload?.need_argo);
     const egress_nameid = String(payload?.egress_nameid || "").trim();
 

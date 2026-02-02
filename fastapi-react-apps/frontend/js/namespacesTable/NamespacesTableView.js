@@ -10,14 +10,74 @@ function NamespacesTableView({
   onViewDetails,
   onDeleteNamespace,
   onCreateNamespace,
+  env,
+  appname,
   showCreate,
   onOpenCreate,
   onCloseCreate,
 }) {
   const [newNamespace, setNewNamespace] = React.useState("");
-  const [newClusters, setNewClusters] = React.useState("");
+  const [newClustersList, setNewClustersList] = React.useState([]);
+  const [clusterOptions, setClusterOptions] = React.useState([]);
+  const [clusterQuery, setClusterQuery] = React.useState("");
+  const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
   const [newManagedByArgo, setNewManagedByArgo] = React.useState(false);
   const [newEgressNameId, setNewEgressNameId] = React.useState("");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!showCreate) return;
+
+    const envKey = String(env || "").trim();
+    const appKey = String(appname || "").trim();
+    if (!envKey || !appKey) {
+      setClusterOptions([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        const resp = await fetch(
+          `/api/clusters?env=${encodeURIComponent(envKey)}&app=${encodeURIComponent(appKey)}`,
+        );
+        if (!resp.ok) throw new Error("Failed to load clusters");
+        const data = await resp.json();
+        if (cancelled) return;
+        setClusterOptions(Array.isArray(data) ? data.map(String) : []);
+      } catch {
+        if (!cancelled) setClusterOptions([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showCreate, env, appname]);
+
+  const filteredClusterOptions = (clusterOptions || [])
+    .filter((c) => !(newClustersList || []).includes(c))
+    .filter((c) => (c || "").toLowerCase().includes((clusterQuery || "").toLowerCase()));
+
+  function addCluster(c) {
+    const v = String(c || "").trim();
+    if (!v) return;
+    setNewClustersList((prev) => {
+      const next = Array.isArray(prev) ? prev.slice() : [];
+      if (!next.includes(v)) next.push(v);
+      return next;
+    });
+    setClusterQuery("");
+    setClusterPickerOpen(false);
+  }
+
+  function removeCluster(c) {
+    const v = String(c || "").trim();
+    setNewClustersList((prev) => (Array.isArray(prev) ? prev.filter((x) => x !== v) : []));
+  }
+
+  const canSubmitCreate = Boolean(
+    (newNamespace || "").trim() && Array.isArray(newClustersList) && newClustersList.length > 0,
+  );
 
   return (
     <div className="card">
@@ -64,21 +124,140 @@ function NamespacesTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Clusters</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Comma-separated</div>
+                  <div className="muted" style={{ fontSize: 12 }}>List all clusters where you need this namespace</div>
                 </div>
-                <input
-                  className="filterInput"
-                  placeholder="01,02,03"
-                  value={newClusters}
-                  onChange={(e) => setNewClusters(e.target.value)}
-                  data-testid="input-namespace-clusters"
-                />
+                <div
+                  style={{ position: "relative" }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) setClusterPickerOpen(false);
+                  }}
+                >
+                  <div
+                    className="filterInput"
+                    style={{
+                      minHeight: 36,
+                      height: "auto",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      alignItems: "center",
+                      padding: "6px 8px",
+                    }}
+                    onMouseDown={() => setClusterPickerOpen(true)}
+                    data-testid="input-namespace-clusters"
+                  >
+                    {(newClustersList || []).map((c) => (
+                      <span
+                        key={c}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: "rgba(0,0,0,0.06)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <span>{c}</span>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ padding: "0 6px", lineHeight: "16px" }}
+                          onClick={() => removeCluster(c)}
+                          aria-label={`Remove ${c}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+
+                    <input
+                      className="filterInput"
+                      style={{
+                        border: "none",
+                        outline: "none",
+                        boxShadow: "none",
+                        flex: 1,
+                        minWidth: 160,
+                        padding: 0,
+                        margin: 0,
+                        height: 22,
+                      }}
+                      value={clusterQuery}
+                      onChange={(e) => {
+                        setClusterQuery(e.target.value);
+                        setClusterPickerOpen(true);
+                      }}
+                      onFocus={() => setClusterPickerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const first = filteredClusterOptions[0];
+                          if (first) addCluster(first);
+                          return;
+                        }
+                        if (e.key === "Backspace" && !clusterQuery && (newClustersList || []).length > 0) {
+                          const last = (newClustersList || [])[(newClustersList || []).length - 1];
+                          removeCluster(last);
+                        }
+                        if (e.key === "Escape") {
+                          setClusterPickerOpen(false);
+                        }
+                      }}
+                      placeholder={(newClustersList || []).length ? "" : "Type to search clusters..."}
+                    />
+                  </div>
+
+                  {clusterPickerOpen ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        zIndex: 10001,
+                        left: 0,
+                        right: 0,
+                        marginTop: 4,
+                        background: "#fff",
+                        border: "1px solid rgba(0,0,0,0.12)",
+                        borderRadius: 8,
+                        maxHeight: 220,
+                        overflow: "auto",
+                      }}
+                      tabIndex={-1}
+                    >
+                      {filteredClusterOptions.length === 0 ? (
+                        <div className="muted" style={{ padding: 10 }}>No matches</div>
+                      ) : (
+                        filteredClusterOptions.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className="btn"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              border: "none",
+                              borderRadius: 0,
+                              padding: "10px 10px",
+                            }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              addCluster(c);
+                            }}
+                          >
+                            {c}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Managed by Argo</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Create Argo resources</div>
+                  <div className="muted" style={{ fontSize: 12 }}>If yes, then all setup required to manaage this ns using argo will be created.</div>
                 </div>
                 <select
                   className="filterInput"
@@ -94,7 +273,7 @@ function NamespacesTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Egress Name ID</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Optional</div>
+                  <div className="muted" style={{ fontSize: 12 }}>If set then all outbound traffic will be routed through this egress IP.</div>
                 </div>
                 <input
                   className="filterInput"
@@ -115,19 +294,22 @@ function NamespacesTableView({
                     if (typeof onCreateNamespace !== "function") return;
                     await onCreateNamespace({
                       namespace: newNamespace,
-                      clusters: newClusters,
+                      clusters: newClustersList,
                       need_argo: newManagedByArgo,
                       egress_nameid: newEgressNameId,
                     });
                     onCloseCreate();
                     setNewNamespace("");
-                    setNewClusters("");
+                    setNewClustersList([]);
+                    setClusterQuery("");
+                    setClusterPickerOpen(false);
                     setNewManagedByArgo(false);
                     setNewEgressNameId("");
                   } catch (e) {
                     alert(e?.message || String(e));
                   }
                 }}
+                disabled={!canSubmitCreate}
                 data-testid="submit-namespace-btn"
               >
                 Create
@@ -156,7 +338,7 @@ function NamespacesTableView({
             <th>Clusters</th>
             <th>EgressIP</th>
             <th>Egress Firewall</th>
-            <th>Managed by App Argo</th>
+            <th>Managed by ArgoCD</th>
             <th>Attributes</th>
             <th>Actions</th>
           </tr>
@@ -243,10 +425,6 @@ function NamespacesTableView({
                   <div className="attrGrid">
                     <div className="attrRow">
                       <div className="attrCell">
-                        <div className="attrTitle">Status</div>
-                        <div className="attrValue">{r.statusText}</div>
-                      </div>
-                      <div className="attrCell">
                         <div className="attrTitle">ResourceQuota</div>
                         <div className="attrValue">{r.resourceQuotaText}</div>
                       </div>
@@ -257,12 +435,8 @@ function NamespacesTableView({
                     </div>
                     <div className="attrRow">
                       <div className="attrCell">
-                        <div className="attrTitle">RBAC</div>
+                        <div className="attrTitle">RoleBinding</div>
                         <div className="attrValue">{r.rbacText}</div>
-                      </div>
-                      <div className="attrCell">
-                        <div className="attrTitle">Policy</div>
-                        <div className="attrValue">{r.policyText}</div>
                       </div>
                     </div>
                   </div>

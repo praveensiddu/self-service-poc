@@ -321,6 +321,8 @@ function AppView({
                 onDeleteNamespace={deleteNamespace}
                 onViewDetails={viewNamespaceDetails}
                 onCreateNamespace={onCreateNamespace}
+                env={activeEnv}
+                appname={detailAppName}
                 showCreate={showCreateNamespace}
                 onOpenCreate={onOpenCreateNamespace}
                 onCloseCreate={onCloseCreateNamespace}

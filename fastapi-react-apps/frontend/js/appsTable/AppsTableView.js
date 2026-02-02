@@ -22,6 +22,10 @@ function AppsTableView({
   const [newDescription, setNewDescription] = React.useState("");
   const [newManagedBy, setNewManagedBy] = React.useState("");
 
+  const canSubmitCreate = Boolean(
+    (newAppName || "").trim() && (newDescription || "").trim() && (newManagedBy || "").trim(),
+  );
+
   function normalizeCluster(v) {
     return String(v || "").trim();
   }
@@ -30,6 +34,10 @@ function AppsTableView({
   const [editAppName, setEditAppName] = React.useState("");
   const [editDescription, setEditDescription] = React.useState("");
   const [editManagedBy, setEditManagedBy] = React.useState("");
+
+  const canSubmitEdit = Boolean(
+    (editAppName || "").trim() && (editDescription || "").trim() && (editManagedBy || "").trim(),
+  );
 
   function openEditApp(row) {
     const r = row || {};
@@ -140,6 +148,7 @@ function AppsTableView({
                     alert(e?.message || String(e));
                   }
                 }}
+                disabled={!canSubmitCreate}
                 data-testid="submit-app-btn"
               >
                 Create
@@ -200,7 +209,13 @@ function AppsTableView({
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button className="btn btn-primary" type="button" onClick={onSubmitEdit} data-testid="submit-edit-app-btn">
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={onSubmitEdit}
+                disabled={!canSubmitEdit}
+                data-testid="submit-edit-app-btn"
+              >
                 Save
               </button>
             </div>

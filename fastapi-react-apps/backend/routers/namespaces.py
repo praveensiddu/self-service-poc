@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from typing import List, Optional
 import shutil
 import re
@@ -35,31 +35,38 @@ class NamespaceResourcesUpdate(BaseModel):
     limits: Optional[NamespaceResourcesCpuMem] = None
 
 
-class RbacSubject(BaseModel):
+class RBSubject(BaseModel):
     kind: Optional[str] = None
     name: Optional[str] = None
 
 
-class RbacRoleRef(BaseModel):
+class RBRoleRef(BaseModel):
     kind: Optional[str] = None
     name: Optional[str] = None
 
 
-class RbacBinding(BaseModel):
+class RoleBinding(BaseModel):
     """Represents a single RoleBinding with one subject and one roleRef"""
-    subject: RbacSubject
-    roleRef: RbacRoleRef
+    subject: RBSubject
+    roleRef: RBRoleRef
 
 
-class RbacUpdate(BaseModel):
+class RoleBindingList(BaseModel):
     """List of RoleBindings, each with its own subject and roleRef"""
-    bindings: Optional[List[RbacBinding]] = None
+    bindings: Optional[List[RoleBinding]] = None
 
 
 class NamespaceUpdate(BaseModel):
     namespace_info: Optional[NamespaceInfoUpdate] = None
     resources: Optional[NamespaceResourcesUpdate] = None
-    rbac: Optional[RbacUpdate] = None
+    rbac: Optional[RoleBindingList] = None
+
+
+class RoleBindingYamlRequest(BaseModel):
+    subject: RBSubject
+    roleRef: RBRoleRef
+    binding_index: Optional[int] = None
+    binding_name: Optional[str] = None
 
 
 def _parse_bool(v) -> bool:
@@ -130,16 +137,16 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                 rbac = None
 
         # Convert rbac to array of bindings format
-        rbac_bindings = []
+        role_bindings = []
         if isinstance(rbac, list):
             # Already in new format: array of bindings
-            rbac_bindings = rbac
+            role_bindings = rbac
         elif isinstance(rbac, dict) and rbac.get("subjects"):
             # Old format: single binding with multiple subjects - convert to array
             subjects = rbac.get("subjects", [])
             role_ref = rbac.get("roleRef", {})
             for subject in subjects:
-                rbac_bindings.append({
+                role_bindings.append({
                     "subject": subject,
                     "roleRef": role_ref
                 })
@@ -172,7 +179,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": rbac_bindings,
+            "rbac": role_bindings,
         }
 
     return out
@@ -389,22 +396,22 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             if not subject_kind:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"RBAC binding #{idx + 1}: Subject Kind is mandatory and cannot be empty"
+                    detail=f"Role Binding #{idx + 1}: Subject Kind is mandatory and cannot be empty"
                 )
             if not subject_name:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"RBAC binding #{idx + 1}: Subject Name is mandatory and cannot be empty"
+                    detail=f"Role Binding #{idx + 1}: Subject Name is mandatory and cannot be empty"
                 )
             if not roleref_kind:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"RBAC binding #{idx + 1}: Role Type is mandatory and cannot be empty"
+                    detail=f"Role Binding #{idx + 1}: Role Type is mandatory and cannot be empty"
                 )
             if not roleref_name:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"RBAC binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
+                    detail=f"Role Binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
                 )
 
             binding_dict = {
@@ -423,7 +430,7 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         try:
             rbac_path.write_text(yaml.safe_dump(rbac_data, sort_keys=False))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to write RBAC configuration: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to write RoleBinding: {e}")
 
     # Return updated namespace in the same shape as get_namespaces
     # by reusing the same file parsing logic.
@@ -451,16 +458,16 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                 rbac = parsed
 
         # Convert rbac to array of bindings format
-        rbac_bindings = []
+        role_bindings = []
         if isinstance(rbac, list):
             # Already in new format: array of bindings
-            rbac_bindings = rbac
+            role_bindings = rbac
         elif isinstance(rbac, dict) and rbac.get("subjects"):
             # Old format: single binding with multiple subjects - convert to array
             subjects = rbac.get("subjects", [])
             role_ref = rbac.get("roleRef", {})
             for subject in subjects:
-                rbac_bindings.append({
+                role_bindings.append({
                     "subject": subject,
                     "roleRef": role_ref
                 })
@@ -495,7 +502,49 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
                 },
             },
-            "rbac": rbac_bindings,
+            "rbac": role_bindings,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")
+
+
+@router.post("/apps/{appname}/namespaces/{namespace}/rbac/rolebinding_yaml")
+def get_rolebinding_yaml(appname: str, namespace: str, payload: RoleBindingYamlRequest, env: Optional[str] = None):
+    env = _require_env(env)
+
+    subject_kind = str(payload.subject.kind).strip() if payload.subject and payload.subject.kind is not None else ""
+    subject_name = str(payload.subject.name).strip() if payload.subject and payload.subject.name is not None else ""
+    roleref_kind = str(payload.roleRef.kind).strip() if payload.roleRef and payload.roleRef.kind is not None else ""
+    roleref_name = str(payload.roleRef.name).strip() if payload.roleRef and payload.roleRef.name is not None else ""
+
+    if not subject_kind or not subject_name or not roleref_kind or not roleref_name:
+        raise HTTPException(status_code=400, detail="subject.kind, subject.name, roleRef.kind, and roleRef.name are required")
+
+    idx = payload.binding_index if payload.binding_index is not None else 0
+    binding_name = str(payload.binding_name).strip() if payload.binding_name is not None else ""
+    if not binding_name:
+        binding_name = f"{namespace}-binding-{idx}"
+
+    rolebinding_obj = {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "metadata": {
+            "name": binding_name,
+            "namespace": namespace,
+        },
+        "subjects": [
+            {
+                "kind": subject_kind,
+                "name": subject_name,
+                "apiGroup": "rbac.authorization.k8s.io",
+            }
+        ],
+        "roleRef": {
+            "kind": roleref_kind,
+            "name": roleref_name,
+            "apiGroup": "rbac.authorization.k8s.io",
+        },
+    }
+
+    yaml_text = yaml.safe_dump(rolebinding_obj, sort_keys=False)
+    return Response(content=yaml_text, media_type="text/yaml")

@@ -1,4 +1,4 @@
-function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onViewDetails, onCreateNamespace, showCreate, onOpenCreate, onCloseCreate }) {
+function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onViewDetails, onCreateNamespace, env, appname, showCreate, onOpenCreate, onCloseCreate }) {
   const [filters, setFilters] = React.useState({
     name: "",
     clusters: "",
@@ -11,7 +11,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
   function formatValue(val) {
     if (val === null || val === undefined) return "";
     if (Array.isArray(val)) {
-      // Check if array contains objects (like RBAC bindings)
+      // Check if array contains objects (like Role Bindings)
       if (val.length > 0 && typeof val[0] === "object") {
         return `${val.length} item${val.length !== 1 ? 's' : ''}`;
       }
@@ -120,6 +120,8 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       onViewDetails={onViewDetails}
       onDeleteNamespace={onDeleteNamespace}
       onCreateNamespace={onCreateNamespace}
+      env={env}
+      appname={appname}
       showCreate={showCreate}
       onOpenCreate={onOpenCreate}
       onCloseCreate={onCloseCreate}
