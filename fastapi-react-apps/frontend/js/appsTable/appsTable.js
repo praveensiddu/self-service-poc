@@ -45,11 +45,17 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
     );
   });
 
-  const allSelected = filteredRows.length > 0 && filteredRows.every((a) => selectedApps.has(a.appname));
+  const sortedRows = [...filteredRows].sort((a, b) => {
+    const an = formatValue(a?.appname).toLowerCase();
+    const bn = formatValue(b?.appname).toLowerCase();
+    return an.localeCompare(bn);
+  });
+
+  const allSelected = sortedRows.length > 0 && sortedRows.every((a) => selectedApps.has(a.appname));
 
   return (
     <AppsTableView
-      filteredRows={filteredRows}
+      filteredRows={sortedRows}
       allSelected={allSelected}
       filters={filters}
       setFilters={setFilters}

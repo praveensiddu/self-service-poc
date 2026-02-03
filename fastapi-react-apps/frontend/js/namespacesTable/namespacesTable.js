@@ -105,12 +105,18 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       );
     });
 
-  const allSelected = filteredRows.length > 0 && filteredRows.every((r) => selectedNamespaces?.has(r.name));
+  const sortedRows = [...filteredRows].sort((a, b) => {
+    const an = String(a?.name || "").toLowerCase();
+    const bn = String(b?.name || "").toLowerCase();
+    return an.localeCompare(bn);
+  });
+
+  const allSelected = sortedRows.length > 0 && sortedRows.every((r) => selectedNamespaces?.has(r.name));
 
   return (
     <NamespacesTableView
       keysLength={keys.length}
-      filteredRows={filteredRows}
+      filteredRows={sortedRows}
       allSelected={allSelected}
       filters={filters}
       setFilters={setFilters}
