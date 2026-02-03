@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
+import logging
 import os
 import re
 import subprocess
@@ -12,6 +13,8 @@ import yaml
 from backend.routers.general import _require_workspace_path
 
 router = APIRouter(tags=["pull_requests"])
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def _require_env(env: Optional[str]) -> str:
@@ -103,6 +106,10 @@ def _github_headers() -> Dict[str, str]:
     }
 
 
+def _has_github_token() -> bool:
+    return bool(str(os.environ.get("GITHUB_TOKEN", "") or "").strip())
+
+
 def _get_requests_repo_url_from_config() -> str:
     cfg_path = Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
     if not cfg_path.exists():
@@ -152,18 +159,25 @@ def _git_remote_branch_exists(repo_dir: Path, remote: str, branch: str) -> bool:
 
 
 def _ensure_branch_committed_and_pushed(repo_dir: Path, head_branch: str, base_branch: str) -> bool:
-    try:
-        _run_git(repo_dir, ["fetch", "origin", base_branch])
-    except subprocess.CalledProcessError:
-        _run_git(repo_dir, ["fetch", "--all"])
+    has_github_token = bool(str(os.environ.get("GITHUB_TOKEN", "") or "").strip())
 
-    # Make sure we have remote refs for the head branch too (it may already exist).
-    try:
-        _run_git(repo_dir, ["fetch", "origin", head_branch])
-    except subprocess.CalledProcessError:
-        pass
+    if not has_github_token:
+        logger.warning("GITHUB_TOKEN not set; skipping git remote operations (fetch/pull/push).")
 
-    remote_head_exists = _git_remote_branch_exists(repo_dir, "origin", head_branch)
+    remote_head_exists = False
+    if has_github_token:
+        try:
+            _run_git(repo_dir, ["fetch", "origin", base_branch])
+        except subprocess.CalledProcessError:
+            _run_git(repo_dir, ["fetch", "--all"])
+
+        # Make sure we have remote refs for the head branch too (it may already exist).
+        try:
+            _run_git(repo_dir, ["fetch", "origin", head_branch])
+        except subprocess.CalledProcessError:
+            pass
+
+        remote_head_exists = _git_remote_branch_exists(repo_dir, "origin", head_branch)
 
     # If the working tree is dirty (common right after app/namespace edits), do NOT attempt to
     # checkout/pull the base branch first: that can fail due to local changes.
@@ -183,13 +197,17 @@ def _ensure_branch_committed_and_pushed(repo_dir: Path, head_branch: str, base_b
         try:
             _run_git(repo_dir, ["checkout", base_branch])
         except subprocess.CalledProcessError:
-            _run_git(repo_dir, ["checkout", "-B", base_branch, f"origin/{base_branch}"])
+            if has_github_token:
+                _run_git(repo_dir, ["checkout", "-B", base_branch, f"origin/{base_branch}"])
+            else:
+                _run_git(repo_dir, ["checkout", "-B", base_branch])
 
-        try:
-            _run_git(repo_dir, ["pull", "--ff-only"])
-        except subprocess.CalledProcessError:
-            # If ff-only fails (diverged), don't auto-merge; just proceed.
-            pass
+        if has_github_token:
+            try:
+                _run_git(repo_dir, ["pull", "--ff-only"])
+            except subprocess.CalledProcessError:
+                # If ff-only fails (diverged), don't auto-merge; just proceed.
+                pass
 
         if _git_branch_exists(repo_dir, head_branch):
             _run_git(repo_dir, ["checkout", head_branch])
@@ -197,10 +215,13 @@ def _ensure_branch_committed_and_pushed(repo_dir: Path, head_branch: str, base_b
             if remote_head_exists:
                 _run_git(repo_dir, ["checkout", "-b", head_branch, f"origin/{head_branch}"])
             else:
-                _run_git(repo_dir, ["checkout", "-b", head_branch, f"origin/{base_branch}"])
+                if has_github_token:
+                    _run_git(repo_dir, ["checkout", "-b", head_branch, f"origin/{base_branch}"])
+                else:
+                    _run_git(repo_dir, ["checkout", "-b", head_branch, base_branch])
 
     # If the remote head exists, rebase on top of it so our push is fast-forward.
-    if remote_head_exists:
+    if has_github_token and remote_head_exists:
         try:
             _run_git(repo_dir, ["pull", "--rebase", "origin", head_branch])
         except subprocess.CalledProcessError:
@@ -217,6 +238,8 @@ def _ensure_branch_committed_and_pushed(repo_dir: Path, head_branch: str, base_b
         raise HTTPException(status_code=500, detail=f"Failed to commit changes on {head_branch}: {stderr}")
 
     try:
+        if not has_github_token:
+            return True
         _run_git(repo_dir, ["push", "-u", "origin", head_branch])
     except subprocess.CalledProcessError as e:
         # If the remote branch exists and advanced, rebase and retry once.
@@ -290,6 +313,21 @@ def ensure_pull_request(appname: str, env: Optional[str] = None):
     repo_dir = _requests_repo_root()
     _ensure_branch_committed_and_pushed(repo_dir, head_branch=head_branch, base_branch=base_branch)
 
+    if not _has_github_token():
+        required = _read_required_approvers(appname)
+        return PullRequestStatus(
+            env=env_key,
+            appname=appname,
+            head_branch=head_branch,
+            base_branch=base_branch,
+            pr_number=None,
+            pr_url="",
+            required_approvers=required,
+            approved_by=[],
+            missing_approvers=required,
+            merge_allowed=False,
+        )
+
     repo_url = _get_requests_repo_url_from_config()
     owner, repo = _parse_github_owner_repo(repo_url)
 
@@ -332,6 +370,21 @@ def get_pull_request_status(appname: str, env: Optional[str] = None):
     head_branch = f"{env_key.upper()}_{appname}_update"
     base_branch = "main"
 
+    if not _has_github_token():
+        required = _read_required_approvers(appname)
+        return PullRequestStatus(
+            env=env_key,
+            appname=appname,
+            head_branch=head_branch,
+            base_branch=base_branch,
+            pr_number=None,
+            pr_url="",
+            required_approvers=required,
+            approved_by=[],
+            missing_approvers=required,
+            merge_allowed=False,
+        )
+
     repo_url = _get_requests_repo_url_from_config()
     owner, repo = _parse_github_owner_repo(repo_url)
 
@@ -360,6 +413,8 @@ def get_pull_request_status(appname: str, env: Optional[str] = None):
 
 @router.post("/apps/{appname}/pull_request/merge", response_model=PullRequestStatus)
 def merge_pull_request(appname: str, env: Optional[str] = None):
+    if not _has_github_token():
+        raise HTTPException(status_code=400, detail="Missing GITHUB_TOKEN environment variable")
     status = get_pull_request_status(appname=appname, env=env)
     if not status.pr_number:
         raise HTTPException(status_code=404, detail="No open pull request found")

@@ -248,7 +248,19 @@ function App() {
         let keys = [];
         let initialEnv = "";
         if (isComplete) {
-          const envList = await fetchJson("/api/envlist");
+          let envList;
+          try {
+            envList = await fetchJson("/api/envlist");
+          } catch {
+            if (cancelled) return;
+            setPersistedConfigComplete(false);
+            setEnvKeys([]);
+            setActiveEnv("");
+            setTopTab("Home");
+            window.history.replaceState({ topTab: "Home" }, "", "/home");
+            return;
+          }
+
           if (cancelled) return;
           keys = Object.keys(envList);
           initialEnv = keys.includes(initial.env) ? initial.env : (keys[0] || "");
