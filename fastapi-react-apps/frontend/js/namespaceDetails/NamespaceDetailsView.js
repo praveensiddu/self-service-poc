@@ -132,6 +132,29 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return await resp.text();
   }
 
+  async function fetchEgressFirewallYaml(rules) {
+    const envKey = String(env || "").trim();
+    const appKey = String(appname || "").trim();
+    const nsKey = String(namespaceName || "").trim();
+    if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
+
+    const resp = await fetch(
+      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/egressfirewall/egressfirewall_yaml?env=${encodeURIComponent(envKey)}`,
+      {
+        method: "POST",
+        headers: { Accept: "text/yaml", "Content-Type": "application/json" },
+        body: JSON.stringify({ rules }),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+    }
+
+    return await resp.text();
+  }
+
   function addCluster(name) {
     const v = String(name || "").trim();
     if (!v) return;
@@ -830,7 +853,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     <th>Role Reference</th>
                     <th>Subject Kind</th>
                     <th>Subject Name</th>
-                    <th>Actions</th>
+                    <th style={{ width: '12%', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -906,14 +929,14 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                 };
                                 setDraftRoleBindingsEntries(updated);
                               }}
-                              placeholder="e.g., user@example.com"
-                            />
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <button
-                                className="iconBtn iconBtn-primary"
-                                onClick={async () => {
+                            placeholder="e.g., user@example.com"
+                          />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            <button
+                              className="iconBtn iconBtn-primary"
+                              onClick={async () => {
                                   const roleYaml = await fetchRoleBindingYaml({
                                     subject: entry.subject,
                                     roleRef: entry.roleRef,
@@ -1001,8 +1024,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                           <td>{binding.roleRef?.name || "N/A"}</td>
                           <td>{binding.subject?.kind || "N/A"}</td>
                           <td>{binding.subject?.name || "N/A"}</td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
                               <button
                                 className="iconBtn iconBtn-primary"
                                 onClick={async () => {
@@ -1090,186 +1113,383 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
             </svg>
             <h3>Egress Firewall</h3>
+            {!editEnabled && egressFirewallRules.length > 0 && (
+              <button
+                className="iconBtn iconBtn-primary"
+                style={{ marginLeft: 'auto' }}
+                onClick={async () => {
+                  try {
+                    const egressYaml = await fetchEgressFirewallYaml(egressFirewallRules);
+
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                    const modalContent = document.createElement('div');
+                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 800px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);';
+
+                    const header = document.createElement('div');
+                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">EgressFirewall Details</h3>';
+
+                    const closeBtn = document.createElement('button');
+                    closeBtn.innerHTML = '&times;';
+                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                    closeBtn.onclick = () => modal.remove();
+                    header.appendChild(closeBtn);
+
+                    const pre = document.createElement('pre');
+                    pre.textContent = egressYaml;
+                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                    const footer = document.createElement('div');
+                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                    const copyBtn = document.createElement('button');
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                    copyBtn.onclick = () => {
+                      navigator.clipboard.writeText(egressYaml).then(() => alert('Copied to clipboard!'));
+                    };
+
+                    const closeBtn2 = document.createElement('button');
+                    closeBtn2.textContent = 'Close';
+                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                    closeBtn2.onclick = () => modal.remove();
+
+                    footer.appendChild(copyBtn);
+                    footer.appendChild(closeBtn2);
+
+                    modalContent.appendChild(header);
+                    modalContent.appendChild(pre);
+                    modalContent.appendChild(footer);
+                    modal.appendChild(modalContent);
+
+                    document.body.appendChild(modal);
+                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                  } catch (err) {
+                    alert('Failed to load EgressFirewall YAML: ' + String(err.message || err));
+                  }
+                }}
+                aria-label="View YAML"
+                title="View EgressFirewall YAML definition"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                </svg>
+              </button>
+            )}
           </div>
           <div className="dashboardCardBody">
             {editEnabled ? (
-              <div style={{ overflowX: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                  <button
-                    className="btn btn-primary"
-                    type="button"
-                    onClick={() => {
-                      setDraftEgressFirewallEntries([
-                        ...draftEgressFirewallEntries,
-                        { egressType: "dnsName", egressValue: "", ports: [] },
-                      ]);
-                    }}
-                  >
-                    + Add Egress Entry
-                  </button>
-                </div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Egress Type</th>
-                      <th>Egress Value</th>
-                      <th>Ports (cidrSelector only)</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {draftEgressFirewallEntries.length === 0 ? (
+              <div style={{ display: 'flex', gap: '16px' }}>
+                {/* DNS Names Table - Left Side (40%) */}
+                <div style={{ flex: '0 0 40%', minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#495057' }}>DNS Names</h4>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={() => {
+                        setDraftEgressFirewallEntries([
+                          ...draftEgressFirewallEntries,
+                          { egressType: "dnsName", egressValue: "", ports: [] },
+                        ]);
+                      }}
+                    >
+                      + Add DNS
+                    </button>
+                  </div>
+                  <table style={{ width: '100%' }}>
+                    <thead>
                       <tr>
-                        <td colSpan={4} className="muted" style={{ textAlign: 'center' }}>
-                          No Egress entries. Click "+ Add Egress Entry" to add one.
-                        </td>
+                        <th>DNS Name</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
                       </tr>
-                    ) : (
-                      draftEgressFirewallEntries.map((entry, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            <select
-                              className="filterInput"
-                              value={entry.egressType || "dnsName"}
-                              onChange={(e) => {
-                                const updated = [...draftEgressFirewallEntries];
-                                const nextType = e.target.value;
-                                updated[idx] = {
-                                  ...updated[idx],
-                                  egressType: nextType,
-                                  ports: nextType === "cidrSelector" ? (updated[idx].ports || []) : [],
-                                };
-                                setDraftEgressFirewallEntries(updated);
-                              }}
-                            >
-                              <option value="dnsName">dnsName</option>
-                              <option value="cidrSelector">cidrSelector</option>
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              className="filterInput"
-                              value={entry.egressValue || ""}
-                              onChange={(e) => {
-                                const updated = [...draftEgressFirewallEntries];
-                                updated[idx] = { ...updated[idx], egressValue: e.target.value };
-                                setDraftEgressFirewallEntries(updated);
-                              }}
-                              placeholder={entry.egressType === "cidrSelector" ? "e.g., 10.0.0.0/8" : "e.g., github.com"}
-                            />
-                          </td>
-                          <td>
-                            {entry.egressType === "cidrSelector" ? (
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                                  <button
-                                    className="btn"
-                                    type="button"
-                                    onClick={() => {
+                    </thead>
+                    <tbody>
+                        {(() => {
+                          const dnsEntries = draftEgressFirewallEntries
+                            .map((entry, idx) => ({ entry, idx }))
+                            .filter(({ entry }) => entry.egressType === "dnsName");
+
+                          return dnsEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={2} className="muted" style={{ textAlign: 'center' }}>
+                                No DNS entries. Click "+ Add DNS" to add one.
+                              </td>
+                            </tr>
+                          ) : (
+                            dnsEntries.map(({ entry, idx }) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input
+                                    className="filterInput"
+                                    value={entry.egressValue || ""}
+                                    onChange={(e) => {
                                       const updated = [...draftEgressFirewallEntries];
-                                      const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
-                                      ports.push({ protocol: "TCP", port: "" });
-                                      updated[idx] = { ...updated[idx], ports };
+                                      updated[idx] = { ...updated[idx], egressValue: e.target.value };
                                       setDraftEgressFirewallEntries(updated);
                                     }}
+                                    placeholder="e.g., github.com"
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <button
+                                    className="iconBtn iconBtn-danger"
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = draftEgressFirewallEntries.filter((_, i) => i !== idx);
+                                      setDraftEgressFirewallEntries(updated);
+                                    }}
+                                    aria-label="Delete entry"
+                                    title="Delete DNS entry"
                                   >
-                                    + Add Port
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                      <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                    </svg>
                                   </button>
-                                </div>
-                                {(Array.isArray(entry.ports) ? entry.ports : []).length === 0 ? (
-                                  <div className="muted">No ports</div>
-                                ) : (
-                                  (entry.ports || []).map((p, pidx) => (
-                                    <div key={pidx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                                      <select
-                                        className="filterInput"
-                                        value={p.protocol || "TCP"}
-                                        onChange={(e) => {
-                                          const updated = [...draftEgressFirewallEntries];
-                                          const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
-                                          ports[pidx] = { ...(ports[pidx] || {}), protocol: e.target.value };
-                                          updated[idx] = { ...updated[idx], ports };
-                                          setDraftEgressFirewallEntries(updated);
-                                        }}
-                                      >
-                                        <option value="TCP">TCP</option>
-                                        <option value="UDP">UDP</option>
-                                      </select>
-                                      <input
-                                        className="filterInput"
-                                        style={{ width: 120 }}
-                                        value={p.port == null ? "" : String(p.port)}
-                                        onChange={(e) => {
-                                          const updated = [...draftEgressFirewallEntries];
-                                          const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
-                                          ports[pidx] = { ...(ports[pidx] || {}), port: e.target.value };
-                                          updated[idx] = { ...updated[idx], ports };
-                                          setDraftEgressFirewallEntries(updated);
-                                        }}
-                                        placeholder="Port"
-                                      />
-                                      <button
-                                        className="iconBtn iconBtn-danger"
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = [...draftEgressFirewallEntries];
-                                          const ports = Array.isArray(updated[idx].ports) ? updated[idx].ports.filter((_, i) => i !== pidx) : [];
-                                          updated[idx] = { ...updated[idx], ports };
-                                          setDraftEgressFirewallEntries(updated);
-                                        }}
-                                        aria-label="Delete port"
-                                        title="Delete port"
-                                      >
-                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                          <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            ) : (
-                              <span className="muted">N/A</span>
-                            )}
-                          </td>
-                          <td>
-                            <button
-                              className="iconBtn iconBtn-danger"
-                              type="button"
-                              onClick={() => {
-                                const updated = draftEgressFirewallEntries.filter((_, i) => i !== idx);
-                                setDraftEgressFirewallEntries(updated);
-                              }}
-                              aria-label="Delete entry"
-                              title="Delete Egress entry"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                              </svg>
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                                </td>
+                              </tr>
+                            ))
+                          );
+                        })()}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* CIDR Blocks Table - Right Side (60%) */}
+                <div style={{ flex: '0 0 calc(60% - 8px)', minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#495057' }}>CIDR Blocks</h4>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={() => {
+                        setDraftEgressFirewallEntries([
+                          ...draftEgressFirewallEntries,
+                          { egressType: "cidrSelector", egressValue: "", ports: [] },
+                        ]);
+                      }}
+                    >
+                      + Add CIDR
+                    </button>
+                  </div>
+                  <table style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '35%' }}>CIDR Block</th>
+                        <th style={{ width: '55%' }}>Ports</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                        {(() => {
+                          const cidrEntries = draftEgressFirewallEntries
+                            .map((entry, idx) => ({ entry, idx }))
+                            .filter(({ entry }) => entry.egressType === "cidrSelector");
+
+                          return cidrEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="muted" style={{ textAlign: 'center' }}>
+                                No CIDR entries. Click "+ Add CIDR" to add one.
+                              </td>
+                            </tr>
+                          ) : (
+                            cidrEntries.map(({ entry, idx }) => (
+                              <tr key={idx}>
+                                <td>
+                                  <input
+                                    className="filterInput"
+                                    value={entry.egressValue || ""}
+                                    onChange={(e) => {
+                                      const updated = [...draftEgressFirewallEntries];
+                                      updated[idx] = { ...updated[idx], egressValue: e.target.value };
+                                      setDraftEgressFirewallEntries(updated);
+                                    }}
+                                    placeholder="e.g., 10.0.0.0/8"
+                                  />
+                                </td>
+                                <td>
+                                  <div style={{ padding: '8px 0' }}>
+                                    {(Array.isArray(entry.ports) ? entry.ports : []).length === 0 ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span className="muted" style={{ fontSize: '12px' }}>No ports</span>
+                                        <button
+                                          className="btn"
+                                          type="button"
+                                          style={{ fontSize: '12px', padding: '4px 8px' }}
+                                          onClick={() => {
+                                            const updated = [...draftEgressFirewallEntries];
+                                            const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                            ports.push({ protocol: "TCP", port: "" });
+                                            updated[idx] = { ...updated[idx], ports };
+                                            setDraftEgressFirewallEntries(updated);
+                                          }}
+                                        >
+                                          + Port
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ paddingBottom: '8px' }}>
+                                        {(entry.ports || []).map((p, pidx) => (
+                                          <div key={pidx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                                            <select
+                                              className="filterInput"
+                                              style={{ width: 70, fontSize: '13px' }}
+                                              value={p.protocol || "TCP"}
+                                              onChange={(e) => {
+                                                const updated = [...draftEgressFirewallEntries];
+                                                const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                                ports[pidx] = { ...(ports[pidx] || {}), protocol: e.target.value };
+                                                updated[idx] = { ...updated[idx], ports };
+                                                setDraftEgressFirewallEntries(updated);
+                                              }}
+                                            >
+                                              <option value="TCP">TCP</option>
+                                              <option value="UDP">UDP</option>
+                                            </select>
+                                            <input
+                                              className="filterInput"
+                                              style={{ width: 70, fontSize: '13px' }}
+                                              value={p.port == null ? "" : String(p.port)}
+                                              onChange={(e) => {
+                                                const updated = [...draftEgressFirewallEntries];
+                                                const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                                ports[pidx] = { ...(ports[pidx] || {}), port: e.target.value };
+                                                updated[idx] = { ...updated[idx], ports };
+                                                setDraftEgressFirewallEntries(updated);
+                                              }}
+                                              placeholder="Port"
+                                            />
+                                            <button
+                                              className="iconBtn iconBtn-danger"
+                                              type="button"
+                                              onClick={() => {
+                                                const updated = [...draftEgressFirewallEntries];
+                                                const ports = Array.isArray(updated[idx].ports) ? updated[idx].ports.filter((_, i) => i !== pidx) : [];
+                                                updated[idx] = { ...updated[idx], ports };
+                                                setDraftEgressFirewallEntries(updated);
+                                              }}
+                                              aria-label="Delete port"
+                                              title="Delete port"
+                                            >
+                                              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                                <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        ))}
+                                        <button
+                                          className="btn"
+                                          type="button"
+                                          style={{ fontSize: '12px', padding: '4px 8px', marginTop: 4 }}
+                                          onClick={() => {
+                                            const updated = [...draftEgressFirewallEntries];
+                                            const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                            ports.push({ protocol: "TCP", port: "" });
+                                            updated[idx] = { ...updated[idx], ports };
+                                            setDraftEgressFirewallEntries(updated);
+                                          }}
+                                        >
+                                          + Port
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <button
+                                    className="iconBtn iconBtn-danger"
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = draftEgressFirewallEntries.filter((_, i) => i !== idx);
+                                      setDraftEgressFirewallEntries(updated);
+                                    }}
+                                    aria-label="Delete entry"
+                                    title="Delete CIDR entry"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                      <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                    </svg>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          );
+                        })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
-              <div>
-                {egressFirewallRules.length === 0 ? (
-                  <p className="muted">No egress firewall rules</p>
-                ) : (
-                  <div className="attributesGrid">
-                    {egressFirewallRules.map((r, idx) => (
-                      <div key={idx} className="attributeItem">
-                        <span className="attributeKey">{r.egressType}:</span>
-                        <span className="attributeValue">{formatValue(r.egressValue)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div style={{ display: 'flex', gap: '16px' }}>
+                {/* DNS Names Table - Left Side (40%) */}
+                <div style={{ flex: '0 0 40%', minWidth: 0 }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#495057', marginBottom: '12px', borderBottom: '1px solid #dee2e6', paddingBottom: '8px' }}>
+                    DNS Names ({egressFirewallRules.filter(r => r.egressType === 'dnsName').length})
+                  </h4>
+                  {egressFirewallRules.filter(r => r.egressType === 'dnsName').length === 0 ? (
+                    <p className="muted">No DNS entries</p>
+                  ) : (
+                    <table style={{ width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th>DNS Name</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {egressFirewallRules
+                          .filter(r => r.egressType === 'dnsName')
+                          .map((r, idx) => (
+                            <tr key={idx}>
+                              <td>{formatValue(r.egressValue)}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* CIDR Blocks Table - Right Side (60%) */}
+                <div style={{ flex: '0 0 calc(60% - 8px)', minWidth: 0 }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#495057', marginBottom: '12px', borderBottom: '1px solid #dee2e6', paddingBottom: '8px' }}>
+                    CIDR Blocks ({egressFirewallRules.filter(r => r.egressType === 'cidrSelector').length})
+                  </h4>
+                  {egressFirewallRules.filter(r => r.egressType === 'cidrSelector').length === 0 ? (
+                    <p className="muted">No CIDR entries</p>
+                  ) : (
+                    <table style={{ width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th>CIDR Block</th>
+                          <th>Ports</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {egressFirewallRules
+                          .filter(r => r.egressType === 'cidrSelector')
+                          .map((r, idx) => (
+                            <tr key={idx}>
+                              <td>{formatValue(r.egressValue)}</td>
+                              <td>
+                                {r.ports && r.ports.length > 0 ? (
+                                  <span style={{ fontSize: '13px' }}>
+                                    {r.ports.map(p => `${p.protocol}/${p.port}`).join(', ')}
+                                  </span>
+                                ) : (
+                                  <span className="muted" style={{ fontSize: '12px' }}>No ports</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             )}
           </div>

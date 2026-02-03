@@ -6,6 +6,7 @@
 cd "$(dirname "$0")"
 
 PORT=8888
+PID_FILE="server.pid"
 
 echo "Stopping FastAPI + React application..."
 
@@ -56,6 +57,14 @@ if lsof -ti:$PORT > /dev/null 2>&1; then
     REMAINING_PID=$(lsof -ti:$PORT)
     echo "⚠️  Warning: Port $PORT is still in use by PID $REMAINING_PID"
     echo "   Run: kill -9 $REMAINING_PID"
+    exit 1
 else
     echo "✅ Port $PORT is now free"
 fi
+
+# Clean up PID file if it exists
+if [ -f "$PID_FILE" ]; then
+    rm -f "$PID_FILE"
+    echo "🗑️  Cleaned up PID file"
+fi
+
