@@ -199,6 +199,7 @@ def save_config(cfg: KSelfServeConfig):
         cloned_repos_dir = workspace_path / "kselfserv" / "cloned-repositories"
         requests_clone_dir = cloned_repos_dir / "requests"
         control_clone_dir = cloned_repos_dir / "control"
+        rendered_clone_dir = cloned_repos_dir / "rendered"
         if requests_clone_dir.exists() and not requests_clone_dir.is_dir():
             raise HTTPException(
                 status_code=400,
@@ -209,6 +210,12 @@ def save_config(cfg: KSelfServeConfig):
             raise HTTPException(
                 status_code=400,
                 detail=f"Expected control clone path to be a directory: {control_clone_dir}",
+            )
+
+        if rendered_clone_dir.exists() and not rendered_clone_dir.is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected rendered clone path to be a directory: {rendered_clone_dir}",
             )
 
         if not requests_clone_dir.exists():
@@ -242,6 +249,46 @@ def save_config(cfg: KSelfServeConfig):
                     status_code=500,
                     detail=f"Failed to clone controlRepo into {control_clone_dir}: {stderr}",
                 )
+
+        rendered_repo_url = str(cfg.renderedManifestsRepo or "").strip()
+        if rendered_repo_url:
+            if not rendered_clone_dir.exists():
+                cloned_repos_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    subprocess.run(
+                        ["git", "clone", rendered_repo_url, str(rendered_clone_dir)],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                except subprocess.CalledProcessError as e:
+                    stderr = (e.stderr or "").strip()
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to clone renderedManifestsRepo into {rendered_clone_dir}: {stderr}",
+                    )
+            else:
+                try:
+                    git_dir = rendered_clone_dir / ".git"
+                    if git_dir.exists() and git_dir.is_dir():
+                        subprocess.run(
+                            ["git", "-C", str(rendered_clone_dir), "fetch", "--all"],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                        )
+                        subprocess.run(
+                            ["git", "-C", str(rendered_clone_dir), "pull", "--ff-only"],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                        )
+                except subprocess.CalledProcessError as e:
+                    stderr = (e.stderr or "").strip()
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to update renderedManifestsRepo in {rendered_clone_dir}: {stderr}",
+                    )
 
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         data = {

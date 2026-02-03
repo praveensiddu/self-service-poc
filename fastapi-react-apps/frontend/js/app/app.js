@@ -404,6 +404,8 @@ function App() {
 
   const appRows = Object.keys(apps).map((k) => apps[k]);
 
+  const selectedAppArgocdEnabled = Boolean(detailAppName && apps?.[detailAppName]?.argocd);
+
 
   async function openNamespaces(appname, push = true) {
     if (!appname) return;
@@ -1154,6 +1156,7 @@ function App() {
       onOpenCreateNamespace={() => setShowCreateNamespace(true)}
       onCloseCreateNamespace={() => setShowCreateNamespace(false)}
       detailAppName={detailAppName}
+      argocdEnabled={selectedAppArgocdEnabled}
       l4IngressItems={l4IngressItems}
       egressIpItems={egressIpItems}
       selectedEgressIps={selectedEgressIps}

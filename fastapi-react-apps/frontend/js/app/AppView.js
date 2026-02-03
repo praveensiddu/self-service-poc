@@ -62,6 +62,7 @@ function AppView({
   onOpenCreateNamespace,
   onCloseCreateNamespace,
   detailAppName,
+  argocdEnabled,
   l4IngressItems,
   egressIpItems,
   selectedEgressIps,
@@ -337,6 +338,7 @@ function AppView({
                 showCreate={showCreateNamespace}
                 onOpenCreate={onOpenCreateNamespace}
                 onCloseCreate={onCloseCreateNamespace}
+                argocdEnabled={argocdEnabled}
               />
             ) : view === "l4ingress" ? (
               <div>

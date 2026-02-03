@@ -10,6 +10,7 @@ function NamespacesTableView({
   onViewDetails,
   onDeleteNamespace,
   onCreateNamespace,
+  argocdEnabled,
   env,
   appname,
   showCreate,
@@ -23,6 +24,13 @@ function NamespacesTableView({
   const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
   const [newManagedByArgo, setNewManagedByArgo] = React.useState(false);
   const [newEgressNameId, setNewEgressNameId] = React.useState("");
+
+  const canEnableArgoForNewNamespace = Boolean(argocdEnabled);
+
+  React.useEffect(() => {
+    if (!showCreate) return;
+    if (!canEnableArgoForNewNamespace) setNewManagedByArgo(false);
+  }, [showCreate, canEnableArgoForNewNamespace]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -281,6 +289,7 @@ function NamespacesTableView({
                   className="filterInput"
                   value={newManagedByArgo ? "Yes" : "No"}
                   onChange={(e) => setNewManagedByArgo(e.target.value === "Yes")}
+                  disabled={!canEnableArgoForNewNamespace}
                   data-testid="input-managed-by-argo"
                 >
                   <option value="No">No</option>
@@ -313,7 +322,7 @@ function NamespacesTableView({
                     await onCreateNamespace({
                       namespace: newNamespace,
                       clusters: newClustersList,
-                      need_argo: newManagedByArgo,
+                      need_argo: canEnableArgoForNewNamespace ? newManagedByArgo : false,
                       egress_nameid: newEgressNameId,
                     });
                     onCloseCreate();
