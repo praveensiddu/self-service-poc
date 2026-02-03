@@ -63,6 +63,7 @@ function AppView({
   onCloseCreateNamespace,
   detailAppName,
   argocdEnabled,
+  requestsChanges,
   l4IngressItems,
   egressIpItems,
   selectedEgressIps,
@@ -315,6 +316,7 @@ function AppView({
                 showCreate={showCreateApp}
                 onOpenCreate={onOpenCreateApp}
                 onCloseCreate={onCloseCreateApp}
+                requestsChanges={requestsChanges}
               />
             ) : view === "namespaceDetails" ? (
               <NamespaceDetails
@@ -339,6 +341,7 @@ function AppView({
                 onOpenCreate={onOpenCreateNamespace}
                 onCloseCreate={onCloseCreateNamespace}
                 argocdEnabled={argocdEnabled}
+                requestsChanges={requestsChanges}
               />
             ) : view === "l4ingress" ? (
               <div>

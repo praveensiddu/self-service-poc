@@ -3,6 +3,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+
 from backend.routers import apps, general, clusters, namespaces, l4_ingress, pull_requests, egress_ip, rolebindings, app_argocd, nsargocd, egressfirewall
 
 app = FastAPI(title="Application Management API")

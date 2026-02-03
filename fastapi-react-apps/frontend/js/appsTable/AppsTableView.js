@@ -19,6 +19,7 @@ function AppsTableView({
   showCreate,
   onOpenCreate,
   onCloseCreate,
+  requestsChanges,
 }) {
   const [newAppName, setNewAppName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
@@ -596,7 +597,17 @@ function AppsTableView({
                     data-testid={`app-checkbox-${a.appname}`}
                   />
                 </td>
-                <td>{a.appname}</td>
+                <td
+                  style={
+                    requestsChanges?.apps?.has
+                      ? (requestsChanges.apps.has(`${String(env || "").toLowerCase()}/${String(a.appname || "")}`)
+                        ? { background: "#fff3cd" }
+                        : undefined)
+                      : undefined
+                  }
+                >
+                  {a.appname}
+                </td>
                 <td className="muted">{a.description || ""}</td>
                 <td>{a.managedby || ""}</td>
                 <td>{(clustersByApp?.[a.appname] || []).join(", ")}</td>

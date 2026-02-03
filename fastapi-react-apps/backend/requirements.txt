@@ -2,3 +2,5 @@ fastapi
 uvicorn
 pydantic
 PyYAML
+requests
+python-dotenv

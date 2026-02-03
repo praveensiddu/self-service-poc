@@ -151,6 +151,8 @@ function App() {
 
   const [clustersByEnv, setClustersByEnv] = React.useState({});
 
+  const [requestsChanges, setRequestsChanges] = React.useState({ apps: new Set(), namespaces: new Set() });
+
   const availableClusters = ((clustersByEnv || {})[String(activeEnv || "").toUpperCase()] || [])
     .map((r) => String(r?.clustername || "").trim())
     .filter(Boolean);
@@ -398,6 +400,28 @@ function App() {
     };
   }, [activeEnv]);
 
+  React.useEffect(() => {
+    if (!activeEnv) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await fetchJson(`/api/requests/changes?env=${encodeURIComponent(activeEnv)}`);
+        if (cancelled) return;
+        const appsList = Array.isArray(data?.apps) ? data.apps.map(String) : [];
+        const namespacesList = Array.isArray(data?.namespaces) ? data.namespaces.map(String) : [];
+        setRequestsChanges({ apps: new Set(appsList), namespaces: new Set(namespacesList) });
+      } catch {
+        if (!cancelled) setRequestsChanges({ apps: new Set(), namespaces: new Set() });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEnv]);
+
   const deploymentEnv = deployment?.deployment_env || "";
   const bannerTitle = deployment?.title?.[deploymentEnv] || "OCP App Provisioning Portal";
   const bannerColor = deployment?.headerColor?.[deploymentEnv] || "#384454";
@@ -405,6 +429,19 @@ function App() {
   const appRows = Object.keys(apps).map((k) => apps[k]);
 
   const selectedAppArgocdEnabled = Boolean(detailAppName && apps?.[detailAppName]?.argocd);
+
+
+  async function refreshRequestsChanges() {
+    if (!activeEnv) return;
+    try {
+      const data = await fetchJson(`/api/requests/changes?env=${encodeURIComponent(activeEnv)}`);
+      const appsList = Array.isArray(data?.apps) ? data.apps.map(String) : [];
+      const namespacesList = Array.isArray(data?.namespaces) ? data.namespaces.map(String) : [];
+      setRequestsChanges({ apps: new Set(appsList), namespaces: new Set(namespacesList) });
+    } catch {
+      setRequestsChanges({ apps: new Set(), namespaces: new Set() });
+    }
+  }
 
 
   async function openNamespaces(appname, push = true) {
@@ -912,6 +949,8 @@ function App() {
       nextClusters[appname] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
     }
     setClustersByApp(nextClusters);
+
+    await refreshRequestsChanges();
   }
 
   async function refreshApps() {
@@ -924,6 +963,8 @@ function App() {
       nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
     }
     setClustersByApp(nextClusters);
+
+    await refreshRequestsChanges();
   }
 
   async function updateApp(appname, payload) {
@@ -948,6 +989,8 @@ function App() {
       nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
     }
     setClustersByApp(nextClusters);
+
+    await refreshRequestsChanges();
   }
 
   async function createNamespace(payload) {
@@ -997,6 +1040,8 @@ function App() {
       nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
     }
     setClustersByApp(nextClusters);
+
+    await refreshRequestsChanges();
   }
 
   async function onSaveConfig() {
@@ -1157,6 +1202,7 @@ function App() {
       onCloseCreateNamespace={() => setShowCreateNamespace(false)}
       detailAppName={detailAppName}
       argocdEnabled={selectedAppArgocdEnabled}
+      requestsChanges={requestsChanges}
       l4IngressItems={l4IngressItems}
       egressIpItems={egressIpItems}
       selectedEgressIps={selectedEgressIps}

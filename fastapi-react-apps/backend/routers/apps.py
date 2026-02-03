@@ -3,12 +3,17 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 import shutil
 import re
+import logging
 
 import yaml
 
 from pydantic import BaseModel
 
+from backend.routers import pull_requests
+
 router = APIRouter(tags=["apps"])
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class AppCreate(BaseModel):
@@ -531,6 +536,11 @@ def create_app(payload: AppCreate, env: Optional[str] = None):
     except Exception:
         clusters_by_app = {}
 
+    try:
+        pull_requests.ensure_pull_request(appname=appname, env=env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
+
     return {
         "appname": appname,
         "description": str(payload.description or ""),
@@ -538,6 +548,9 @@ def create_app(payload: AppCreate, env: Optional[str] = None):
         "clusters": clusters_by_app.get(appname, []),
         "totalns": 0,
     }
+
+
+    
 
 
 @router.put("/apps/{appname}")
@@ -582,6 +595,11 @@ def update_app(appname: str, payload: AppCreate, env: Optional[str] = None):
         clusters_by_app = _clusters_by_app_for_env(env)
     except Exception:
         clusters_by_app = {}
+
+    try:
+        pull_requests.ensure_pull_request(appname=target_appname, env=env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(target_appname), str(e))
 
     return {
         "appname": target_appname,

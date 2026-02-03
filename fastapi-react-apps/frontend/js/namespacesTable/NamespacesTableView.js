@@ -11,6 +11,7 @@ function NamespacesTableView({
   onDeleteNamespace,
   onCreateNamespace,
   argocdEnabled,
+  requestsChanges,
   env,
   appname,
   showCreate,
@@ -443,7 +444,17 @@ function NamespacesTableView({
                     data-testid={`namespace-checkbox-${r.name}`}
                   />
                 </td>
-                <td>{r.name}</td>
+                <td
+                  style={
+                    requestsChanges?.namespaces?.has
+                      ? (requestsChanges.namespaces.has(`${String(env || "").toLowerCase()}/${String(appname || "")}/${String(r.name || "")}`)
+                        ? { background: "#fff3cd" }
+                        : undefined)
+                      : undefined
+                  }
+                >
+                  {r.name}
+                </td>
                 <td>{r.clustersText}</td>
                 <td>{r.egressIpText}</td>
                 <td>{r.egressFirewallText}</td>

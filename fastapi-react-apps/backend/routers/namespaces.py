@@ -2,14 +2,18 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 import shutil
 import re
+import logging
 
 import yaml
 
 from pydantic import BaseModel
 
 from backend.routers.apps import _require_env, _require_initialized_workspace
+from backend.routers import pull_requests
 
 router = APIRouter(tags=["namespaces"])
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class NamespaceCreate(BaseModel):
@@ -275,6 +279,11 @@ def create_namespace(appname: str, payload: NamespaceCreate, env: Optional[str] 
     need_argo = False
     status = "Argo used" if need_argo else "Argo not used"
 
+    try:
+        pull_requests.ensure_pull_request(appname=appname, env=env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
+
     return {
         "name": namespace,
         "description": "",
@@ -407,6 +416,11 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                 lim_path.write_text(yaml.safe_dump(lim_existing, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
+
+    try:
+        pull_requests.ensure_pull_request(appname=appname, env=env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
     # RoleBindings validation and update - outside try-except so validation errors return proper 400 status
     if payload.rolebindings is not None and payload.rolebindings.bindings is not None:

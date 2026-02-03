@@ -84,6 +84,20 @@ def _require_control_clusters_root() -> Optional[Path]:
     return clusters_root
 
 
+def _requests_repo_root() -> Path:
+    workspace_path = _require_workspace_path()
+    return workspace_path / "kselfserv" / "cloned-repositories" / "requests"
+
+
+def _run_git(repo_dir: Path, args: List[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(repo_dir), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def _as_string_list(value: Any) -> List[str]:
     if value is None:
         return []
@@ -380,3 +394,89 @@ def get_deployment_type():
 @router.get("/current-user")
 def get_current_user():
     return {"user": "user1"}
+
+
+@router.get("/requests/changes")
+def get_requests_changes(env: Optional[str] = None):
+    env_key = str(env or "").strip().lower()
+
+    repo_root = _requests_repo_root()
+    if not repo_root.exists() or not repo_root.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    try:
+        git_dir = repo_root / ".git"
+        if not git_dir.exists() or not git_dir.is_dir():
+            raise HTTPException(status_code=400, detail=f"Requests repo is not a git repository: {repo_root}")
+
+        try:
+            _run_git(repo_root, ["fetch", "origin"])
+        except subprocess.CalledProcessError:
+            # If fetch fails (no network, etc.), still try to compute local changes.
+            pass
+
+        changed_files: List[str] = []
+
+        # Changes vs origin/main on current branch
+        try:
+            cp = _run_git(repo_root, ["diff", "--name-only", "origin/main...HEAD"])
+            changed_files.extend([ln.strip() for ln in (cp.stdout or "").splitlines() if ln.strip()])
+        except subprocess.CalledProcessError:
+            pass
+
+        # Staged changes
+        try:
+            cp = _run_git(repo_root, ["diff", "--name-only", "--cached"])
+            changed_files.extend([ln.strip() for ln in (cp.stdout or "").splitlines() if ln.strip()])
+        except subprocess.CalledProcessError:
+            pass
+
+        # Unstaged changes
+        try:
+            cp = _run_git(repo_root, ["diff", "--name-only"])
+            changed_files.extend([ln.strip() for ln in (cp.stdout or "").splitlines() if ln.strip()])
+        except subprocess.CalledProcessError:
+            pass
+
+        # Untracked files
+        try:
+            cp = _run_git(repo_root, ["ls-files", "--others", "--exclude-standard"])
+            changed_files.extend([ln.strip() for ln in (cp.stdout or "").splitlines() if ln.strip()])
+        except subprocess.CalledProcessError:
+            pass
+
+        apps_set = set()
+        namespaces_set = set()
+
+        for p in changed_files:
+            rel = str(p or "").strip().lstrip("/")
+            if not rel:
+                continue
+            if not rel.startswith("app-requests/"):
+                continue
+
+            parts = rel.split("/")
+            if len(parts) < 4:
+                continue
+
+            env_part = str(parts[1] or "").strip().lower()
+            app_part = str(parts[2] or "").strip()
+            ns_part = str(parts[3] or "").strip()
+            if not env_part or not app_part or not ns_part:
+                continue
+
+            if env_key and env_part != env_key:
+                continue
+
+            apps_set.add(f"{env_part}/{app_part}")
+            namespaces_set.add(f"{env_part}/{app_part}/{ns_part}")
+
+        return {
+            "env": env_key,
+            "apps": sorted(apps_set),
+            "namespaces": sorted(namespaces_set),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute requests repo changes: {e}")
