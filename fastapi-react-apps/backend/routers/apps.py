@@ -77,7 +77,7 @@ def _require_initialized_workspace() -> Path:
         / "kselfserv"
         / "cloned-repositories"
         / "requests"
-        / "app-requests"
+        / "apprequests"
     )
     if not requests_root.exists() or not requests_root.is_dir():
         raise HTTPException(status_code=400, detail="not initialized")

@@ -56,7 +56,7 @@ def _require_initialized_workspace() -> Path:
         / "kselfserv"
         / "cloned-repositories"
         / "requests"
-        / "app-requests"
+        / "apprequests"
     )
     if not requests_root.exists() or not requests_root.is_dir():
         raise HTTPException(status_code=400, detail="not initialized")
@@ -341,7 +341,7 @@ def get_envlist():
             / "kselfserv"
             / "cloned-repositories"
             / "requests"
-            / "app-requests"
+            / "apprequests"
             / "env_info.yaml"
         )
         if not env_info_path.exists():
@@ -452,7 +452,7 @@ def get_requests_changes(env: Optional[str] = None):
             rel = str(p or "").strip().lstrip("/")
             if not rel:
                 continue
-            if not rel.startswith("app-requests/"):
+            if not rel.startswith("apprequests/"):
                 continue
 
             parts = rel.split("/")
