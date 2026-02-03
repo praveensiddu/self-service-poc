@@ -155,6 +155,113 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return await resp.text();
   }
 
+  async function fetchCurrentEgressFirewallRules() {
+    const envKey = String(env || "").trim();
+    const appKey = String(appname || "").trim();
+    const nsKey = String(namespaceName || "").trim();
+    if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
+
+    const resp = await fetch(
+      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/egressfirewall?env=${encodeURIComponent(envKey)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+    }
+
+    const data = await resp.json();
+    return Array.isArray(data.rules) ? data.rules : [];
+  }
+
+  async function previewEgressFirewallWithDraft() {
+    try {
+      // Fetch current saved rules from backend
+      const currentRules = await fetchCurrentEgressFirewallRules();
+
+      // Format draft entries
+      const draftRules = draftEgressFirewallEntries
+        .filter((r) => r && typeof r === "object")
+        .map((r) => ({
+          egressType: String(r.egressType || "dnsName"),
+          egressValue: String(r.egressValue || ""),
+          ports: Array.isArray(r.ports)
+            ? r.ports
+              .filter((p) => p && typeof p === "object")
+              .map((p) => ({
+                protocol: String(p.protocol || ""),
+                port: p.port == null ? "" : String(p.port)
+              }))
+            : [],
+        }));
+
+      // Merge: current rules + draft rules (draft rules will be the final version)
+      // Since we're replacing, we'll just use draft rules if they exist, otherwise current
+      const mergedRules = draftRules.length > 0 ? draftRules : currentRules;
+
+      // Generate YAML from merged rules
+      const egressYaml = await fetchEgressFirewallYaml(mergedRules);
+
+      // Show modal with preview
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+      const modalContent = document.createElement('div');
+      modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 800px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+      header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #ff8c00;">EgressFirewall Preview (Draft)</h3>';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '&times;';
+      closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+      closeBtn.onclick = () => modal.remove();
+      header.appendChild(closeBtn);
+
+      const infoBox = document.createElement('div');
+      infoBox.style.cssText = 'background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: #856404;';
+      infoBox.innerHTML = '<strong>Preview Mode:</strong> This shows how the final EgressFirewall will look with your current changes. Save to apply these changes.';
+
+      const pre = document.createElement('pre');
+      pre.textContent = egressYaml;
+      pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.textContent = 'Copy';
+      copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(egressYaml).then(() => alert('Copied to clipboard!'));
+      };
+
+      const closeBtn2 = document.createElement('button');
+      closeBtn2.textContent = 'Close';
+      closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+      closeBtn2.onclick = () => modal.remove();
+
+      footer.appendChild(copyBtn);
+      footer.appendChild(closeBtn2);
+
+      modalContent.appendChild(header);
+      modalContent.appendChild(infoBox);
+      modalContent.appendChild(pre);
+      modalContent.appendChild(footer);
+      modal.appendChild(modalContent);
+
+      document.body.appendChild(modal);
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    } catch (err) {
+      alert('Failed to generate preview: ' + String(err.message || err));
+    }
+  }
+
   function addCluster(name) {
     const v = String(name || "").trim();
     if (!v) return;
@@ -1113,6 +1220,20 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
             </svg>
             <h3>Egress Firewall</h3>
+            {editEnabled && draftEgressFirewallEntries.length > 0 && (
+              <button
+                className="iconBtn iconBtn-warning"
+                style={{ marginLeft: 'auto' }}
+                onClick={previewEgressFirewallWithDraft}
+                aria-label="Preview YAML"
+                title="Preview EgressFirewall YAML with current draft changes"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
+                  <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+                </svg>
+              </button>
+            )}
             {!editEnabled && egressFirewallRules.length > 0 && (
               <button
                 className="iconBtn iconBtn-primary"
