@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 
 PORT=8888
 LOG_FILE="server.log"
+PID_FILE="server.pid"
 
 echo "Starting FastAPI + React application..."
 
@@ -26,17 +27,20 @@ if [ ! -d "venv" ]; then
         echo "❌ Failed to create virtual environment"
         exit 1
     fi
+fi
 
-    echo "📦 Installing dependencies..."
-    source venv/bin/activate
+# Activate virtual environment
+source venv/bin/activate
+
+# Check if dependencies are installed by checking for a key package
+if ! python -c "import requests" 2>/dev/null; then
+    echo "📦 Installing/updating dependencies..."
     pip install -r backend/requirements.txt
 
     if [ $? -ne 0 ]; then
         echo "❌ Failed to install dependencies"
         exit 1
     fi
-else
-    source venv/bin/activate
 fi
 
 # Start the FastAPI server (which serves both backend API and frontend)
@@ -48,6 +52,7 @@ sleep 2
 # Verify server started successfully
 if lsof -ti:$PORT > /dev/null 2>&1; then
     PID=$(lsof -ti:$PORT)
+    echo "$PID" > "$PID_FILE"
     echo ""
     echo "✅ Application started successfully!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

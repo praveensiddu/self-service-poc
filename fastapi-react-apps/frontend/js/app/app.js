@@ -636,6 +636,7 @@ function App() {
         applications,
       });
       await refreshClusters(env);
+      await refreshApps();
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
@@ -658,6 +659,7 @@ function App() {
       setError("");
       await deleteJson(`/api/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
       await refreshClusters(env);
+      await refreshApps();
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
