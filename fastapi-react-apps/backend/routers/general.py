@@ -16,6 +16,7 @@ logger = logging.getLogger("uvicorn.error")
 class KSelfServeConfig(BaseModel):
     workspace: str = ""
     requestsRepo: str = ""
+    templatesRepo: str = ""
     renderedManifestsRepo: str = ""
     controlRepo: str = ""
 
@@ -187,6 +188,7 @@ def get_config():
     return KSelfServeConfig(
         workspace=str(raw.get("workspace", "") or ""),
         requestsRepo=str(raw.get("requestsRepo", "") or ""),
+        templatesRepo=str(raw.get("templatesRepo", raw.get("TemplatesRepo", "")) or ""),
         renderedManifestsRepo=str(
             raw.get("renderedManifestsRepo", raw.get("RenderedManifestsRepo", "")) or ""
         ),
@@ -212,12 +214,19 @@ def save_config(cfg: KSelfServeConfig):
 
         cloned_repos_dir = workspace_path / "kselfserv" / "cloned-repositories"
         requests_clone_dir = cloned_repos_dir / "requests"
+        templates_clone_dir = cloned_repos_dir / "templates"
         control_clone_dir = cloned_repos_dir / "control"
         rendered_clone_dir = cloned_repos_dir / "rendered"
         if requests_clone_dir.exists() and not requests_clone_dir.is_dir():
             raise HTTPException(
                 status_code=400,
                 detail=f"Expected requests clone path to be a directory: {requests_clone_dir}",
+            )
+
+        if templates_clone_dir.exists() and not templates_clone_dir.is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Expected templates clone path to be a directory: {templates_clone_dir}",
             )
 
         if control_clone_dir.exists() and not control_clone_dir.is_dir():
@@ -246,6 +255,23 @@ def save_config(cfg: KSelfServeConfig):
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to clone requestsRepo into {requests_clone_dir}: {stderr}",
+                )
+
+        templates_repo_url = str(cfg.templatesRepo or "").strip()
+        if templates_repo_url and not templates_clone_dir.exists():
+            cloned_repos_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                subprocess.run(
+                    ["git", "clone", templates_repo_url, str(templates_clone_dir)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                stderr = (e.stderr or "").strip()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to clone templatesRepo into {templates_clone_dir}: {stderr}",
                 )
 
         if not control_clone_dir.exists():
@@ -308,6 +334,7 @@ def save_config(cfg: KSelfServeConfig):
         data = {
             "workspace": cfg.workspace or "",
             "requestsRepo": cfg.requestsRepo or "",
+            "templatesRepo": cfg.templatesRepo or "",
             "renderedManifestsRepo": cfg.renderedManifestsRepo or "",
             "controlRepo": cfg.controlRepo or "",
         }

@@ -17,6 +17,8 @@ function AppView({
   setWorkspace,
   requestsRepo,
   setRequestsRepo,
+  templatesRepo,
+  setTemplatesRepo,
   renderedManifestsRepo,
   setRenderedManifestsRepo,
   controlRepo,
@@ -96,6 +98,13 @@ function AppView({
           >
             Home
           </button>
+          <button
+            className={topTab === "Settings" ? "tab active" : "tab"}
+            onClick={() => onTopTabChange("Settings")}
+            type="button"
+          >
+            Settings
+          </button>
           {showProvisioningTabs ? (
             <>
               <button
@@ -154,6 +163,20 @@ function AppView({
               </div>
               <div>
                 <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
+                  <div className="muted" style={{ fontWeight: 700 }}>TemplatesRepo</div>
+                  <div className="muted">
+                    Git repo which contains templates used for provisioning.
+                    (for example:{" "}
+                    <a href="https://github.com/praveensiddu/kselfservice-templates" target="_blank" rel="noreferrer">
+                      https://github.com/praveensiddu/kselfservice-templates
+                    </a>
+                    ).
+                    </div>
+                </div>
+                <input className="filterInput" value={templatesRepo} onChange={(e) => setTemplatesRepo(e.target.value)} />
+              </div>
+              <div>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
                   <div className="muted" style={{ fontWeight: 700 }}>RenderedManifestsRepo</div>
                   <div className="muted">
                     Git repo which contains the kubernetes rendered manifests ready for ArgoCD to apply to the clusters(for example:{" "}
@@ -191,6 +214,10 @@ function AppView({
                 ) : null}
               </div>
             </div>
+          </div>
+        ) : topTab === "Settings" ? (
+          <div className="card" style={{ padding: 16 }}>
+            <div className="muted">Coming soon.</div>
           </div>
         ) : topTab === "PRs and Approval" ? (
           <div className="card" style={{ padding: 16 }}>

@@ -84,6 +84,11 @@ function isHomePath() {
   return path === "/home" || path === "/home/";
 }
 
+function isSettingsPath() {
+  const path = (window.location.pathname || "/").toLowerCase();
+  return path === "/settings" || path === "/settings/";
+}
+
 function isPrsPath() {
   const path = (window.location.pathname || "/").toLowerCase();
   return path === "/prs" || path === "/prs/";
@@ -126,6 +131,7 @@ function App() {
 
   const [workspace, setWorkspace] = React.useState("");
   const [requestsRepo, setRequestsRepo] = React.useState("");
+  const [templatesRepo, setTemplatesRepo] = React.useState("");
   const [renderedManifestsRepo, setRenderedManifestsRepo] = React.useState("");
   const [controlRepo, setControlRepo] = React.useState("");
   const [persistedConfigComplete, setPersistedConfigComplete] = React.useState(false);
@@ -168,6 +174,11 @@ function App() {
 
     if (nextTab === "Home") {
       window.history.pushState({ topTab: "Home" }, "", "/home");
+      return;
+    }
+
+    if (nextTab === "Settings") {
+      window.history.pushState({ topTab: "Settings" }, "", "/settings");
       return;
     }
 
@@ -231,6 +242,7 @@ function App() {
 
         setWorkspace(cfg?.workspace || "");
         setRequestsRepo(cfg?.requestsRepo || "");
+        setTemplatesRepo(cfg?.templatesRepo || "");
         setRenderedManifestsRepo(cfg?.renderedManifestsRepo || "");
         setControlRepo(cfg?.controlRepo || "");
 
@@ -282,6 +294,8 @@ function App() {
 
         if (isHomePath()) {
           setTopTab("Home");
+        } else if (isSettingsPath()) {
+          setTopTab("Settings");
         } else if (isPrsPath()) {
           setTopTab(isComplete ? "PRs and Approval" : "Home");
           if (!isComplete) {
@@ -542,6 +556,11 @@ function App() {
     function onPopState() {
       if (isHomePath()) {
         setTopTab("Home");
+        return;
+      }
+
+      if (isSettingsPath()) {
+        setTopTab("Settings");
         return;
       }
 
@@ -1066,12 +1085,14 @@ function App() {
       const saved = await postJson("/api/config", {
         workspace,
         requestsRepo,
+        templatesRepo,
         renderedManifestsRepo,
         controlRepo,
       });
 
       setWorkspace(saved?.workspace || "");
       setRequestsRepo(saved?.requestsRepo || "");
+      setTemplatesRepo(saved?.templatesRepo || "");
       setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
       setControlRepo(saved?.controlRepo || "");
 
@@ -1107,12 +1128,14 @@ function App() {
       const saved = await postJson("/api/config", {
         workspace: "~/workspace",
         requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
+        templatesRepo: "https://github.com/praveensiddu/kselfservice-template",
         renderedManifestsRepo: "https://github.com/praveensiddu/kselfservice-rendered",
         controlRepo: "https://github.com/praveensiddu/kselfservice-control",
       });
 
       setWorkspace(saved?.workspace || "");
       setRequestsRepo(saved?.requestsRepo || "");
+      setTemplatesRepo(saved?.templatesRepo || "");
       setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
       setControlRepo(saved?.controlRepo || "");
 
@@ -1165,6 +1188,8 @@ function App() {
       setWorkspace={setWorkspace}
       requestsRepo={requestsRepo}
       setRequestsRepo={setRequestsRepo}
+      templatesRepo={templatesRepo}
+      setTemplatesRepo={setTemplatesRepo}
       renderedManifestsRepo={renderedManifestsRepo}
       setRenderedManifestsRepo={setRenderedManifestsRepo}
       controlRepo={controlRepo}
