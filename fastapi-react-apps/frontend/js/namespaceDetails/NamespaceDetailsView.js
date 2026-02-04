@@ -1,4 +1,4 @@
-function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdateNamespaceInfo }) {
+function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdateNamespaceInfo, readonly, renderHeaderButtons }) {
   if (!namespace) {
     return (
       <div className="card" style={{ padding: '24px', textAlign: 'center' }}>
@@ -25,6 +25,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftRoleBindingsEntries, setDraftRoleBindingsEntries] = React.useState([]);
 
   React.useEffect(() => {
+    // Don't reload draft state if we're in edit mode - this prevents losing unsaved changes
+    // when the namespace prop updates (e.g., after a save or external update)
+    if (editEnabled) {
+      return;
+    }
+
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
     setDraftClusters(initialClusters);
     setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
@@ -85,9 +91,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         }));
     }
     setDraftEgressFirewallEntries(egressFirewallEntries);
-
-    setEditEnabled(false);
-  }, [namespace, namespaceName]);
+  }, [namespace, namespaceName, editEnabled]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -367,9 +371,11 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const clusters = formatValue(effectiveNamespace?.clusters);
   const egressNameId = formatValue(effectiveNamespace?.egress_nameid);
   const podBasedEgress = effectiveNamespace?.enable_pod_based_egress_ip ? "Enabled" : "Disabled";
-  const egressFirewallRules = Array.isArray(effectiveNamespace?.egress_firewall_rules)
-    ? effectiveNamespace.egress_firewall_rules
-    : [];
+
+  // Use draft egress firewall entries for BOTH edit and view mode
+  // This ensures view mode shows the most recent saved data
+  const egressFirewallRules = draftEgressFirewallEntries;
+
   const managedByArgo = effectiveNamespace?.need_argo || effectiveNamespace?.generate_argo_app ? "Yes" : "No";
 
   // Extract detailed attributes
@@ -377,179 +383,237 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const resources = effectiveNamespace?.resources || {};
   const rolebindings = effectiveNamespace?.rolebindings || {};
 
+  // Notify parent about header buttons
+  React.useEffect(() => {
+    if (typeof renderHeaderButtons === 'function' && !readonly) {
+      renderHeaderButtons(
+        !editEnabled ? (
+          <button className="btn btn-primary" type="button" onClick={() => {
+            // Reload draft states from current namespace prop
+            const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
+            setDraftClusters(initialClusters);
+            setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
+            setClusterQuery("");
+            setClusterPickerOpen(false);
+            setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
+            setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
+            setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
+            setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
+            setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
+            setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
+            setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
+            setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+
+            let rolebindingsEntries = [];
+            if (Array.isArray(namespace?.rolebindings)) {
+              rolebindingsEntries = namespace.rolebindings.map(binding => {
+                let subjects = [];
+                if (Array.isArray(binding.subjects)) {
+                  subjects = binding.subjects.map(s => ({
+                    kind: s?.kind || "User",
+                    name: s?.name || ""
+                  }));
+                } else if (binding.subject) {
+                  subjects = [{
+                    kind: binding.subject?.kind || "User",
+                    name: binding.subject?.name || ""
+                  }];
+                }
+                return {
+                  subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
+                  roleRef: {
+                    kind: binding.roleRef?.kind || "ClusterRole",
+                    name: binding.roleRef?.name || ""
+                  }
+                };
+              });
+            }
+            setDraftRoleBindingsEntries(rolebindingsEntries);
+
+            let egressFirewallEntries = [];
+            if (Array.isArray(namespace?.egress_firewall_rules)) {
+              egressFirewallEntries = namespace.egress_firewall_rules
+                .filter((r) => r && typeof r === "object")
+                .map((r) => ({
+                  egressType: String(r.egressType || "dnsName"),
+                  egressValue: String(r.egressValue || ""),
+                  ports: Array.isArray(r.ports)
+                    ? r.ports
+                      .filter((p) => p && typeof p === "object")
+                      .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
+                    : [],
+                }));
+            }
+            setDraftEgressFirewallEntries(egressFirewallEntries);
+
+            setEditEnabled(true);
+          }}>
+            Enable Edit
+          </button>
+        ) : (
+          <>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => {
+                const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
+                setDraftClusters(initialClusters);
+                setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
+                setClusterQuery("");
+                setClusterPickerOpen(false);
+                setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
+                setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
+                setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
+                setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
+                setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
+                setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
+                setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
+                setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+
+                let rolebindingsEntries = [];
+                if (Array.isArray(namespace?.rolebindings)) {
+                  rolebindingsEntries = namespace.rolebindings.map(binding => {
+                    let subjects = [];
+                    if (Array.isArray(binding.subjects)) {
+                      subjects = binding.subjects.map(s => ({
+                        kind: s?.kind || "User",
+                        name: s?.name || ""
+                      }));
+                    } else if (binding.subject) {
+                      subjects = [{
+                        kind: binding.subject?.kind || "User",
+                        name: binding.subject?.name || ""
+                      }];
+                    }
+                    return {
+                      subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
+                      roleRef: {
+                        kind: binding.roleRef?.kind || "ClusterRole",
+                        name: binding.roleRef?.name || ""
+                      }
+                    };
+                  });
+                }
+                setDraftRoleBindingsEntries(rolebindingsEntries);
+
+                let egressFirewallEntries = [];
+                if (Array.isArray(namespace?.egress_firewall_rules)) {
+                  egressFirewallEntries = namespace.egress_firewall_rules
+                    .filter((r) => r && typeof r === "object")
+                    .map((r) => ({
+                      egressType: String(r.egressType || "dnsName"),
+                      egressValue: String(r.egressValue || ""),
+                      ports: Array.isArray(r.ports)
+                        ? r.ports
+                          .filter((p) => p && typeof p === "object")
+                          .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
+                        : [],
+                    }));
+                }
+                setDraftEgressFirewallEntries(egressFirewallEntries);
+                setEditEnabled(false);
+              }}
+            >
+              Discard Edits
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={async () => {
+                if (typeof onUpdateNamespaceInfo !== "function") {
+                  setEditEnabled(false);
+                  return;
+                }
+                try {
+                  const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
+                  const egress_nameid = (draftEgressNameId || "").trim();
+
+                  await onUpdateNamespaceInfo(namespaceName, {
+                    clusters: { clusters },
+                    egress_ip: { egress_nameid, enable_pod_based_egress_ip: Boolean(namespace?.enable_pod_based_egress_ip) },
+                    status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
+                    nsargocd: {
+                      need_argo: Boolean(draftManagedByArgo),
+                      argocd_sync_strategy: String(draftNsArgoSyncStrategy || "").trim(),
+                      gitrepourl: String(draftNsArgoGitRepoUrl || "").trim(),
+                    },
+                    resources: {
+                      requests: { cpu: (draftReqCpu || "").trim(), memory: (draftReqMemory || "").trim() },
+                      limits: { cpu: (draftLimCpu || "").trim(), memory: (draftLimMemory || "").trim() },
+                    },
+                    rolebindings: {
+                      bindings: draftRoleBindingsEntries.map(entry => ({
+                        subjects: Array.isArray(entry.subjects)
+                          ? entry.subjects
+                              .filter(s => (s?.kind && String(s.kind).trim()) || (s?.name && String(s.name).trim()))
+                              .map(s => ({ kind: s?.kind || "User", name: s?.name || "" }))
+                          : [],
+                        roleRef: { kind: entry.roleRef?.kind || "ClusterRole", name: entry.roleRef?.name || "" }
+                      })).filter(binding => binding.subjects.length > 0)
+                    },
+                    egressfirewall: {
+                      rules: draftEgressFirewallEntries
+                        .map((r) => ({
+                          egressType: String(r.egressType || "").trim(),
+                          egressValue: String(r.egressValue || "").trim(),
+                          ports: String(r.egressType || "").trim() === "cidrSelector"
+                            ? (Array.isArray(r.ports) ? r.ports : [])
+                              .filter((p) => {
+                                const portValue = p.port === "" || p.port == null ? "" : String(p.port).trim();
+                                return p.protocol && portValue !== "" && !isNaN(Number(portValue));
+                              })
+                              .map((p) => ({
+                                protocol: String(p.protocol || "").trim(),
+                                port: Number(p.port)
+                              }))
+                            : undefined,
+                        }))
+                        .filter((r) => r.egressType && r.egressValue)
+                    },
+                  });
+
+                  setEditEnabled(false);
+                } catch (error) {
+                  const errorMessage = error?.message || String(error);
+                  alert(`Failed to save changes:\n\n${errorMessage}`);
+                }
+              }}
+            >
+              Submit
+            </button>
+          </>
+        )
+      );
+    }
+    return () => {
+      if (typeof renderHeaderButtons === 'function') {
+        renderHeaderButtons(null);
+      }
+    };
+  }, [
+    editEnabled,
+    readonly,
+    renderHeaderButtons,
+    namespace,
+    namespaceName,
+    // Add all draft states so Submit button always has latest values
+    draftEgressFirewallEntries,
+    draftRoleBindingsEntries,
+    draftClustersList,
+    draftManagedByArgo,
+    draftNsArgoSyncStrategy,
+    draftNsArgoGitRepoUrl,
+    draftEgressNameId,
+    draftReqCpu,
+    draftReqMemory,
+    draftLimCpu,
+    draftLimMemory
+  ]);
+
   return (
     <div>
-      {/* Centered Namespace Name */}
-      <div style={{ position: 'relative', marginBottom: '24px', marginTop: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-          <div style={{ flex: 1 }} />
-          <div style={{ flex: 2, textAlign: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '600', color: '#0d6efd' }}>
-              {`${appname || ""} / ${namespaceName}`}
-            </h2>
-          </div>
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            {!editEnabled ? (
-              <button className="btn btn-primary" type="button" onClick={() => setEditEnabled(true)}>
-                Enable Edit
-              </button>
-            ) : (
-              <>
-                <button
-                  className="btn"
-                  type="button"
-                  onClick={() => {
-                    const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
-                    setDraftClusters(initialClusters);
-                    setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
-                    setClusterQuery("");
-                    setClusterPickerOpen(false);
-                    setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
-                    setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
-                    setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
-                    setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
-                    setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
-                    setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
-                    setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
-                    setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
-
-                    // Reset RoleBindings draft values
-                    let rolebindingsEntries = [];
-
-                    if (Array.isArray(namespace?.rolebindings)) {
-                      rolebindingsEntries = namespace.rolebindings.map(binding => {
-                        // Handle both new format (subjects array) and legacy format (single subject)
-                        let subjects = [];
-                        if (Array.isArray(binding.subjects)) {
-                          subjects = binding.subjects.map(s => ({
-                            kind: s?.kind || "User",
-                            name: s?.name || ""
-                          }));
-                        } else if (binding.subject) {
-                          // Legacy support: convert single subject to array
-                          subjects = [{
-                            kind: binding.subject?.kind || "User",
-                            name: binding.subject?.name || ""
-                          }];
-                        }
-
-                        return {
-                          subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
-                          roleRef: {
-                            kind: binding.roleRef?.kind || "ClusterRole",
-                            name: binding.roleRef?.name || ""
-                          }
-                        };
-                      });
-                    }
-
-                    setDraftRoleBindingsEntries(rolebindingsEntries);
-
-                    let egressFirewallEntries = [];
-                    if (Array.isArray(namespace?.egress_firewall_rules)) {
-                      egressFirewallEntries = namespace.egress_firewall_rules
-                        .filter((r) => r && typeof r === "object")
-                        .map((r) => ({
-                          egressType: String(r.egressType || "dnsName"),
-                          egressValue: String(r.egressValue || ""),
-                          ports: Array.isArray(r.ports)
-                            ? r.ports
-                              .filter((p) => p && typeof p === "object")
-                              .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
-                            : [],
-                        }));
-                    }
-                    setDraftEgressFirewallEntries(egressFirewallEntries);
-
-                    setEditEnabled(false);
-                  }}
-                >
-                  Discard Edits
-                </button>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  onClick={async () => {
-                    if (typeof onUpdateNamespaceInfo !== "function") {
-                      setEditEnabled(false);
-                      return;
-                    }
-
-                    try {
-                      const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
-                      const egress_nameid = (draftEgressNameId || "").trim();
-
-                      await onUpdateNamespaceInfo(namespaceName, {
-                        namespace_info: {
-                          clusters,
-                          egress_nameid,
-                        },
-                        nsargocd: {
-                          need_argo: Boolean(draftManagedByArgo),
-                          argocd_sync_strategy: String(draftNsArgoSyncStrategy || "").trim(),
-                          gitrepourl: String(draftNsArgoGitRepoUrl || "").trim(),
-                        },
-                        resources: {
-                          requests: {
-                            cpu: (draftReqCpu || "").trim(),
-                            memory: (draftReqMemory || "").trim(),
-                          },
-                          limits: {
-                            cpu: (draftLimCpu || "").trim(),
-                            memory: (draftLimMemory || "").trim(),
-                          },
-                        },
-                        rolebindings: {
-                          bindings: draftRoleBindingsEntries.map(entry => ({
-                            subjects: Array.isArray(entry.subjects)
-                              ? entry.subjects
-                                  .filter(s => (s?.kind && String(s.kind).trim()) || (s?.name && String(s.name).trim()))
-                                  .map(s => ({
-                                    kind: s?.kind || "User",
-                                    name: s?.name || ""
-                                  }))
-                              : [],
-                            roleRef: {
-                              kind: entry.roleRef?.kind || "ClusterRole",
-                              name: entry.roleRef?.name || ""
-                            }
-                          })).filter(binding => binding.subjects.length > 0)
-                        },
-                        egressfirewall: {
-                          rules: draftEgressFirewallEntries
-                            .map((r) => ({
-                              egressType: String(r.egressType || "").trim(),
-                              egressValue: String(r.egressValue || "").trim(),
-                              ports: String(r.egressType || "").trim() === "cidrSelector"
-                                ? (Array.isArray(r.ports) ? r.ports : [])
-                                  .map((p) => ({
-                                    protocol: String(p.protocol || "").trim(),
-                                    port: p.port === "" ? null : Number(p.port),
-                                  }))
-                                  .filter((p) => p.protocol && Number.isFinite(p.port))
-                                : undefined,
-                            }))
-                            .filter((r) => r.egressType && r.egressValue),
-                        },
-                      });
-                      setEditEnabled(false);
-                    } catch (error) {
-                      // Display validation error to user
-                      const errorMessage = error?.message || String(error);
-                      alert(`Failed to save changes:\n\n${errorMessage}`);
-                    }
-                  }}
-                >
-                  Submit
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Overview Cards Grid */}
-      <div className="dashboardGrid">
+      <div className="dashboardGrid" style={{ marginTop: '12px' }}>
         {/* Basic Information Card */}
         <div className="dashboardCard">
           <div className="dashboardCardHeader">
@@ -1758,9 +1822,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <span className="muted" style={{ fontSize: '12px' }}>No ports</span>
                                         <button
-                                          className="btn"
+                                          className="iconBtn iconBtn-sm iconBtn-success"
                                           type="button"
-                                          style={{ fontSize: '12px', padding: '4px 8px' }}
                                           onClick={() => {
                                             const updated = [...draftEgressFirewallEntries];
                                             const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
@@ -1768,8 +1831,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                             updated[idx] = { ...updated[idx], ports };
                                             setDraftEgressFirewallEntries(updated);
                                           }}
+                                          aria-label="Add port"
+                                          title="Add port"
+                                          style={{ padding: '4px', minWidth: '24px', background: '#28a745', color: 'white' }}
                                         >
-                                          + Port
+                                          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                          </svg>
                                         </button>
                                       </div>
                                     ) : (
@@ -1805,7 +1873,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                               placeholder="Port"
                                             />
                                             <button
-                                              className="iconBtn iconBtn-danger"
+                                              className="iconBtn iconBtn-sm iconBtn-danger"
                                               type="button"
                                               onClick={() => {
                                                 const updated = [...draftEgressFirewallEntries];
@@ -1815,28 +1883,34 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                               }}
                                               aria-label="Delete port"
                                               title="Delete port"
+                                              style={{ padding: '4px', minWidth: '24px' }}
                                             >
-                                              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                                <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
                                               </svg>
                                             </button>
+                                            {pidx === (entry.ports || []).length - 1 && (
+                                              <button
+                                                className="iconBtn iconBtn-sm iconBtn-success"
+                                                type="button"
+                                                onClick={() => {
+                                                  const updated = [...draftEgressFirewallEntries];
+                                                  const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
+                                                  ports.push({ protocol: "TCP", port: "" });
+                                                  updated[idx] = { ...updated[idx], ports };
+                                                  setDraftEgressFirewallEntries(updated);
+                                                }}
+                                                aria-label="Add port"
+                                                title="Add another port"
+                                                style={{ padding: '4px', minWidth: '24px', background: '#28a745', color: 'white' }}
+                                              >
+                                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                                  <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                                </svg>
+                                              </button>
+                                            )}
                                           </div>
                                         ))}
-                                        <button
-                                          className="btn"
-                                          type="button"
-                                          style={{ fontSize: '12px', padding: '4px 8px', marginTop: 4 }}
-                                          onClick={() => {
-                                            const updated = [...draftEgressFirewallEntries];
-                                            const ports = Array.isArray(updated[idx].ports) ? [...updated[idx].ports] : [];
-                                            ports.push({ protocol: "TCP", port: "" });
-                                            updated[idx] = { ...updated[idx], ports };
-                                            setDraftEgressFirewallEntries(updated);
-                                          }}
-                                        >
-                                          + Port
-                                        </button>
                                       </div>
                                     )}
                                   </div>

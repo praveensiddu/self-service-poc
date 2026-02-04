@@ -128,6 +128,7 @@ function App() {
   const [currentUser, setCurrentUser] = React.useState("");
   const [envKeys, setEnvKeys] = React.useState([]);
   const [activeEnv, setActiveEnv] = React.useState("");
+  const [readonly, setReadonly] = React.useState(false);
 
   const [workspace, setWorkspace] = React.useState("");
   const [requestsRepo, setRequestsRepo] = React.useState("");
@@ -154,6 +155,7 @@ function App() {
   const [l4IngressItems, setL4IngressItems] = React.useState([]);
   const [egressIpItems, setEgressIpItems] = React.useState([]);
   const [selectedEgressIps, setSelectedEgressIps] = React.useState(new Set());
+  const [namespaceDetailsHeaderButtons, setNamespaceDetailsHeaderButtons] = React.useState(null);
 
   const [clustersByEnv, setClustersByEnv] = React.useState({});
 
@@ -229,16 +231,18 @@ function App() {
         setLoading(true);
         setError("");
 
-        const [deploymentType, user, cfg] = await Promise.all([
+        const [deploymentType, user, cfg, portalMode] = await Promise.all([
           fetchJson("/api/deployment_type"),
           fetchJson("/api/current-user"),
           fetchJson("/api/config"),
+          fetchJson("/api/portal-mode"),
         ]);
 
         if (cancelled) return;
 
         setDeployment(deploymentType);
         setCurrentUser(user.user || "");
+        setReadonly(portalMode?.readonly || false);
 
         setWorkspace(cfg?.workspace || "");
         setRequestsRepo(cfg?.requestsRepo || "");
@@ -1176,6 +1180,7 @@ function App() {
       error={error}
       topTab={topTab}
       configComplete={configComplete}
+      readonly={readonly}
       onTopTabChange={setTopTabWithUrl}
       clustersByEnv={clustersByEnv}
       availableClusters={availableClusters}
@@ -1247,6 +1252,8 @@ function App() {
       selectedEgressIps={selectedEgressIps}
       toggleEgressIp={toggleEgressIp}
       onSelectAllEgressIps={onSelectAllEgressIps}
+      namespaceDetailsHeaderButtons={namespaceDetailsHeaderButtons}
+      onSetNamespaceDetailsHeaderButtons={setNamespaceDetailsHeaderButtons}
     />
   );
 }

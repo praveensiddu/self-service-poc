@@ -17,6 +17,7 @@ function ClustersTableView({
   onToggleCluster,
   allSelected,
   onSelectAll,
+  readonly,
 }) {
   const [draft, setDraft] = React.useState({
     clustername: "",
@@ -310,15 +311,17 @@ function ClustersTableView({
       </div>
 
       <div className="actions" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-        <button
-          className="btn btn-primary"
-          type="button"
-          onClick={onOpenCreate}
-          disabled={loading}
-          data-testid="add-cluster-btn"
-        >
-          Add Cluster
-        </button>
+        {!readonly && (
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={onOpenCreate}
+            disabled={loading}
+            data-testid="add-cluster-btn"
+          >
+            Add Cluster
+          </button>
+        )}
       </div>
 
       <div className="card">
@@ -395,37 +398,41 @@ function ClustersTableView({
                 <td>{Array.isArray(r?.applications) ? r.applications.join(", ") : ""}</td>
                 <td>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <button
-                      className="iconBtn iconBtn-primary"
-                      type="button"
-                      onClick={() => {
-                        if (typeof onEditCluster === "function") onEditCluster(r);
-                        else openEditCluster(r);
-                      }}
-                      disabled={loading || !(r?.clustername || "").trim()}
-                      aria-label={`Edit ${r?.clustername}`}
-                      title="Edit cluster"
-                      data-testid={`edit-cluster-${r?.clustername}`}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
-                        <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="iconBtn iconBtn-danger"
-                      type="button"
-                      onClick={() => onDeleteCluster(r?.clustername || "")}
-                      disabled={loading || !(r?.clustername || "").trim()}
-                      aria-label={`Delete ${r?.clustername}`}
-                      title="Delete cluster"
-                      data-testid={`delete-cluster-${r?.clustername}`}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                        <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                      </svg>
-                    </button>
+                    {!readonly && (
+                      <>
+                        <button
+                          className="iconBtn iconBtn-primary"
+                          type="button"
+                          onClick={() => {
+                            if (typeof onEditCluster === "function") onEditCluster(r);
+                            else openEditCluster(r);
+                          }}
+                          disabled={loading || !(r?.clustername || "").trim()}
+                          aria-label={`Edit ${r?.clustername}`}
+                          title="Edit cluster"
+                          data-testid={`edit-cluster-${r?.clustername}`}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                            <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                          </svg>
+                        </button>
+                        <button
+                          className="iconBtn iconBtn-danger"
+                          type="button"
+                          onClick={() => onDeleteCluster(r?.clustername || "")}
+                          disabled={loading || !(r?.clustername || "").trim()}
+                          aria-label={`Delete ${r?.clustername}`}
+                          title="Delete cluster"
+                          data-testid={`delete-cluster-${r?.clustername}`}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                            <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

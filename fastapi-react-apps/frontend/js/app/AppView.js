@@ -5,6 +5,7 @@ function AppView({
   currentUser,
   topTab,
   configComplete,
+  readonly,
   onTopTabChange,
   clustersByEnv,
   availableClusters,
@@ -71,6 +72,8 @@ function AppView({
   selectedEgressIps,
   toggleEgressIp,
   onSelectAllEgressIps,
+  namespaceDetailsHeaderButtons,
+  onSetNamespaceDetailsHeaderButtons,
 }) {
   const showProvisioningTabs = Boolean(configComplete);
   const canSaveConfig = Boolean(
@@ -240,6 +243,7 @@ function AppView({
               showCreate={showCreateCluster}
               onOpenCreate={onOpenCreateCluster}
               onCloseCreate={onCloseCreateCluster}
+              readonly={readonly}
             />
           </>
         ) : (
@@ -272,19 +276,31 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  <button className="btn btn-primary" type="button" onClick={onOpenCreateApp} data-testid="add-app-btn">
-                    Add App
-                  </button>
+                  {!readonly && (
+                    <button className="btn btn-primary" type="button" onClick={onOpenCreateApp} data-testid="add-app-btn">
+                      Add App
+                    </button>
+                  )}
                 </>
               ) : view === "namespaceDetails" ? (
-                <>
-                  <button className="btn" type="button" onClick={onBackFromNamespaceDetails}>
-                    ← Back to Namespaces
-                  </button>
-                </>
+                <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <div style={{ display: "flex", gap: "8px", zIndex: 1 }}>
+                    <button className="btn" type="button" onClick={onBackFromNamespaceDetails}>
+                      ← Back to Namespaces
+                    </button>
+                  </div>
+                  <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd", whiteSpace: "nowrap" }}>
+                      {`${detailAppName || ""} / ${detailNamespaceName}`}
+                    </h2>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", zIndex: 1 }}>
+                    {namespaceDetailsHeaderButtons}
+                  </div>
+                </div>
               ) : view === "namespaces" ? (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                  <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <div style={{ display: "flex", gap: "8px", zIndex: 1 }}>
                     <button className="btn" type="button" onClick={onBackToApps}>
                       Back to App
                     </button>
@@ -295,9 +311,18 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  <button className="btn btn-primary" type="button" onClick={onOpenCreateNamespace} data-testid="add-namespace-btn">
-                    Add Namespace
-                  </button>
+                  <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd", whiteSpace: "nowrap" }}>
+                      {detailAppName}
+                    </h2>
+                  </div>
+                  <div style={{ zIndex: 1 }}>
+                    {!readonly && (
+                      <button className="btn btn-primary" type="button" onClick={onOpenCreateNamespace} data-testid="add-namespace-btn">
+                        Add Namespace
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : view === "l4ingress" ? (
                 <>
@@ -344,6 +369,7 @@ function AppView({
                 onOpenCreate={onOpenCreateApp}
                 onCloseCreate={onCloseCreateApp}
                 requestsChanges={requestsChanges}
+                readonly={readonly}
               />
             ) : view === "namespaceDetails" ? (
               <NamespaceDetails
@@ -352,6 +378,8 @@ function AppView({
                 appname={detailAppName}
                 env={activeEnv}
                 onUpdateNamespaceInfo={onUpdateNamespaceInfo}
+                readonly={readonly}
+                renderHeaderButtons={onSetNamespaceDetailsHeaderButtons}
               />
             ) : view === "namespaces" ? (
               <NamespacesTable
@@ -369,6 +397,7 @@ function AppView({
                 onCloseCreate={onCloseCreateNamespace}
                 argocdEnabled={argocdEnabled}
                 requestsChanges={requestsChanges}
+                readonly={readonly}
               />
             ) : view === "l4ingress" ? (
               <div>
