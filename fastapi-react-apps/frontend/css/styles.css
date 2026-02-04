@@ -165,6 +165,50 @@ body {
   box-shadow: 0 1px 2px rgba(220, 53, 69, 0.3);
 }
 
+.iconBtn-success {
+  border-color: rgba(40, 167, 69, 0.3);
+  background: rgba(40, 167, 69, 0.08);
+  color: #28a745;
+}
+
+.iconBtn-success:hover {
+  background: rgba(40, 167, 69, 0.15);
+  border-color: rgba(40, 167, 69, 0.5);
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.iconBtn-success:active {
+  box-shadow: 0 1px 2px rgba(40, 167, 69, 0.3);
+}
+
+.iconBtn-sm {
+  padding: 4px 6px;
+  min-width: 24px;
+  min-height: 24px;
+  font-size: 14px;
+}
+
+.iconBtn-warning {
+  border-color: rgba(255, 193, 7, 0.4);
+  background: rgba(255, 193, 7, 0.1);
+  color: #856404;
+}
+
+.iconBtn-warning:hover {
+  background: rgba(255, 193, 7, 0.2);
+  border-color: rgba(255, 193, 7, 0.6);
+  box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+.iconBtn-warning:active {
+  box-shadow: 0 1px 2px rgba(255, 193, 7, 0.4);
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
 .attrBoxes {
   display: flex;
   flex-wrap: wrap;

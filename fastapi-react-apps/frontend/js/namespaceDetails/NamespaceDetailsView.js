@@ -38,15 +38,34 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
 
     // Initialize RoleBindings draft values
-    // Backend now returns rolebindings as array of bindings: [{ subject: {...}, roleRef: {...} }, ...]
+    // Backend returns array of bindings with subjects array in each
     let rolebindingsEntries = [];
 
     if (Array.isArray(namespace?.rolebindings)) {
-      // New format: array of bindings
-      rolebindingsEntries = namespace.rolebindings.map(binding => ({
-        subject: { ...(binding.subject || {}) },
-        roleRef: { ...(binding.roleRef || {}) }
-      }));
+      rolebindingsEntries = namespace.rolebindings.map(binding => {
+        // Handle both new format (subjects array) and legacy format (single subject)
+        let subjects = [];
+        if (Array.isArray(binding.subjects)) {
+          subjects = binding.subjects.map(s => ({
+            kind: s?.kind || "User",
+            name: s?.name || ""
+          }));
+        } else if (binding.subject) {
+          // Legacy support: convert single subject to array
+          subjects = [{
+            kind: binding.subject?.kind || "User",
+            name: binding.subject?.name || ""
+          }];
+        }
+
+        return {
+          subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
+          roleRef: {
+            kind: binding.roleRef?.kind || "ClusterRole",
+            name: binding.roleRef?.name || ""
+          }
+        };
+      });
     }
 
     setDraftRoleBindingsEntries(rolebindingsEntries);
@@ -99,7 +118,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     };
   }, [editEnabled, env, appname]);
 
-  async function fetchRoleBindingYaml({ subject, roleRef, bindingIndex }) {
+  async function fetchRoleBindingYaml({ subjects, roleRef, bindingIndex }) {
     const envKey = String(env || "").trim();
     const appKey = String(appname || "").trim();
     const nsKey = String(namespaceName || "").trim();
@@ -111,10 +130,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         method: "POST",
         headers: { Accept: "text/yaml", "Content-Type": "application/json" },
         body: JSON.stringify({
-          subject: {
-            kind: subject?.kind || "",
-            name: subject?.name || "",
-          },
+          subjects: Array.isArray(subjects)
+            ? subjects.map(s => ({
+                kind: s?.kind || "",
+                name: s?.name || "",
+              }))
+            : [],
           roleRef: {
             kind: roleRef?.kind || "",
             name: roleRef?.name || "",
@@ -396,11 +417,30 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     let rolebindingsEntries = [];
 
                     if (Array.isArray(namespace?.rolebindings)) {
-                      // New format: array of bindings
-                      rolebindingsEntries = namespace.rolebindings.map(binding => ({
-                        subject: { ...(binding.subject || {}) },
-                        roleRef: { ...(binding.roleRef || {}) }
-                      }));
+                      rolebindingsEntries = namespace.rolebindings.map(binding => {
+                        // Handle both new format (subjects array) and legacy format (single subject)
+                        let subjects = [];
+                        if (Array.isArray(binding.subjects)) {
+                          subjects = binding.subjects.map(s => ({
+                            kind: s?.kind || "User",
+                            name: s?.name || ""
+                          }));
+                        } else if (binding.subject) {
+                          // Legacy support: convert single subject to array
+                          subjects = [{
+                            kind: binding.subject?.kind || "User",
+                            name: binding.subject?.name || ""
+                          }];
+                        }
+
+                        return {
+                          subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
+                          roleRef: {
+                            kind: binding.roleRef?.kind || "ClusterRole",
+                            name: binding.roleRef?.name || ""
+                          }
+                        };
+                      });
                     }
 
                     setDraftRoleBindingsEntries(rolebindingsEntries);
@@ -461,15 +501,19 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                         },
                         rolebindings: {
                           bindings: draftRoleBindingsEntries.map(entry => ({
-                            subject: {
-                              kind: entry.subject?.kind || "User",
-                              name: entry.subject?.name || ""
-                            },
+                            subjects: Array.isArray(entry.subjects)
+                              ? entry.subjects
+                                  .filter(s => (s?.kind && String(s.kind).trim()) || (s?.name && String(s.name).trim()))
+                                  .map(s => ({
+                                    kind: s?.kind || "User",
+                                    name: s?.name || ""
+                                  }))
+                              : [],
                             roleRef: {
                               kind: entry.roleRef?.kind || "ClusterRole",
                               name: entry.roleRef?.name || ""
                             }
-                          }))
+                          })).filter(binding => binding.subjects.length > 0)
                         },
                         egressfirewall: {
                           rules: draftEgressFirewallEntries
@@ -942,7 +986,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 style={{ marginLeft: 'auto' }}
                 onClick={() => {
                   setDraftRoleBindingsEntries([...draftRoleBindingsEntries, {
-                    subject: { kind: "User", name: "" },
+                    subjects: [{ kind: "User", name: "" }],
                     roleRef: { kind: "ClusterRole", name: "" }
                   }]);
                 }}
@@ -972,234 +1016,510 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                         </td>
                       </tr>
                     ) : (
-                      draftRoleBindingsEntries.map((entry, idx) => (
-                        <tr key={idx}>
-                          <td>
-                            <select
-                              className="filterInput"
-                              value={entry.roleRef?.kind || "ClusterRole"}
-                              onChange={(e) => {
-                                const updated = [...draftRoleBindingsEntries];
-                                updated[idx] = {
-                                  ...updated[idx],
-                                  roleRef: { ...updated[idx].roleRef, kind: e.target.value }
-                                };
-                                setDraftRoleBindingsEntries(updated);
-                              }}
-                            >
-                              <option value="ClusterRole">ClusterRole</option>
-                              <option value="Role">Role</option>
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              className="filterInput"
-                              value={entry.roleRef?.name || ""}
-                              onChange={(e) => {
-                                const updated = [...draftRoleBindingsEntries];
-                                updated[idx] = {
-                                  ...updated[idx],
-                                  roleRef: { ...updated[idx].roleRef, name: e.target.value }
-                                };
-                                setDraftRoleBindingsEntries(updated);
-                              }}
-                              placeholder="e.g., cluster-admin, view"
-                            />
-                          </td>
-                          <td>
-                            <select
-                              className="filterInput"
-                              value={entry.subject?.kind || "User"}
-                              onChange={(e) => {
-                                const updated = [...draftRoleBindingsEntries];
-                                updated[idx] = {
-                                  ...updated[idx],
-                                  subject: { ...updated[idx].subject, kind: e.target.value }
-                                };
-                                setDraftRoleBindingsEntries(updated);
-                              }}
-                            >
-                              <option value="User">User</option>
-                              <option value="Group">Group</option>
-                              <option value="ServiceAccount">ServiceAccount</option>
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              className="filterInput"
-                              value={entry.subject?.name || ""}
-                              onChange={(e) => {
-                                const updated = [...draftRoleBindingsEntries];
-                                updated[idx] = {
-                                  ...updated[idx],
-                                  subject: { ...updated[idx].subject, name: e.target.value }
-                                };
-                                setDraftRoleBindingsEntries(updated);
-                              }}
-                            placeholder="e.g., user@example.com"
-                          />
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                            <button
-                              className="iconBtn iconBtn-primary"
-                              onClick={async () => {
-                                  const roleYaml = await fetchRoleBindingYaml({
-                                    subject: entry.subject,
-                                    roleRef: entry.roleRef,
-                                    bindingIndex: idx,
-                                  });
+                      draftRoleBindingsEntries.map((entry, idx) => {
+                        const subjects = Array.isArray(entry.subjects) ? entry.subjects : [];
+                        const rowSpan = Math.max(subjects.length, 1);
 
-                                  const modal = document.createElement('div');
-                                  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                  const modalContent = document.createElement('div');
-                                  modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                  const header = document.createElement('div');
-                                  header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                  const closeBtn = document.createElement('button');
-                                  closeBtn.innerHTML = '&times;';
-                                  closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                  closeBtn.onclick = () => modal.remove();
-                                  header.appendChild(closeBtn);
-
-                                  const pre = document.createElement('pre');
-                                  pre.textContent = roleYaml;
-                                  pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                  const footer = document.createElement('div');
-                                  footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                  const copyBtn = document.createElement('button');
-                                  copyBtn.textContent = 'Copy';
-                                  copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                  copyBtn.onclick = () => {
-                                    navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                        return subjects.length === 0 ? (
+                          // Empty subjects case
+                          <tr key={idx}>
+                            <td>
+                              <select
+                                className="filterInput"
+                                value={entry.roleRef?.kind || "ClusterRole"}
+                                onChange={(e) => {
+                                  const updated = [...draftRoleBindingsEntries];
+                                  updated[idx] = {
+                                    ...updated[idx],
+                                    roleRef: { ...updated[idx].roleRef, kind: e.target.value }
                                   };
-
-                                  const closeBtn2 = document.createElement('button');
-                                  closeBtn2.textContent = 'Close';
-                                  closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                  closeBtn2.onclick = () => modal.remove();
-
-                                  footer.appendChild(copyBtn);
-                                  footer.appendChild(closeBtn2);
-
-                                  modalContent.appendChild(header);
-                                  modalContent.appendChild(pre);
-                                  modalContent.appendChild(footer);
-                                  modal.appendChild(modalContent);
-
-                                  document.body.appendChild(modal);
-                                  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                                }}
-                                aria-label="View YAML"
-                                title="View YAML description"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                                </svg>
-                              </button>
-                              <button
-                                className="iconBtn iconBtn-danger"
-                                onClick={() => {
-                                  const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
                                   setDraftRoleBindingsEntries(updated);
                                 }}
-                                aria-label="Delete entry"
-                                title="Delete RoleBinding entry"
                               >
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                  <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                </svg>
+                                <option value="ClusterRole">ClusterRole</option>
+                                <option value="Role">Role</option>
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                className="filterInput"
+                                value={entry.roleRef?.name || ""}
+                                onChange={(e) => {
+                                  const updated = [...draftRoleBindingsEntries];
+                                  updated[idx] = {
+                                    ...updated[idx],
+                                    roleRef: { ...updated[idx].roleRef, name: e.target.value }
+                                  };
+                                  setDraftRoleBindingsEntries(updated);
+                                }}
+                                placeholder="e.g., cluster-admin, view"
+                              />
+                            </td>
+                            <td colSpan={2} style={{ textAlign: 'center' }}>
+                              <button
+                                className="btn btn-sm btn-primary"
+                                onClick={() => {
+                                  const updated = [...draftRoleBindingsEntries];
+                                  updated[idx].subjects = [{ kind: "User", name: "" }];
+                                  setDraftRoleBindingsEntries(updated);
+                                }}
+                              >
+                                + Add Subject
                               </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                <button
+                                  className="iconBtn iconBtn-primary"
+                                  onClick={async () => {
+                                    const roleYaml = await fetchRoleBindingYaml({
+                                      subjects: entry.subjects || [],
+                                      roleRef: entry.roleRef,
+                                      bindingIndex: idx,
+                                    });
+
+                                    const modal = document.createElement('div');
+                                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                    const modalContent = document.createElement('div');
+                                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                    const header = document.createElement('div');
+                                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                    const closeBtn = document.createElement('button');
+                                    closeBtn.innerHTML = '&times;';
+                                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                    closeBtn.onclick = () => modal.remove();
+                                    header.appendChild(closeBtn);
+
+                                    const pre = document.createElement('pre');
+                                    pre.textContent = roleYaml;
+                                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                    const footer = document.createElement('div');
+                                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                    const copyBtn = document.createElement('button');
+                                    copyBtn.textContent = 'Copy';
+                                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                    copyBtn.onclick = () => {
+                                      navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                    };
+
+                                    const closeBtn2 = document.createElement('button');
+                                    closeBtn2.textContent = 'Close';
+                                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                    closeBtn2.onclick = () => modal.remove();
+
+                                    footer.appendChild(copyBtn);
+                                    footer.appendChild(closeBtn2);
+
+                                    modalContent.appendChild(header);
+                                    modalContent.appendChild(pre);
+                                    modalContent.appendChild(footer);
+                                    modal.appendChild(modalContent);
+
+                                    document.body.appendChild(modal);
+                                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                  }}
+                                  aria-label="View YAML"
+                                  title="View YAML description"
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                    <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                  </svg>
+                                </button>
+                                <button
+                                  className="iconBtn iconBtn-danger"
+                                  onClick={() => {
+                                    const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
+                                    setDraftRoleBindingsEntries(updated);
+                                  }}
+                                  aria-label="Delete entry"
+                                  title="Delete RoleBinding entry"
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                    <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          // Render subjects with rowspan
+                          subjects.map((subject, subIdx) => (
+                            <tr key={`${idx}-${subIdx}`}>
+                              {subIdx === 0 && (
+                                <>
+                                  <td rowSpan={rowSpan}>
+                                    <select
+                                      className="filterInput"
+                                      value={entry.roleRef?.kind || "ClusterRole"}
+                                      onChange={(e) => {
+                                        const updated = [...draftRoleBindingsEntries];
+                                        updated[idx] = {
+                                          ...updated[idx],
+                                          roleRef: { ...updated[idx].roleRef, kind: e.target.value }
+                                        };
+                                        setDraftRoleBindingsEntries(updated);
+                                      }}
+                                    >
+                                      <option value="ClusterRole">ClusterRole</option>
+                                      <option value="Role">Role</option>
+                                    </select>
+                                  </td>
+                                  <td rowSpan={rowSpan}>
+                                    <input
+                                      className="filterInput"
+                                      value={entry.roleRef?.name || ""}
+                                      onChange={(e) => {
+                                        const updated = [...draftRoleBindingsEntries];
+                                        updated[idx] = {
+                                          ...updated[idx],
+                                          roleRef: { ...updated[idx].roleRef, name: e.target.value }
+                                        };
+                                        setDraftRoleBindingsEntries(updated);
+                                      }}
+                                      placeholder="e.g., cluster-admin, view"
+                                    />
+                                  </td>
+                                </>
+                              )}
+                              <td>
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                  <select
+                                    className="filterInput"
+                                    value={subject?.kind || "User"}
+                                    onChange={(e) => {
+                                      const updated = [...draftRoleBindingsEntries];
+                                      updated[idx].subjects[subIdx] = {
+                                        ...updated[idx].subjects[subIdx],
+                                        kind: e.target.value
+                                      };
+                                      setDraftRoleBindingsEntries(updated);
+                                    }}
+                                  >
+                                    <option value="User">User</option>
+                                    <option value="Group">Group</option>
+                                    <option value="ServiceAccount">ServiceAccount</option>
+                                  </select>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                  <input
+                                    className="filterInput"
+                                    value={subject?.name || ""}
+                                    onChange={(e) => {
+                                      const updated = [...draftRoleBindingsEntries];
+                                      updated[idx].subjects[subIdx] = {
+                                        ...updated[idx].subjects[subIdx],
+                                        name: e.target.value
+                                      };
+                                      setDraftRoleBindingsEntries(updated);
+                                    }}
+                                    placeholder="e.g., user@example.com"
+                                    style={{ flex: 1 }}
+                                  />
+                                  <button
+                                    className="iconBtn iconBtn-sm iconBtn-danger"
+                                    onClick={() => {
+                                      const updated = [...draftRoleBindingsEntries];
+                                      updated[idx].subjects = updated[idx].subjects.filter((_, i) => i !== subIdx);
+                                      setDraftRoleBindingsEntries(updated);
+                                    }}
+                                    aria-label="Remove subject"
+                                    title="Remove this subject"
+                                    style={{ padding: '4px', minWidth: '24px' }}
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                                    </svg>
+                                  </button>
+                                  {subIdx === subjects.length - 1 && (
+                                    <button
+                                      className="iconBtn iconBtn-sm iconBtn-success"
+                                      onClick={() => {
+                                        const updated = [...draftRoleBindingsEntries];
+                                        updated[idx].subjects.push({ kind: "User", name: "" });
+                                        setDraftRoleBindingsEntries(updated);
+                                      }}
+                                      aria-label="Add subject"
+                                      title="Add another subject"
+                                      style={{ padding: '4px', minWidth: '24px', background: '#28a745', color: 'white' }}
+                                    >
+                                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              {subIdx === 0 && (
+                                <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                    <button
+                                      className="iconBtn iconBtn-primary"
+                                      onClick={async () => {
+                                        const roleYaml = await fetchRoleBindingYaml({
+                                          subjects: entry.subjects || [],
+                                          roleRef: entry.roleRef,
+                                          bindingIndex: idx,
+                                        });
+
+                                        const modal = document.createElement('div');
+                                        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                        const modalContent = document.createElement('div');
+                                        modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                        const header = document.createElement('div');
+                                        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                        header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                        const closeBtn = document.createElement('button');
+                                        closeBtn.innerHTML = '&times;';
+                                        closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                        closeBtn.onclick = () => modal.remove();
+                                        header.appendChild(closeBtn);
+
+                                        const pre = document.createElement('pre');
+                                        pre.textContent = roleYaml;
+                                        pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                        const footer = document.createElement('div');
+                                        footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                        const copyBtn = document.createElement('button');
+                                        copyBtn.textContent = 'Copy';
+                                        copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                        copyBtn.onclick = () => {
+                                          navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                        };
+
+                                        const closeBtn2 = document.createElement('button');
+                                        closeBtn2.textContent = 'Close';
+                                        closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                        closeBtn2.onclick = () => modal.remove();
+
+                                        footer.appendChild(copyBtn);
+                                        footer.appendChild(closeBtn2);
+
+                                        modalContent.appendChild(header);
+                                        modalContent.appendChild(pre);
+                                        modalContent.appendChild(footer);
+                                        modal.appendChild(modalContent);
+
+                                        document.body.appendChild(modal);
+                                        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                      }}
+                                      aria-label="View YAML"
+                                      title="View YAML description"
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                        <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                      </svg>
+                                    </button>
+                                    <button
+                                      className="iconBtn iconBtn-danger"
+                                      onClick={() => {
+                                        const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
+                                        setDraftRoleBindingsEntries(updated);
+                                      }}
+                                      aria-label="Delete entry"
+                                      title="Delete RoleBinding entry"
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                        <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        );
+                      })
                     )
                   ) : (
                     Array.isArray(rolebindings) && rolebindings.length > 0 ? (
-                      rolebindings.map((binding, idx) => (
-                        <tr key={idx}>
-                          <td>{binding.roleRef?.kind || "N/A"}</td>
-                          <td>{binding.roleRef?.name || "N/A"}</td>
-                          <td>{binding.subject?.kind || "N/A"}</td>
-                          <td>{binding.subject?.name || "N/A"}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                              <button
-                                className="iconBtn iconBtn-primary"
-                                onClick={async () => {
-                                  const roleYaml = await fetchRoleBindingYaml({
-                                    subject: binding.subject,
-                                    roleRef: binding.roleRef,
-                                    bindingIndex: idx,
-                                  });
+                      rolebindings.map((binding, idx) => {
+                        // Handle both old format (single subject) and new format (subjects array)
+                        let subjects = [];
+                        if (Array.isArray(binding.subjects)) {
+                          subjects = binding.subjects;
+                        } else if (binding.subject) {
+                          // Legacy support: convert single subject to array
+                          subjects = [binding.subject];
+                        }
 
-                                  const modal = document.createElement('div');
-                                  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                        const rowSpan = Math.max(subjects.length, 1);
 
-                                  const modalContent = document.createElement('div');
-                                  modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                        return subjects.length === 0 ? (
+                          <tr key={idx}>
+                            <td>{binding.roleRef?.kind || "N/A"}</td>
+                            <td>{binding.roleRef?.name || "N/A"}</td>
+                            <td colSpan={2} style={{ textAlign: 'center', fontStyle: 'italic', color: '#6c757d' }}>
+                              No subjects defined
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                <button
+                                  className="iconBtn iconBtn-primary"
+                                  onClick={async () => {
+                                    const roleYaml = await fetchRoleBindingYaml({
+                                      subjects: subjects,
+                                      roleRef: binding.roleRef,
+                                      bindingIndex: idx,
+                                    });
 
-                                  const header = document.createElement('div');
-                                  header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+                                    const modal = document.createElement('div');
+                                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                                  const closeBtn = document.createElement('button');
-                                  closeBtn.innerHTML = '&times;';
-                                  closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                  closeBtn.onclick = () => modal.remove();
-                                  header.appendChild(closeBtn);
+                                    const modalContent = document.createElement('div');
+                                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
-                                  const pre = document.createElement('pre');
-                                  pre.textContent = roleYaml;
-                                  pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+                                    const header = document.createElement('div');
+                                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
 
-                                  const footer = document.createElement('div');
-                                  footer.style.cssText = 'margin-top: 16px; text-align: right;';
+                                    const closeBtn = document.createElement('button');
+                                    closeBtn.innerHTML = '&times;';
+                                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                    closeBtn.onclick = () => modal.remove();
+                                    header.appendChild(closeBtn);
 
-                                  const copyBtn = document.createElement('button');
-                                  copyBtn.textContent = 'Copy';
-                                  copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                  copyBtn.onclick = () => {
-                                    navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                  };
+                                    const pre = document.createElement('pre');
+                                    pre.textContent = roleYaml;
+                                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                                  const closeBtn2 = document.createElement('button');
-                                  closeBtn2.textContent = 'Close';
-                                  closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                  closeBtn2.onclick = () => modal.remove();
+                                    const footer = document.createElement('div');
+                                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                                  footer.appendChild(copyBtn);
-                                  footer.appendChild(closeBtn2);
+                                    const copyBtn = document.createElement('button');
+                                    copyBtn.textContent = 'Copy';
+                                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                    copyBtn.onclick = () => {
+                                      navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                    };
 
-                                  modalContent.appendChild(header);
-                                  modalContent.appendChild(pre);
-                                  modalContent.appendChild(footer);
-                                  modal.appendChild(modalContent);
+                                    const closeBtn2 = document.createElement('button');
+                                    closeBtn2.textContent = 'Close';
+                                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                    closeBtn2.onclick = () => modal.remove();
 
-                                  document.body.appendChild(modal);
-                                  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                                }}
-                                aria-label="View YAML"
-                                title="View YAML description"
-                              >
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                    footer.appendChild(copyBtn);
+                                    footer.appendChild(closeBtn2);
+
+                                    modalContent.appendChild(header);
+                                    modalContent.appendChild(pre);
+                                    modalContent.appendChild(footer);
+                                    modal.appendChild(modalContent);
+
+                                    document.body.appendChild(modal);
+                                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                  }}
+                                  aria-label="View YAML"
+                                  title="View YAML description"
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                    <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          subjects.map((subject, subIdx) => (
+                            <tr key={`${idx}-${subIdx}`}>
+                              {subIdx === 0 && (
+                                <>
+                                  <td rowSpan={rowSpan}>{binding.roleRef?.kind || "N/A"}</td>
+                                  <td rowSpan={rowSpan}>{binding.roleRef?.name || "N/A"}</td>
+                                </>
+                              )}
+                              <td>{subject?.kind || "N/A"}</td>
+                              <td>{subject?.name || "N/A"}</td>
+                              {subIdx === 0 && (
+                                <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                    <button
+                                      className="iconBtn iconBtn-primary"
+                                      onClick={async () => {
+                                        const roleYaml = await fetchRoleBindingYaml({
+                                          subjects: subjects,
+                                          roleRef: binding.roleRef,
+                                          bindingIndex: idx,
+                                        });
+
+                                        const modal = document.createElement('div');
+                                        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                        const modalContent = document.createElement('div');
+                                        modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                        const header = document.createElement('div');
+                                        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                        header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                        const closeBtn = document.createElement('button');
+                                        closeBtn.innerHTML = '&times;';
+                                        closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                        closeBtn.onclick = () => modal.remove();
+                                        header.appendChild(closeBtn);
+
+                                        const pre = document.createElement('pre');
+                                        pre.textContent = roleYaml;
+                                        pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                        const footer = document.createElement('div');
+                                        footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                        const copyBtn = document.createElement('button');
+                                        copyBtn.textContent = 'Copy';
+                                        copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                        copyBtn.onclick = () => {
+                                          navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                        };
+
+                                        const closeBtn2 = document.createElement('button');
+                                        closeBtn2.textContent = 'Close';
+                                        closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                        closeBtn2.onclick = () => modal.remove();
+
+                                        footer.appendChild(copyBtn);
+                                        footer.appendChild(closeBtn2);
+
+                                        modalContent.appendChild(header);
+                                        modalContent.appendChild(pre);
+                                        modalContent.appendChild(footer);
+                                        modal.appendChild(modalContent);
+
+                                        document.body.appendChild(modal);
+                                        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                      }}
+                                      aria-label="View YAML"
+                                      title="View YAML description"
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                        <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
