@@ -48,13 +48,13 @@ class RBRoleRef(BaseModel):
 
 
 class RoleBinding(BaseModel):
-    """Represents a single RoleBinding with one subject and one roleRef"""
-    subject: RBSubject
+    """Represents a RoleBinding with multiple subjects and one roleRef"""
+    subjects: List[RBSubject]
     roleRef: RBRoleRef
 
 
 class RoleBindingList(BaseModel):
-    """List of RoleBindings, each with its own subject and roleRef"""
+    """List of RoleBindings, each with multiple subjects"""
     bindings: Optional[List[RoleBinding]] = None
 
 
@@ -430,23 +430,10 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         # Convert bindings to array format for storage with validation
         rolebindings_data = []
         for idx, binding in enumerate(payload.rolebindings.bindings):
-            # Validate mandatory fields - all must be non-empty
-            subject_kind = str(binding.subject.kind).strip() if binding.subject.kind is not None else ""
-            subject_name = str(binding.subject.name).strip() if binding.subject.name is not None else ""
+            # Validate roleRef fields
             roleref_kind = str(binding.roleRef.kind).strip() if binding.roleRef.kind is not None else ""
             roleref_name = str(binding.roleRef.name).strip() if binding.roleRef.name is not None else ""
 
-            # Check if any mandatory field is empty
-            if not subject_kind:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}: Subject Kind is mandatory and cannot be empty"
-                )
-            if not subject_name:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}: Subject Name is mandatory and cannot be empty"
-                )
             if not roleref_kind:
                 raise HTTPException(
                     status_code=400,
@@ -458,11 +445,37 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     detail=f"Role Binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
                 )
 
-            binding_dict = {
-                "subject": {
+            # Validate subjects array
+            if not binding.subjects or len(binding.subjects) == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Role Binding #{idx + 1}: At least one subject is required"
+                )
+
+            # Validate each subject
+            validated_subjects = []
+            for sub_idx, subject in enumerate(binding.subjects):
+                subject_kind = str(subject.kind).strip() if subject.kind is not None else ""
+                subject_name = str(subject.name).strip() if subject.name is not None else ""
+
+                if not subject_kind:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Kind is mandatory and cannot be empty"
+                    )
+                if not subject_name:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Name is mandatory and cannot be empty"
+                    )
+
+                validated_subjects.append({
                     "kind": subject_kind,
                     "name": subject_name
-                },
+                })
+
+            binding_dict = {
+                "subjects": validated_subjects,
                 "roleRef": {
                     "kind": roleref_kind,
                     "name": roleref_name
