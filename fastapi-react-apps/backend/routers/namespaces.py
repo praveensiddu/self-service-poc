@@ -415,10 +415,6 @@ def delete_namespaces(appname: str, env: Optional[str] = None, namespaces: Optio
 def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate, env: Optional[str] = None):
     env = _require_env(env)
 
-    # DEBUG: Log the received payload for resources
-    logger.info(f"[DEBUG] Received resources payload: {payload.resources}")
-    if payload.resources:
-        logger.info(f"[DEBUG] quota_limits: {payload.resources.quota_limits}")
 
     requests_root = _require_initialized_workspace()
     ns_dir = requests_root / env / appname / namespace
