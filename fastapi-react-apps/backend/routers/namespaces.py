@@ -6,7 +6,7 @@ import logging
 
 import yaml
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 
 from backend.routers.apps import _require_env, _require_initialized_workspace
 from backend.routers import pull_requests
@@ -28,13 +28,42 @@ class NamespaceInfoUpdate(BaseModel):
 
 
 class NamespaceResourcesCpuMem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     cpu: Optional[str] = None
     memory: Optional[str] = None
+    ephemeral_storage: Optional[str] = Field(None, alias="ephemeral-storage")
+
+
+class NamespaceResourcesLimitsDefault(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    cpu: Optional[str] = None
+    memory: Optional[str] = None
+    ephemeral_storage: Optional[str] = Field(None, alias="ephemeral-storage")
+
+
+class NamespaceResourcesLimits(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    cpu: Optional[str] = None
+    memory: Optional[str] = None
+    ephemeral_storage: Optional[str] = Field(None, alias="ephemeral-storage")
+    default: Optional[NamespaceResourcesLimitsDefault] = None
+
+
+class NamespaceResourcesQuotaLimits(BaseModel):
+    """ResourceQuota limits section (limits.memory and limits.ephemeral-storage)"""
+    model_config = ConfigDict(populate_by_name=True)
+
+    memory: Optional[str] = None
+    ephemeral_storage: Optional[str] = Field(None, alias="ephemeral-storage")
 
 
 class NamespaceResourcesUpdate(BaseModel):
     requests: Optional[NamespaceResourcesCpuMem] = None
-    limits: Optional[NamespaceResourcesCpuMem] = None
+    quota_limits: Optional[NamespaceResourcesQuotaLimits] = None
+    limits: Optional[NamespaceResourcesLimits] = None
 
 
 class RBSubject(BaseModel):
@@ -153,6 +182,16 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             except Exception:
                 reqs = {}
 
+        quota_limits_path = child / "quota_limits.yaml"
+        quota_limits = {}
+        if quota_limits_path.exists() and quota_limits_path.is_file():
+            try:
+                parsed = yaml.safe_load(quota_limits_path.read_text()) or {}
+                if isinstance(parsed, dict):
+                    quota_limits = parsed
+            except Exception:
+                quota_limits = {}
+
         rolebinding = None
         if rolebinding_path.exists() and rolebinding_path.is_file():
             try:
@@ -209,10 +248,24 @@ def get_namespaces(appname: str, env: Optional[str] = None):
                 "requests": {
                     "cpu": (None if reqs.get("cpu") in (None, "") else str(reqs.get("cpu"))),
                     "memory": (None if reqs.get("memory") in (None, "") else str(reqs.get("memory"))),
+                    "ephemeral-storage": (None if reqs.get("ephemeral-storage") in (None, "") else str(reqs.get("ephemeral-storage"))),
+                },
+                "quota_limits": {
+                    "memory": (None if quota_limits.get("memory") in (None, "") else str(quota_limits.get("memory"))),
+                    "ephemeral-storage": (None if quota_limits.get("ephemeral-storage") in (None, "") else str(quota_limits.get("ephemeral-storage"))),
                 },
                 "limits": {
                     "cpu": (None if limits.get("cpu") in (None, "") else str(limits.get("cpu"))),
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
+                    "ephemeral-storage": (None if limits.get("ephemeral-storage") in (None, "") else str(limits.get("ephemeral-storage"))),
+                    "default": (lambda: {
+                        "cpu": (None if limits.get("default", {}).get("cpu") in (None, "") else str(limits.get("default", {}).get("cpu"))),
+                        "memory": (None if limits.get("default", {}).get("memory") in (None, "") else str(limits.get("default", {}).get("memory"))),
+                        "ephemeral-storage": (None if limits.get("default", {}).get("ephemeral-storage") in (None, "") else str(limits.get("default", {}).get("ephemeral-storage"))),
+                    })() if limits.get("default") and any(
+                        limits.get("default", {}).get(k) not in (None, "")
+                        for k in ["cpu", "memory", "ephemeral-storage"]
+                    ) else None,
                 },
             },
             "rolebindings": role_bindings,
@@ -394,11 +447,42 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                         req_existing = parsed
 
                 if payload.resources.requests.cpu is not None:
-                    req_existing["cpu"] = str(payload.resources.requests.cpu)
+                    cpu_val = str(payload.resources.requests.cpu).strip()
+                    if cpu_val:
+                        req_existing["cpu"] = cpu_val
+
                 if payload.resources.requests.memory is not None:
-                    req_existing["memory"] = str(payload.resources.requests.memory)
+                    mem_val = str(payload.resources.requests.memory).strip()
+                    if mem_val:
+                        req_existing["memory"] = mem_val
+
+                if payload.resources.requests.ephemeral_storage is not None:
+                    eph_val = str(payload.resources.requests.ephemeral_storage).strip()
+                    if eph_val:
+                        req_existing["ephemeral-storage"] = eph_val
 
                 req_path.write_text(yaml.safe_dump(req_existing, sort_keys=False))
+
+            # Handle quota_limits (ResourceQuota limits section)
+            if payload.resources.quota_limits is not None:
+                quota_lim_path = ns_dir / "quota_limits.yaml"
+                quota_lim_existing = {}
+                if quota_lim_path.exists() and quota_lim_path.is_file():
+                    parsed = yaml.safe_load(quota_lim_path.read_text()) or {}
+                    if isinstance(parsed, dict):
+                        quota_lim_existing = parsed
+
+                if payload.resources.quota_limits.memory is not None:
+                    mem_val = str(payload.resources.quota_limits.memory).strip()
+                    if mem_val:
+                        quota_lim_existing["memory"] = mem_val
+
+                if payload.resources.quota_limits.ephemeral_storage is not None:
+                    eph_val = str(payload.resources.quota_limits.ephemeral_storage).strip()
+                    if eph_val:
+                        quota_lim_existing["ephemeral-storage"] = eph_val
+
+                quota_lim_path.write_text(yaml.safe_dump(quota_lim_existing, sort_keys=False))
 
             if payload.resources.limits is not None:
                 lim_path = ns_dir / "limits.yaml"
@@ -408,10 +492,53 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                     if isinstance(parsed, dict):
                         lim_existing = parsed
 
+                # Update top-level limits fields (defaultRequest)
                 if payload.resources.limits.cpu is not None:
-                    lim_existing["cpu"] = str(payload.resources.limits.cpu)
+                    cpu_val = str(payload.resources.limits.cpu).strip()
+                    if cpu_val:
+                        lim_existing["cpu"] = cpu_val
+
                 if payload.resources.limits.memory is not None:
-                    lim_existing["memory"] = str(payload.resources.limits.memory)
+                    mem_val = str(payload.resources.limits.memory).strip()
+                    if mem_val:
+                        lim_existing["memory"] = mem_val
+
+                if payload.resources.limits.ephemeral_storage is not None:
+                    eph_val = str(payload.resources.limits.ephemeral_storage).strip()
+                    if eph_val:
+                        lim_existing["ephemeral-storage"] = eph_val
+
+                # Handle default nested object
+                if payload.resources.limits.default is not None:
+                    if "default" not in lim_existing:
+                        lim_existing["default"] = {}
+
+                    if payload.resources.limits.default.cpu is not None:
+                        cpu_val = str(payload.resources.limits.default.cpu).strip()
+                        if cpu_val:
+                            lim_existing["default"]["cpu"] = cpu_val
+
+                    if payload.resources.limits.default.memory is not None:
+                        mem_val = str(payload.resources.limits.default.memory).strip()
+                        if mem_val:
+                            lim_existing["default"]["memory"] = mem_val
+
+                    if payload.resources.limits.default.ephemeral_storage is not None:
+                        eph_val = str(payload.resources.limits.default.ephemeral_storage).strip()
+                        if eph_val:
+                            lim_existing["default"]["ephemeral-storage"] = eph_val
+
+                # Clean up empty default object if it has no values
+                if "default" in lim_existing:
+                    # Remove keys with None or empty string values
+                    default_obj = lim_existing.get("default", {})
+                    if isinstance(default_obj, dict):
+                        # Keep only non-empty values
+                        cleaned_default = {k: v for k, v in default_obj.items() if v and str(v).strip()}
+                        if cleaned_default:
+                            lim_existing["default"] = cleaned_default
+                        else:
+                            del lim_existing["default"]
 
                 lim_path.write_text(yaml.safe_dump(lim_existing, sort_keys=False))
     except Exception as e:
@@ -572,10 +699,20 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
                 "requests": {
                     "cpu": (None if reqs.get("cpu") in (None, "") else str(reqs.get("cpu"))),
                     "memory": (None if reqs.get("memory") in (None, "") else str(reqs.get("memory"))),
+                    "ephemeral-storage": (None if reqs.get("ephemeral-storage") in (None, "") else str(reqs.get("ephemeral-storage"))),
                 },
                 "limits": {
                     "cpu": (None if limits.get("cpu") in (None, "") else str(limits.get("cpu"))),
                     "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
+                    "ephemeral-storage": (None if limits.get("ephemeral-storage") in (None, "") else str(limits.get("ephemeral-storage"))),
+                    "default": (lambda: {
+                        "cpu": (None if limits.get("default", {}).get("cpu") in (None, "") else str(limits.get("default", {}).get("cpu"))),
+                        "memory": (None if limits.get("default", {}).get("memory") in (None, "") else str(limits.get("default", {}).get("memory"))),
+                        "ephemeral-storage": (None if limits.get("default", {}).get("ephemeral-storage") in (None, "") else str(limits.get("default", {}).get("ephemeral-storage"))),
+                    })() if limits.get("default") and any(
+                        limits.get("default", {}).get(k) not in (None, "")
+                        for k in ["cpu", "memory", "ephemeral-storage"]
+                    ) else None,
                 },
             },
             "rolebindings": role_bindings,
