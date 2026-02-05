@@ -41,9 +41,6 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       return;
     }
 
-    // DEBUG: Log the namespace resources received from backend
-    console.log('[DEBUG] ResourceQuota - Received namespace.resources:', JSON.stringify(namespace?.resources, null, 2));
-    console.log('[DEBUG] ResourceQuota - quota_limits from backend:', namespace?.resources?.quota_limits);
 
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
     setDraftClusters(initialClusters);
@@ -672,12 +669,6 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     },
                   };
 
-                  // DEBUG: Log the resources payload being sent
-                  console.log('[DEBUG] ResourceQuota - Sending updatePayload.resources:', JSON.stringify(updatePayload.resources, null, 2));
-                  console.log('[DEBUG] ResourceQuota - quota_limits values:', {
-                    memory: draftQuotaLimMemory,
-                    'ephemeral-storage': draftQuotaLimEphemeralStorage
-                  });
 
                   await onUpdateNamespaceInfo(namespaceName, updatePayload);
 
