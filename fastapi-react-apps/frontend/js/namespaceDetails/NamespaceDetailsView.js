@@ -20,8 +20,15 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftEgressFirewallEntries, setDraftEgressFirewallEntries] = React.useState([]);
   const [draftReqCpu, setDraftReqCpu] = React.useState("");
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
+  const [draftReqEphemeralStorage, setDraftReqEphemeralStorage] = React.useState("");
+  const [draftQuotaLimMemory, setDraftQuotaLimMemory] = React.useState("");
+  const [draftQuotaLimEphemeralStorage, setDraftQuotaLimEphemeralStorage] = React.useState("");
   const [draftLimCpu, setDraftLimCpu] = React.useState("");
   const [draftLimMemory, setDraftLimMemory] = React.useState("");
+  const [draftLimEphemeralStorage, setDraftLimEphemeralStorage] = React.useState("");
+  const [draftLimDefaultCpu, setDraftLimDefaultCpu] = React.useState("");
+  const [draftLimDefaultMemory, setDraftLimDefaultMemory] = React.useState("");
+  const [draftLimDefaultEphemeralStorage, setDraftLimDefaultEphemeralStorage] = React.useState("");
   const [draftRoleBindingsEntries, setDraftRoleBindingsEntries] = React.useState([]);
 
   const [roleCatalogByKind, setRoleCatalogByKind] = React.useState({ Role: [], ClusterRole: [] });
@@ -34,6 +41,10 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       return;
     }
 
+    // DEBUG: Log the namespace resources received from backend
+    console.log('[DEBUG] ResourceQuota - Received namespace.resources:', JSON.stringify(namespace?.resources, null, 2));
+    console.log('[DEBUG] ResourceQuota - quota_limits from backend:', namespace?.resources?.quota_limits);
+
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
     setDraftClusters(initialClusters);
     setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
@@ -43,8 +54,15 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
     setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
     setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
+    setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
+    setDraftQuotaLimMemory(namespace?.resources?.quota_limits?.memory == null ? "" : String(namespace.resources.quota_limits.memory));
+    setDraftQuotaLimEphemeralStorage(namespace?.resources?.quota_limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.quota_limits["ephemeral-storage"]));
     setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
     setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+    setDraftLimEphemeralStorage(namespace?.resources?.limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits["ephemeral-storage"]));
+    setDraftLimDefaultCpu(namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu));
+    setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
+    setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
 
     // Initialize RoleBindings draft values
     // Backend returns array of bindings with subjects array in each
@@ -399,11 +417,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             ...(namespace?.resources?.requests || {}),
             cpu: (draftReqCpu || "").trim(),
             memory: (draftReqMemory || "").trim(),
+            "ephemeral-storage": (draftReqEphemeralStorage || "").trim(),
+          },
+          quota_limits: {
+            memory: (draftQuotaLimMemory || "").trim(),
+            "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim(),
           },
           limits: {
             ...(namespace?.resources?.limits || {}),
             cpu: (draftLimCpu || "").trim(),
             memory: (draftLimMemory || "").trim(),
+            "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
+            default: {
+              cpu: (draftLimDefaultCpu || "").trim(),
+              memory: (draftLimDefaultMemory || "").trim(),
+              "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim(),
+            },
           },
         },
       }
@@ -442,8 +471,16 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
             setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
             setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
+            setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
             setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
             setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+            setDraftLimEphemeralStorage(namespace?.resources?.limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits["ephemeral-storage"]));
+
+            // Debug logging
+
+            setDraftLimDefaultCpu(namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu));
+            setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
+            setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
 
             let rolebindingsEntries = [];
             if (Array.isArray(namespace?.rolebindings)) {
@@ -508,8 +545,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
                 setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
                 setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
+                setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
                 setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
                 setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
+                setDraftLimEphemeralStorage(namespace?.resources?.limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits["ephemeral-storage"]));
+                setDraftLimDefaultCpu(namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu));
+                setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
+                setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
 
                 let rolebindingsEntries = [];
                 if (Array.isArray(namespace?.rolebindings)) {
@@ -569,7 +611,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                   const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
                   const egress_nameid = (draftEgressNameId || "").trim();
 
-                  await onUpdateNamespaceInfo(namespaceName, {
+                  const updatePayload = {
                     clusters: { clusters },
                     egress_ip: { egress_nameid, enable_pod_based_egress_ip: Boolean(namespace?.enable_pod_based_egress_ip) },
                     status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
@@ -579,8 +621,25 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       gitrepourl: String(draftNsArgoGitRepoUrl || "").trim(),
                     },
                     resources: {
-                      requests: { cpu: (draftReqCpu || "").trim(), memory: (draftReqMemory || "").trim() },
-                      limits: { cpu: (draftLimCpu || "").trim(), memory: (draftLimMemory || "").trim() },
+                      requests: {
+                        cpu: (draftReqCpu || "").trim(),
+                        memory: (draftReqMemory || "").trim(),
+                        "ephemeral-storage": (draftReqEphemeralStorage || "").trim()
+                      },
+                      quota_limits: {
+                        memory: (draftQuotaLimMemory || "").trim(),
+                        "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim()
+                      },
+                      limits: {
+                        cpu: (draftLimCpu || "").trim(),
+                        memory: (draftLimMemory || "").trim(),
+                        "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
+                        default: {
+                          cpu: (draftLimDefaultCpu || "").trim(),
+                          memory: (draftLimDefaultMemory || "").trim(),
+                          "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim()
+                        }
+                      },
                     },
                     rolebindings: {
                       bindings: draftRoleBindingsEntries.map(entry => ({
@@ -611,7 +670,17 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                         }))
                         .filter((r) => r.egressType && r.egressValue)
                     },
+                  };
+
+                  // DEBUG: Log the resources payload being sent
+                  console.log('[DEBUG] ResourceQuota - Sending updatePayload.resources:', JSON.stringify(updatePayload.resources, null, 2));
+                  console.log('[DEBUG] ResourceQuota - quota_limits values:', {
+                    memory: draftQuotaLimMemory,
+                    'ephemeral-storage': draftQuotaLimEphemeralStorage
                   });
+
+                  await onUpdateNamespaceInfo(namespaceName, updatePayload);
+
 
                   setEditEnabled(false);
                 } catch (error) {
@@ -647,16 +716,27 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     draftEgressNameId,
     draftReqCpu,
     draftReqMemory,
+    draftReqEphemeralStorage,
+    draftQuotaLimMemory,
+    draftQuotaLimEphemeralStorage,
     draftLimCpu,
-    draftLimMemory
+    draftLimMemory,
+    draftLimEphemeralStorage,
+    draftLimDefaultCpu,
+    draftLimDefaultMemory,
+    draftLimDefaultEphemeralStorage,
   ]);
 
   return (
     <div>
-      {/* Overview Cards Grid */}
-      <div className="dashboardGrid" style={{ marginTop: '12px' }}>
-        {/* Basic Information Card */}
-        <div className="dashboardCard">
+      {/* Overview Cards Grid - Two Column Layout: 3/4 and 1/4 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', marginTop: '12px', alignItems: 'start' }}>
+        {/* Left Column - Basic Information, Egress Configuration, and Role Bindings */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top Row: Basic Information and Egress Configuration side-by-side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* Basic Information Card */}
+          <div className="dashboardCard">
           <div className="dashboardCardHeader">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
               <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
@@ -846,10 +926,10 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               )}
             </div>
           </div>
-        </div>
+          </div>
 
-        {/* Egress Configuration Card */}
-        <div className="dashboardCard">
+          {/* Egress Configuration Card */}
+          <div className="dashboardCard">
           <div className="dashboardCardHeader">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
               <path fillRule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.854 10.803a.5.5 0 1 1-.708-.707L9.243 6H6.475a.5.5 0 1 1 0-1h3.975a.5.5 0 0 1 .5.5v3.975a.5.5 0 1 1-1 0V6.707l-4.096 4.096z"/>
@@ -857,809 +937,605 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             <h3>Egress Configuration</h3>
           </div>
           <div className="dashboardCardBody">
-            <div className="detailRow">
-              <span className="detailLabel">Egress Name ID:</span>
-              {editEnabled ? (
-                <input
-                  className="filterInput"
-                  value={draftEgressNameId}
-                  onChange={(e) => setDraftEgressNameId(e.target.value)}
-                />
-              ) : (
-                <span className="detailValue">{egressNameId}</span>
+              <div className="detailRow">
+                <span className="detailLabel">Egress Name ID:</span>
+                {editEnabled ? (
+                  <input
+                    className="filterInput"
+                    value={draftEgressNameId}
+                    onChange={(e) => setDraftEgressNameId(e.target.value)}
+                  />
+                ) : (
+                  <span className="detailValue">{egressNameId}</span>
+                )}
+              </div>
+              <div className="detailRow">
+                <span className="detailLabel">Pod-Based Egress IP:</span>
+                <span className={`detailBadge ${podBasedEgress === 'Enabled' ? 'detailBadgeSuccess' : 'detailBadgeWarning'}`}>
+                  {podBasedEgress}
+                </span>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          {/* Role Bindings Card - inside left column */}
+          <div className="dashboardCard">
+            <div className="dashboardCardHeader">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+              </svg>
+              <h3>Role Bindings</h3>
+              {editEnabled && (
+                <button
+                  className="btn btn-primary"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => {
+                    setDraftRoleBindingsEntries([...draftRoleBindingsEntries, {
+                      subjects: [{ kind: "User", name: "" }],
+                      roleRef: { kind: "ClusterRole", name: "" }
+                    }]);
+                  }}
+                >
+                  + Add RoleBinding Entry
+                </button>
               )}
             </div>
-            <div className="detailRow">
-              <span className="detailLabel">Pod-Based Egress IP:</span>
-              <span className={`detailBadge ${podBasedEgress === 'Enabled' ? 'detailBadgeSuccess' : 'detailBadgeWarning'}`}>
-                {podBasedEgress}
-              </span>
-            </div>
-          </div>
-        </div>
+            <div className="dashboardCardBody">
+              <div style={{ overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Role Type</th>
+                      <th>Role Reference</th>
+                      <th>Subject Kind</th>
+                      <th>Subject Name</th>
+                      <th style={{ width: '12%', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editEnabled ? (
+                      draftRoleBindingsEntries.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
+                            No RoleBinding entries. Click "+ Add RoleBinding Entry" to add one.
+                          </td>
+                        </tr>
+                      ) : (
+                        draftRoleBindingsEntries.map((entry, idx) => {
+                          const subjects = Array.isArray(entry.subjects) ? entry.subjects : [];
+                          const rowSpan = Math.max(subjects.length, 1);
 
-        {/* Resources Card */}
-        <div className="dashboardCard">
-          <div className="dashboardCardHeader">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
-            </svg>
-            <h3>Resources</h3>
-          </div>
-          <div className="dashboardCardBody">
-            {editEnabled ? (
-              <div>
-                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>CPU:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftReqCpu} onChange={(e) => setDraftReqCpu(e.target.value)} placeholder="e.g., 100m" />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>Memory:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftReqMemory} onChange={(e) => setDraftReqMemory(e.target.value)} placeholder="e.g., 128Mi" />
-                  </div>
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>CPU:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftLimCpu} onChange={(e) => setDraftLimCpu(e.target.value)} placeholder="e.g., 500m" />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="attributeKey" style={{ minWidth: '80px' }}>Memory:</span>
-                    <input className="filterInput" style={{ flex: 1 }} value={draftLimMemory} onChange={(e) => setDraftLimMemory(e.target.value)} placeholder="e.g., 512Mi" />
-                  </div>
-                </div>
-              </div>
-            ) : Object.keys(resources).length > 0 ? (
-              <div>
-                {resources.requests && (
-                  <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        onClick={() => {
-                          const cpu = resources.requests?.cpu || "0";
-                          const memory = resources.requests?.memory || "0";
-                          const resourceQuotaYaml = `apiVersion: v1\nkind: ResourceQuota\nmetadata:\n  name: ${namespaceName}-quota\n  namespace: ${namespaceName}\nspec:\n  hard:\n    requests.cpu: "${cpu}"\n    requests.memory: "${memory}"`;
-                          const modal = document.createElement('div');
-                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                          const roleKind = entry.roleRef?.kind === "Role" ? "Role" : "ClusterRole";
+                          const catalog = Array.isArray(roleCatalogByKind?.[roleKind]) ? roleCatalogByKind[roleKind] : [];
+                          const roleRefName = String(entry.roleRef?.name || "");
+                          const roleRefOptions = catalog.includes(roleRefName) || !roleRefName
+                            ? catalog
+                            : [roleRefName, ...catalog];
 
-                          const modalContent = document.createElement('div');
-                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                          const header = document.createElement('div');
-                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
-
-                          const closeBtn = document.createElement('button');
-                          closeBtn.innerHTML = '&times;';
-                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                          closeBtn.onclick = () => modal.remove();
-                          header.appendChild(closeBtn);
-
-                          const pre = document.createElement('pre');
-                          pre.textContent = resourceQuotaYaml;
-                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                          const footer = document.createElement('div');
-                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                          const copyBtn = document.createElement('button');
-                          copyBtn.textContent = 'Copy';
-                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                          copyBtn.onclick = () => {
-                            navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
-                          };
-
-                          const closeBtn2 = document.createElement('button');
-                          closeBtn2.textContent = 'Close';
-                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                          closeBtn2.onclick = () => modal.remove();
-
-                          footer.appendChild(copyBtn);
-                          footer.appendChild(closeBtn2);
-
-                          modalContent.appendChild(header);
-                          modalContent.appendChild(pre);
-                          modalContent.appendChild(footer);
-                          modal.appendChild(modalContent);
-
-                          document.body.appendChild(modal);
-                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                        }}
-                        aria-label="View YAML"
-                        title="View ResourceQuota YAML definition"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                        </svg>
-                      </button>
-                    </div>
-                    {Object.entries(resources.requests).map(([key, value]) => (
-                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
-                        <span className="attributeValue">{formatValue(value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {resources.limits && (
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        onClick={() => {
-                          const cpu = resources.limits?.cpu || "0";
-                          const memory = resources.limits?.memory || "0";
-                          const limitRangeYaml = `apiVersion: v1\nkind: LimitRange\nmetadata:\n  name: ${namespaceName}-limitrange\n  namespace: ${namespaceName}\nspec:\n  limits:\n  - max:\n      cpu: "${cpu}"\n      memory: "${memory}"\n    type: Container`;
-                          const modal = document.createElement('div');
-                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                          const modalContent = document.createElement('div');
-                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                          const header = document.createElement('div');
-                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">LimitRange Definition</h3>';
-
-                          const closeBtn = document.createElement('button');
-                          closeBtn.innerHTML = '&times;';
-                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                          closeBtn.onclick = () => modal.remove();
-                          header.appendChild(closeBtn);
-
-                          const pre = document.createElement('pre');
-                          pre.textContent = limitRangeYaml;
-                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                          const footer = document.createElement('div');
-                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                          const copyBtn = document.createElement('button');
-                          copyBtn.textContent = 'Copy';
-                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                          copyBtn.onclick = () => {
-                            navigator.clipboard.writeText(limitRangeYaml).then(() => alert('Copied to clipboard!'));
-                          };
-
-                          const closeBtn2 = document.createElement('button');
-                          closeBtn2.textContent = 'Close';
-                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                          closeBtn2.onclick = () => modal.remove();
-
-                          footer.appendChild(copyBtn);
-                          footer.appendChild(closeBtn2);
-
-                          modalContent.appendChild(header);
-                          modalContent.appendChild(pre);
-                          modalContent.appendChild(footer);
-                          modal.appendChild(modalContent);
-
-                          document.body.appendChild(modal);
-                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                        }}
-                        aria-label="View YAML"
-                        title="View LimitRange YAML definition"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                        </svg>
-                      </button>
-                    </div>
-                    {Object.entries(resources.limits).map(([key, value]) => (
-                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <span className="attributeKey" style={{ minWidth: '80px' }}>{key}:</span>
-                        <span className="attributeValue">{formatValue(value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!resources.requests && !resources.limits && (
-                  <p className="muted">No resource information available</p>
-                )}
-              </div>
-            ) : (
-              <p className="muted">No resource information available</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Detailed Attributes Section */}
-      <div className="dashboardGrid" style={{ marginTop: '20px' }}>
-
-        {/* Role Binding Card - Takes 2/3 width */}
-        <div className="dashboardCard" style={{ gridColumn: 'span 2' }}>
-          <div className="dashboardCardHeader">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
-            </svg>
-            <h3>Role Bindings</h3>
-            {editEnabled && (
-              <button
-                className="btn btn-primary"
-                style={{ marginLeft: 'auto' }}
-                onClick={() => {
-                  setDraftRoleBindingsEntries([...draftRoleBindingsEntries, {
-                    subjects: [{ kind: "User", name: "" }],
-                    roleRef: { kind: "ClusterRole", name: "" }
-                  }]);
-                }}
-              >
-                + Add RoleBinding Entry
-              </button>
-            )}
-          </div>
-          <div className="dashboardCardBody">
-            <div style={{ overflowX: 'auto' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Role Type</th>
-                    <th>Role Reference</th>
-                    <th>Subject Kind</th>
-                    <th>Subject Name</th>
-                    <th style={{ width: '12%', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {editEnabled ? (
-                    draftRoleBindingsEntries.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
-                          No RoleBinding entries. Click "+ Add RoleBinding Entry" to add one.
-                        </td>
-                      </tr>
-                    ) : (
-                      draftRoleBindingsEntries.map((entry, idx) => {
-                        const subjects = Array.isArray(entry.subjects) ? entry.subjects : [];
-                        const rowSpan = Math.max(subjects.length, 1);
-
-                        const roleKind = entry.roleRef?.kind === "Role" ? "Role" : "ClusterRole";
-                        const catalog = Array.isArray(roleCatalogByKind?.[roleKind]) ? roleCatalogByKind[roleKind] : [];
-                        const roleRefName = String(entry.roleRef?.name || "");
-                        const roleRefOptions = catalog.includes(roleRefName) || !roleRefName
-                          ? catalog
-                          : [roleRefName, ...catalog];
-
-                        return subjects.length === 0 ? (
-                          // Empty subjects case
-                          <tr key={idx}>
-                            <td>
-                              <select
-                                className="filterInput"
-                                value={entry.roleRef?.kind || "ClusterRole"}
-                                onChange={(e) => {
-                                  const updated = [...draftRoleBindingsEntries];
-                                  updated[idx] = {
-                                    ...updated[idx],
-                                    roleRef: { ...updated[idx].roleRef, kind: e.target.value, name: "" }
-                                  };
-                                  setDraftRoleBindingsEntries(updated);
-                                }}
-                              >
-                                <option value="ClusterRole">ClusterRole</option>
-                                <option value="Role">Role</option>
-                              </select>
-                            </td>
-                            <td>
-                              <select
-                                className="filterInput"
-                                value={roleRefName}
-                                onChange={(e) => {
-                                  const updated = [...draftRoleBindingsEntries];
-                                  updated[idx] = {
-                                    ...updated[idx],
-                                    roleRef: { ...updated[idx].roleRef, name: e.target.value }
-                                  };
-                                  setDraftRoleBindingsEntries(updated);
-                                }}
-                              >
-                                <option value="">Select...</option>
-                                {roleRefOptions.map((name) => (
-                                  <option key={name} value={name}>{name}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td colSpan={2} style={{ textAlign: 'center' }}>
-                              <button
-                                className="btn btn-sm btn-primary"
-                                onClick={() => {
-                                  const updated = [...draftRoleBindingsEntries];
-                                  updated[idx].subjects = [{ kind: "User", name: "" }];
-                                  setDraftRoleBindingsEntries(updated);
-                                }}
-                              >
-                                + Add Subject
-                              </button>
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                <button
-                                  className="iconBtn iconBtn-primary"
-                                  onClick={async () => {
-                                    const roleYaml = await fetchRoleBindingYaml({
-                                      subjects: entry.subjects || [],
-                                      roleRef: entry.roleRef,
-                                      bindingIndex: idx,
-                                    });
-
-                                    const modal = document.createElement('div');
-                                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                    const modalContent = document.createElement('div');
-                                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                    const header = document.createElement('div');
-                                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                    const closeBtn = document.createElement('button');
-                                    closeBtn.innerHTML = '&times;';
-                                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                    closeBtn.onclick = () => modal.remove();
-                                    header.appendChild(closeBtn);
-
-                                    const pre = document.createElement('pre');
-                                    pre.textContent = roleYaml;
-                                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                    const footer = document.createElement('div');
-                                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                    const copyBtn = document.createElement('button');
-                                    copyBtn.textContent = 'Copy';
-                                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                    copyBtn.onclick = () => {
-                                      navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                          return subjects.length === 0 ? (
+                            <tr key={idx}>
+                              <td>
+                                <select
+                                  className="filterInput"
+                                  value={entry.roleRef?.kind || "ClusterRole"}
+                                  onChange={(e) => {
+                                    const updated = [...draftRoleBindingsEntries];
+                                    updated[idx] = {
+                                      ...updated[idx],
+                                      roleRef: { ...updated[idx].roleRef, kind: e.target.value, name: "" }
                                     };
-
-                                    const closeBtn2 = document.createElement('button');
-                                    closeBtn2.textContent = 'Close';
-                                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                    closeBtn2.onclick = () => modal.remove();
-
-                                    footer.appendChild(copyBtn);
-                                    footer.appendChild(closeBtn2);
-
-                                    modalContent.appendChild(header);
-                                    modalContent.appendChild(pre);
-                                    modalContent.appendChild(footer);
-                                    modal.appendChild(modalContent);
-
-                                    document.body.appendChild(modal);
-                                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                                  }}
-                                  aria-label="View YAML"
-                                  title="View YAML description"
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                                    <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                                  </svg>
-                                </button>
-                                <button
-                                  className="iconBtn iconBtn-danger"
-                                  onClick={() => {
-                                    const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
                                     setDraftRoleBindingsEntries(updated);
                                   }}
-                                  aria-label="Delete entry"
-                                  title="Delete RoleBinding entry"
                                 >
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                    <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                  </svg>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          // Render subjects with rowspan
-                          subjects.map((subject, subIdx) => (
-                            <tr key={`${idx}-${subIdx}`}>
-                              {subIdx === 0 && (
-                                <>
-                                  <td rowSpan={rowSpan}>
-                                    <select
-                                      className="filterInput"
-                                      value={entry.roleRef?.kind || "ClusterRole"}
-                                      onChange={(e) => {
-                                        const updated = [...draftRoleBindingsEntries];
-                                        updated[idx] = {
-                                          ...updated[idx],
-                                          roleRef: { ...updated[idx].roleRef, kind: e.target.value, name: "" }
-                                        };
-                                        setDraftRoleBindingsEntries(updated);
-                                      }}
-                                    >
-                                      <option value="ClusterRole">ClusterRole</option>
-                                      <option value="Role">Role</option>
-                                    </select>
-                                  </td>
-                                  <td rowSpan={rowSpan}>
-                                    <select
-                                      className="filterInput"
-                                      value={roleRefName}
-                                      onChange={(e) => {
-                                        const updated = [...draftRoleBindingsEntries];
-                                        updated[idx] = {
-                                          ...updated[idx],
-                                          roleRef: { ...updated[idx].roleRef, name: e.target.value }
-                                        };
-                                        setDraftRoleBindingsEntries(updated);
-                                      }}
-                                    >
-                                      <option value="">Select...</option>
-                                      {roleRefOptions.map((name) => (
-                                        <option key={name} value={name}>{name}</option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                </>
-                              )}
-                              <td>
-                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                  <select
-                                    className="filterInput"
-                                    value={subject?.kind || "User"}
-                                    onChange={(e) => {
-                                      const updated = [...draftRoleBindingsEntries];
-                                      updated[idx].subjects[subIdx] = {
-                                        ...updated[idx].subjects[subIdx],
-                                        kind: e.target.value
-                                      };
-                                      setDraftRoleBindingsEntries(updated);
-                                    }}
-                                  >
-                                    <option value="User">User</option>
-                                    <option value="Group">Group</option>
-                                    <option value="ServiceAccount">ServiceAccount</option>
-                                  </select>
-                                </div>
+                                  <option value="ClusterRole">ClusterRole</option>
+                                  <option value="Role">Role</option>
+                                </select>
                               </td>
                               <td>
-                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                  <input
-                                    className="filterInput"
-                                    value={subject?.name || ""}
-                                    onChange={(e) => {
-                                      const updated = [...draftRoleBindingsEntries];
-                                      updated[idx].subjects[subIdx] = {
-                                        ...updated[idx].subjects[subIdx],
-                                        name: e.target.value
-                                      };
-                                      setDraftRoleBindingsEntries(updated);
-                                    }}
-                                    placeholder="e.g., user@example.com"
-                                    style={{ flex: 1 }}
-                                  />
+                                <select
+                                  className="filterInput"
+                                  value={roleRefName}
+                                  onChange={(e) => {
+                                    const updated = [...draftRoleBindingsEntries];
+                                    updated[idx] = {
+                                      ...updated[idx],
+                                      roleRef: { ...updated[idx].roleRef, name: e.target.value }
+                                    };
+                                    setDraftRoleBindingsEntries(updated);
+                                  }}
+                                >
+                                  <option value="">Select...</option>
+                                  {roleRefOptions.map((name) => (
+                                    <option key={name} value={name}>{name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td colSpan={2} style={{ textAlign: 'center' }}>
+                                <button
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() => {
+                                    const updated = [...draftRoleBindingsEntries];
+                                    updated[idx].subjects = [{ kind: "User", name: "" }];
+                                    setDraftRoleBindingsEntries(updated);
+                                  }}
+                                >
+                                  + Add Subject
+                                </button>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
                                   <button
-                                    className="iconBtn iconBtn-sm iconBtn-danger"
-                                    onClick={() => {
-                                      const updated = [...draftRoleBindingsEntries];
-                                      updated[idx].subjects = updated[idx].subjects.filter((_, i) => i !== subIdx);
-                                      setDraftRoleBindingsEntries(updated);
+                                    className="iconBtn iconBtn-primary"
+                                    onClick={async () => {
+                                      const roleYaml = await fetchRoleBindingYaml({
+                                        subjects: entry.subjects || [],
+                                        roleRef: entry.roleRef,
+                                        bindingIndex: idx,
+                                      });
+
+                                      const modal = document.createElement('div');
+                                      modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                      const modalContent = document.createElement('div');
+                                      modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                      const header = document.createElement('div');
+                                      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                      header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                      const closeBtn = document.createElement('button');
+                                      closeBtn.innerHTML = '&times;';
+                                      closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                      closeBtn.onclick = () => modal.remove();
+                                      header.appendChild(closeBtn);
+
+                                      const pre = document.createElement('pre');
+                                      pre.textContent = roleYaml;
+                                      pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                      const footer = document.createElement('div');
+                                      footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                      const copyBtn = document.createElement('button');
+                                      copyBtn.textContent = 'Copy';
+                                      copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                      copyBtn.onclick = () => {
+                                        navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                      };
+
+                                      const closeBtn2 = document.createElement('button');
+                                      closeBtn2.textContent = 'Close';
+                                      closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                      closeBtn2.onclick = () => modal.remove();
+
+                                      footer.appendChild(copyBtn);
+                                      footer.appendChild(closeBtn2);
+
+                                      modalContent.appendChild(header);
+                                      modalContent.appendChild(pre);
+                                      modalContent.appendChild(footer);
+                                      modal.appendChild(modalContent);
+
+                                      document.body.appendChild(modal);
+                                      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
                                     }}
-                                    aria-label="Remove subject"
-                                    title="Remove this subject"
-                                    style={{ padding: '4px', minWidth: '24px' }}
+                                    aria-label="View YAML"
+                                    title="View YAML description"
                                   >
-                                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                                      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                      <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
                                     </svg>
                                   </button>
-                                  {subIdx === subjects.length - 1 && (
-                                    <button
-                                      className="iconBtn iconBtn-sm iconBtn-success"
-                                      onClick={() => {
-                                        const updated = [...draftRoleBindingsEntries];
-                                        updated[idx].subjects.push({ kind: "User", name: "" });
-                                        setDraftRoleBindingsEntries(updated);
-                                      }}
-                                      aria-label="Add subject"
-                                      title="Add another subject"
-                                      style={{ padding: '4px', minWidth: '24px', background: '#28a745', color: 'white' }}
-                                    >
-                                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
-                                      </svg>
-                                    </button>
-                                  )}
+                                  <button
+                                    className="iconBtn iconBtn-danger"
+                                    onClick={() => {
+                                      const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
+                                      setDraftRoleBindingsEntries(updated);
+                                    }}
+                                    aria-label="Delete entry"
+                                    title="Delete RoleBinding entry"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                      <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                    </svg>
+                                  </button>
                                 </div>
                               </td>
-                              {subIdx === 0 && (
-                                <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                    <button
-                                      className="iconBtn iconBtn-primary"
-                                      onClick={async () => {
-                                        const roleYaml = await fetchRoleBindingYaml({
-                                          subjects: entry.subjects || [],
-                                          roleRef: entry.roleRef,
-                                          bindingIndex: idx,
-                                        });
-
-                                        const modal = document.createElement('div');
-                                        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                        const modalContent = document.createElement('div');
-                                        modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                        const header = document.createElement('div');
-                                        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                        header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                        const closeBtn = document.createElement('button');
-                                        closeBtn.innerHTML = '&times;';
-                                        closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                        closeBtn.onclick = () => modal.remove();
-                                        header.appendChild(closeBtn);
-
-                                        const pre = document.createElement('pre');
-                                        pre.textContent = roleYaml;
-                                        pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                        const footer = document.createElement('div');
-                                        footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                        const copyBtn = document.createElement('button');
-                                        copyBtn.textContent = 'Copy';
-                                        copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                        copyBtn.onclick = () => {
-                                          navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                            </tr>
+                          ) : (
+                            subjects.map((subject, subIdx) => (
+                              <tr key={`${idx}-${subIdx}`}>
+                                {subIdx === 0 && (
+                                  <>
+                                    <td rowSpan={rowSpan}>
+                                      <select
+                                        className="filterInput"
+                                        value={entry.roleRef?.kind || "ClusterRole"}
+                                        onChange={(e) => {
+                                          const updated = [...draftRoleBindingsEntries];
+                                          updated[idx] = {
+                                            ...updated[idx],
+                                            roleRef: { ...updated[idx].roleRef, kind: e.target.value, name: "" }
+                                          };
+                                          setDraftRoleBindingsEntries(updated);
+                                        }}
+                                      >
+                                        <option value="ClusterRole">ClusterRole</option>
+                                        <option value="Role">Role</option>
+                                      </select>
+                                    </td>
+                                    <td rowSpan={rowSpan}>
+                                      <select
+                                        className="filterInput"
+                                        value={roleRefName}
+                                        onChange={(e) => {
+                                          const updated = [...draftRoleBindingsEntries];
+                                          updated[idx] = {
+                                            ...updated[idx],
+                                            roleRef: { ...updated[idx].roleRef, name: e.target.value }
+                                          };
+                                          setDraftRoleBindingsEntries(updated);
+                                        }}
+                                      >
+                                        <option value="">Select...</option>
+                                        {roleRefOptions.map((name) => (
+                                          <option key={name} value={name}>{name}</option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                  </>
+                                )}
+                                <td>
+                                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                    <select
+                                      className="filterInput"
+                                      value={subject?.kind || "User"}
+                                      onChange={(e) => {
+                                        const updated = [...draftRoleBindingsEntries];
+                                        updated[idx].subjects[subIdx] = {
+                                          ...updated[idx].subjects[subIdx],
+                                          kind: e.target.value
                                         };
-
-                                        const closeBtn2 = document.createElement('button');
-                                        closeBtn2.textContent = 'Close';
-                                        closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                        closeBtn2.onclick = () => modal.remove();
-
-                                        footer.appendChild(copyBtn);
-                                        footer.appendChild(closeBtn2);
-
-                                        modalContent.appendChild(header);
-                                        modalContent.appendChild(pre);
-                                        modalContent.appendChild(footer);
-                                        modal.appendChild(modalContent);
-
-                                        document.body.appendChild(modal);
-                                        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                                      }}
-                                      aria-label="View YAML"
-                                      title="View YAML description"
-                                    >
-                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                                        <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                                      </svg>
-                                    </button>
-                                    <button
-                                      className="iconBtn iconBtn-danger"
-                                      onClick={() => {
-                                        const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
                                         setDraftRoleBindingsEntries(updated);
                                       }}
-                                      aria-label="Delete entry"
-                                      title="Delete RoleBinding entry"
                                     >
-                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                        <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                      </svg>
-                                    </button>
+                                      <option value="User">User</option>
+                                      <option value="Group">Group</option>
+                                      <option value="ServiceAccount">ServiceAccount</option>
+                                    </select>
                                   </div>
                                 </td>
-                              )}
-                            </tr>
-                          ))
-                        );
-                      })
-                    )
-                  ) : (
-                    Array.isArray(rolebindings) && rolebindings.length > 0 ? (
-                      rolebindings.map((binding, idx) => {
-                        // Handle both old format (single subject) and new format (subjects array)
-                        let subjects = [];
-                        if (Array.isArray(binding.subjects)) {
-                          subjects = binding.subjects;
-                        } else if (binding.subject) {
-                          // Legacy support: convert single subject to array
-                          subjects = [binding.subject];
-                        }
-
-                        const rowSpan = Math.max(subjects.length, 1);
-
-                        return subjects.length === 0 ? (
-                          <tr key={idx}>
-                            <td>{binding.roleRef?.kind || "N/A"}</td>
-                            <td>{binding.roleRef?.name || "N/A"}</td>
-                            <td colSpan={2} style={{ textAlign: 'center', fontStyle: 'italic', color: '#6c757d' }}>
-                              No subjects defined
-                            </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                <button
-                                  className="iconBtn iconBtn-primary"
-                                  onClick={async () => {
-                                    const roleYaml = await fetchRoleBindingYaml({
-                                      subjects: subjects,
-                                      roleRef: binding.roleRef,
-                                      bindingIndex: idx,
-                                    });
-
-                                    const modal = document.createElement('div');
-                                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                    const modalContent = document.createElement('div');
-                                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                    const header = document.createElement('div');
-                                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                    const closeBtn = document.createElement('button');
-                                    closeBtn.innerHTML = '&times;';
-                                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                    closeBtn.onclick = () => modal.remove();
-                                    header.appendChild(closeBtn);
-
-                                    const pre = document.createElement('pre');
-                                    pre.textContent = roleYaml;
-                                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                    const footer = document.createElement('div');
-                                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                    const copyBtn = document.createElement('button');
-                                    copyBtn.textContent = 'Copy';
-                                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                    copyBtn.onclick = () => {
-                                      navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                    };
-
-                                    const closeBtn2 = document.createElement('button');
-                                    closeBtn2.textContent = 'Close';
-                                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                    closeBtn2.onclick = () => modal.remove();
-
-                                    footer.appendChild(copyBtn);
-                                    footer.appendChild(closeBtn2);
-
-                                    modalContent.appendChild(header);
-                                    modalContent.appendChild(pre);
-                                    modalContent.appendChild(footer);
-                                    modal.appendChild(modalContent);
-
-                                    document.body.appendChild(modal);
-                                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                                  }}
-                                  aria-label="View YAML"
-                                  title="View YAML description"
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                                    <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                                  </svg>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          subjects.map((subject, subIdx) => (
-                            <tr key={`${idx}-${subIdx}`}>
-                              {subIdx === 0 && (
-                                <>
-                                  <td rowSpan={rowSpan}>{binding.roleRef?.kind || "N/A"}</td>
-                                  <td rowSpan={rowSpan}>{binding.roleRef?.name || "N/A"}</td>
-                                </>
-                              )}
-                              <td>{subject?.kind || "N/A"}</td>
-                              <td>{subject?.name || "N/A"}</td>
-                              {subIdx === 0 && (
-                                <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                    <button
-                                      className="iconBtn iconBtn-primary"
-                                      onClick={async () => {
-                                        const roleYaml = await fetchRoleBindingYaml({
-                                          subjects: subjects,
-                                          roleRef: binding.roleRef,
-                                          bindingIndex: idx,
-                                        });
-
-                                        const modal = document.createElement('div');
-                                        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                        const modalContent = document.createElement('div');
-                                        modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                        const header = document.createElement('div');
-                                        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                        header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                        const closeBtn = document.createElement('button');
-                                        closeBtn.innerHTML = '&times;';
-                                        closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                        closeBtn.onclick = () => modal.remove();
-                                        header.appendChild(closeBtn);
-
-                                        const pre = document.createElement('pre');
-                                        pre.textContent = roleYaml;
-                                        pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                        const footer = document.createElement('div');
-                                        footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                        const copyBtn = document.createElement('button');
-                                        copyBtn.textContent = 'Copy';
-                                        copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                        copyBtn.onclick = () => {
-                                          navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                <td>
+                                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                    <input
+                                      className="filterInput"
+                                      value={subject?.name || ""}
+                                      onChange={(e) => {
+                                        const updated = [...draftRoleBindingsEntries];
+                                        updated[idx].subjects[subIdx] = {
+                                          ...updated[idx].subjects[subIdx],
+                                          name: e.target.value
                                         };
-
-                                        const closeBtn2 = document.createElement('button');
-                                        closeBtn2.textContent = 'Close';
-                                        closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                        closeBtn2.onclick = () => modal.remove();
-
-                                        footer.appendChild(copyBtn);
-                                        footer.appendChild(closeBtn2);
-
-                                        modalContent.appendChild(header);
-                                        modalContent.appendChild(pre);
-                                        modalContent.appendChild(footer);
-                                        modal.appendChild(modalContent);
-
-                                        document.body.appendChild(modal);
-                                        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                        setDraftRoleBindingsEntries(updated);
                                       }}
-                                      aria-label="View YAML"
-                                      title="View YAML description"
+                                      placeholder="e.g., user@example.com"
+                                      style={{ flex: 1 }}
+                                    />
+                                    <button
+                                      className="iconBtn iconBtn-sm iconBtn-danger"
+                                      onClick={() => {
+                                        const updated = [...draftRoleBindingsEntries];
+                                        updated[idx].subjects = updated[idx].subjects.filter((_, i) => i !== subIdx);
+                                        setDraftRoleBindingsEntries(updated);
+                                      }}
+                                      aria-label="Remove subject"
+                                      title="Remove this subject"
+                                      style={{ padding: '4px', minWidth: '24px' }}
                                     >
-                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                                        <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
                                       </svg>
                                     </button>
+                                    {subIdx === subjects.length - 1 && (
+                                      <button
+                                        className="iconBtn iconBtn-sm iconBtn-success"
+                                        onClick={() => {
+                                          const updated = [...draftRoleBindingsEntries];
+                                          updated[idx].subjects.push({ kind: "User", name: "" });
+                                          setDraftRoleBindingsEntries(updated);
+                                        }}
+                                        aria-label="Add subject"
+                                        title="Add another subject"
+                                        style={{ padding: '4px', minWidth: '24px', background: '#28a745', color: 'white' }}
+                                      >
+                                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                          <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                        </svg>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
-                              )}
-                            </tr>
-                          ))
-                        );
-                      })
+                                {subIdx === 0 && (
+                                  <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                      <button
+                                        className="iconBtn iconBtn-primary"
+                                        onClick={async () => {
+                                          const roleYaml = await fetchRoleBindingYaml({
+                                            subjects: entry.subjects || [],
+                                            roleRef: entry.roleRef,
+                                            bindingIndex: idx,
+                                          });
+
+                                          const modal = document.createElement('div');
+                                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                          const modalContent = document.createElement('div');
+                                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                          const header = document.createElement('div');
+                                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                          const closeBtn = document.createElement('button');
+                                          closeBtn.innerHTML = '&times;';
+                                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                          closeBtn.onclick = () => modal.remove();
+                                          header.appendChild(closeBtn);
+
+                                          const pre = document.createElement('pre');
+                                          pre.textContent = roleYaml;
+                                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                          const footer = document.createElement('div');
+                                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                          const copyBtn = document.createElement('button');
+                                          copyBtn.textContent = 'Copy';
+                                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                          copyBtn.onclick = () => {
+                                            navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                          };
+
+                                          const closeBtn2 = document.createElement('button');
+                                          closeBtn2.textContent = 'Close';
+                                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                          closeBtn2.onclick = () => modal.remove();
+
+                                          footer.appendChild(copyBtn);
+                                          footer.appendChild(closeBtn2);
+
+                                          modalContent.appendChild(header);
+                                          modalContent.appendChild(pre);
+                                          modalContent.appendChild(footer);
+                                          modal.appendChild(modalContent);
+
+                                          document.body.appendChild(modal);
+                                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                        }}
+                                        aria-label="View YAML"
+                                        title="View YAML description"
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                        </svg>
+                                      </button>
+                                      <button
+                                        className="iconBtn iconBtn-danger"
+                                        onClick={() => {
+                                          const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
+                                          setDraftRoleBindingsEntries(updated);
+                                        }}
+                                        aria-label="Delete entry"
+                                        title="Delete RoleBinding entry"
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                          <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            ))
+                          );
+                        })
+                      )
                     ) : (
-                      <tr>
-                        <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
-                          No RoleBinding information available
-                        </td>
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
+                      Array.isArray(rolebindings) && rolebindings.length > 0 ? (
+                        rolebindings.map((binding, idx) => {
+                          let subjects = [];
+                          if (Array.isArray(binding.subjects)) {
+                            subjects = binding.subjects;
+                          } else if (binding.subject) {
+                            subjects = [binding.subject];
+                          }
+                          const rowSpan = Math.max(subjects.length, 1);
+                          return subjects.length === 0 ? (
+                            <tr key={idx}>
+                              <td>{binding.roleRef?.kind || "N/A"}</td>
+                              <td>{binding.roleRef?.name || "N/A"}</td>
+                              <td colSpan={2} style={{ textAlign: 'center', fontStyle: 'italic', color: '#6c757d' }}>
+                                No subjects defined
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                  <button
+                                    className="iconBtn iconBtn-primary"
+                                    onClick={async () => {
+                                      const roleYaml = await fetchRoleBindingYaml({
+                                        subjects: subjects,
+                                        roleRef: binding.roleRef,
+                                        bindingIndex: idx,
+                                      });
+
+                                      const modal = document.createElement('div');
+                                      modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                      const modalContent = document.createElement('div');
+                                      modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                      const header = document.createElement('div');
+                                      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                      header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                      const closeBtn = document.createElement('button');
+                                      closeBtn.innerHTML = '&times;';
+                                      closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                      closeBtn.onclick = () => modal.remove();
+                                      header.appendChild(closeBtn);
+
+                                      const pre = document.createElement('pre');
+                                      pre.textContent = roleYaml;
+                                      pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                      const footer = document.createElement('div');
+                                      footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                      const copyBtn = document.createElement('button');
+                                      copyBtn.textContent = 'Copy';
+                                      copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                      copyBtn.onclick = () => {
+                                        navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                      };
+
+                                      const closeBtn2 = document.createElement('button');
+                                      closeBtn2.textContent = 'Close';
+                                      closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                      closeBtn2.onclick = () => modal.remove();
+
+                                      footer.appendChild(copyBtn);
+                                      footer.appendChild(closeBtn2);
+
+                                      modalContent.appendChild(header);
+                                      modalContent.appendChild(pre);
+                                      modalContent.appendChild(footer);
+                                      modal.appendChild(modalContent);
+
+                                      document.body.appendChild(modal);
+                                      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                    }}
+                                    aria-label="View YAML"
+                                    title="View YAML description"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                      <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                    </svg>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            subjects.map((subject, subIdx) => (
+                              <tr key={`${idx}-${subIdx}`}>
+                                {subIdx === 0 && (
+                                  <>
+                                    <td rowSpan={rowSpan}>{binding.roleRef?.kind || "N/A"}</td>
+                                    <td rowSpan={rowSpan}>{binding.roleRef?.name || "N/A"}</td>
+                                  </>
+                                )}
+                                <td>{subject?.kind || "N/A"}</td>
+                                <td>{subject?.name || "N/A"}</td>
+                                {subIdx === 0 && (
+                                  <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                      <button
+                                        className="iconBtn iconBtn-primary"
+                                        onClick={async () => {
+                                          const roleYaml = await fetchRoleBindingYaml({
+                                            subjects: subjects,
+                                            roleRef: binding.roleRef,
+                                            bindingIndex: idx,
+                                          });
+
+                                          const modal = document.createElement('div');
+                                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                                          const modalContent = document.createElement('div');
+                                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                                          const header = document.createElement('div');
+                                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+
+                                          const closeBtn = document.createElement('button');
+                                          closeBtn.innerHTML = '&times;';
+                                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                          closeBtn.onclick = () => modal.remove();
+                                          header.appendChild(closeBtn);
+
+                                          const pre = document.createElement('pre');
+                                          pre.textContent = roleYaml;
+                                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                                          const footer = document.createElement('div');
+                                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                                          const copyBtn = document.createElement('button');
+                                          copyBtn.textContent = 'Copy';
+                                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                          copyBtn.onclick = () => {
+                                            navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                          };
+
+                                          const closeBtn2 = document.createElement('button');
+                                          closeBtn2.textContent = 'Close';
+                                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                          closeBtn2.onclick = () => modal.remove();
+
+                                          footer.appendChild(copyBtn);
+                                          footer.appendChild(closeBtn2);
+
+                                          modalContent.appendChild(header);
+                                          modalContent.appendChild(pre);
+                                          modalContent.appendChild(footer);
+                                          modal.appendChild(modalContent);
+
+                                          document.body.appendChild(modal);
+                                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                        }}
+                                        aria-label="View YAML"
+                                        title="View YAML description"
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            ))
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
+                            No RoleBinding information available
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="dashboardCard" style={{ gridColumn: 'span 2' }}>
-          <div className="dashboardCardHeader">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-              <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
-            </svg>
-            <h3>Egress Firewall</h3>
+          {/* Egress Firewall Card - inside left column */}
+          <div className="dashboardCard">
+            <div className="dashboardCardHeader">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+                <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
+              </svg>
+              <h3>Egress Firewall</h3>
             {editEnabled && draftEgressFirewallEntries.length > 0 && (
               <button
                 className="iconBtn iconBtn-warning"
@@ -2000,7 +1876,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <div style={{ display: 'flex', gap: '16px' }}>
                 {/* DNS Names Table - Left Side (40%) */}
                 <div style={{ flex: '0 0 40%', minWidth: 0 }}>
-                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#495057', marginBottom: '12px', borderBottom: '1px solid #dee2e6', paddingBottom: '8px' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#495057', margin: '0 0 12px 0', borderBottom: '1px solid #dee2e6', paddingBottom: '8px' }}>
                     DNS Names ({egressFirewallRules.filter(r => r.egressType === 'dnsName').length})
                   </h4>
                   {egressFirewallRules.filter(r => r.egressType === 'dnsName').length === 0 ? (
@@ -2027,7 +1903,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
                 {/* CIDR Blocks Table - Right Side (60%) */}
                 <div style={{ flex: '0 0 calc(60% - 8px)', minWidth: 0 }}>
-                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#495057', marginBottom: '12px', borderBottom: '1px solid #dee2e6', paddingBottom: '8px' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#495057', margin: '0 0 12px 0', borderBottom: '1px solid #dee2e6', paddingBottom: '8px' }}>
                     CIDR Blocks ({egressFirewallRules.filter(r => r.egressType === 'cidrSelector').length})
                   </h4>
                   {egressFirewallRules.filter(r => r.egressType === 'cidrSelector').length === 0 ? (
@@ -2064,10 +1940,421 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               </div>
             )}
           </div>
+          </div>
         </div>
 
-      </div>
+        {/* Right Column - Resources (1/3 width) */}
+        <div>
+          {/* Resources Card */}
+          <div className="dashboardCard">
+            <div className="dashboardCardHeader">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
+              </svg>
+              <h3>Resources</h3>
+            </div>
+            <div className="dashboardCardBody">
+            {editEnabled ? (
+              <div>
+                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
+                  </div>
+                  <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
+                    <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Limits</h5>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftQuotaLimEphemeralStorage} onChange={(e) => setDraftQuotaLimEphemeralStorage(e.target.value)} placeholder="e.g., 2Gi" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftQuotaLimMemory} onChange={(e) => setDraftQuotaLimMemory(e.target.value)} placeholder="e.g., 64Gi" />
+                    </div>
+                  </div>
+                  <div>
+                    <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Requests</h5>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>CPU:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftReqCpu} onChange={(e) => setDraftReqCpu(e.target.value)} placeholder="e.g., 8" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftReqMemory} onChange={(e) => setDraftReqMemory(e.target.value)} placeholder="e.g., 64Gi" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftReqEphemeralStorage} onChange={(e) => setDraftReqEphemeralStorage(e.target.value)} placeholder="e.g., 1Gi" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
+                  </div>
+                  <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
+                    <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default Request</h5>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>CPU:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftLimCpu} onChange={(e) => setDraftLimCpu(e.target.value)} placeholder="e.g., 50m" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftLimMemory} onChange={(e) => setDraftLimMemory(e.target.value)} placeholder="e.g., 100Mi" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftLimEphemeralStorage} onChange={(e) => setDraftLimEphemeralStorage(e.target.value)} placeholder="e.g., 50Mi" />
+                    </div>
+                  </div>
+                  <div>
+                    <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default</h5>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>CPU:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultCpu} onChange={(e) => setDraftLimDefaultCpu(e.target.value)} placeholder="e.g., 10Gi" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultMemory} onChange={(e) => setDraftLimDefaultMemory(e.target.value)} placeholder="e.g., 10Gi" />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
+                      <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultEphemeralStorage} onChange={(e) => setDraftLimDefaultEphemeralStorage(e.target.value)} placeholder="e.g., 350Mi" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : Object.keys(resources).length > 0 ? (
+              <div>
+                {(resources.requests || resources.quota_limits) && (
+                  <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
+                      <button
+                        className="iconBtn iconBtn-primary"
+                        onClick={() => {
+                          const limEphemeralStorage = resources.quota_limits?.["ephemeral-storage"] || "";
+                          const limMemory = resources.quota_limits?.memory || "";
+                          const reqCpu = resources.requests?.cpu || "0";
+                          const reqMemory = resources.requests?.memory || "0";
+                          const reqEphemeralStorage = resources.requests?.["ephemeral-storage"] || "";
 
+                          let yamlLines = [
+                            'apiVersion: v1',
+                            'kind: ResourceQuota',
+                            'metadata:',
+                            `  name: ${namespaceName}-quota`,
+                            `  namespace: ${namespaceName}`,
+                            'spec:',
+                            '  hard:'
+                          ];
+
+                          if (limEphemeralStorage && limEphemeralStorage !== "0") {
+                            yamlLines.push(`    limits.ephemeral-storage: "${limEphemeralStorage}"`);
+                          }
+                          if (limMemory && limMemory !== "0") {
+                            yamlLines.push(`    limits.memory: "${limMemory}"`);
+                          }
+                          if (reqCpu && reqCpu !== "0") {
+                            yamlLines.push(`    requests.cpu: "${reqCpu}"`);
+                          }
+                          if (reqEphemeralStorage && reqEphemeralStorage !== "0") {
+                            yamlLines.push(`    requests.ephemeral-storage: "${reqEphemeralStorage}"`);
+                          }
+                          if (reqMemory && reqMemory !== "0") {
+                            yamlLines.push(`    requests.memory: "${reqMemory}"`);
+                          }
+
+                          const resourceQuotaYaml = yamlLines.join('\n');
+                          const modal = document.createElement('div');
+                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                          const modalContent = document.createElement('div');
+                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                          const header = document.createElement('div');
+                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
+
+                          const closeBtn = document.createElement('button');
+                          closeBtn.innerHTML = '&times;';
+                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                          closeBtn.onclick = () => modal.remove();
+                          header.appendChild(closeBtn);
+
+                          const pre = document.createElement('pre');
+                          pre.textContent = resourceQuotaYaml;
+                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                          const footer = document.createElement('div');
+                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                          const copyBtn = document.createElement('button');
+                          copyBtn.textContent = 'Copy';
+                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                          copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
+                          };
+
+                          const closeBtn2 = document.createElement('button');
+                          closeBtn2.textContent = 'Close';
+                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                          closeBtn2.onclick = () => modal.remove();
+
+                          footer.appendChild(copyBtn);
+                          footer.appendChild(closeBtn2);
+
+                          modalContent.appendChild(header);
+                          modalContent.appendChild(pre);
+                          modalContent.appendChild(footer);
+                          modal.appendChild(modalContent);
+
+                          document.body.appendChild(modal);
+                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                        }}
+                        aria-label="View YAML"
+                        title="View ResourceQuota YAML definition"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                        </svg>
+                      </button>
+                    </div>
+                    {/* Display Limits fields */}
+                    {(() => {
+                      const quotaLimitsFields = [];
+                      const quotaLimitsData = resources.quota_limits || {};
+
+                      if (quotaLimitsData['ephemeral-storage'] && quotaLimitsData['ephemeral-storage'] !== "") {
+                        quotaLimitsFields.push({ key: 'Ephemeral Storage', value: quotaLimitsData['ephemeral-storage'] });
+                      }
+                      if (quotaLimitsData.memory && quotaLimitsData.memory !== "") {
+                        quotaLimitsFields.push({ key: 'Memory', value: quotaLimitsData.memory });
+                      }
+
+                      if (quotaLimitsFields.length === 0) return null;
+
+                      return (
+                        <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
+                          <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Limits</h5>
+                          {quotaLimitsFields.map((field, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span className="attributeKey" style={{ minWidth: '150px' }}>{field.key}:</span>
+                              <span className="attributeValue">{formatValue(field.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {/* Display Requests fields */}
+                    {(() => {
+                      const requestsFields = [];
+                      const requestsData = resources.requests || {};
+
+                      if (requestsData.cpu && requestsData.cpu !== "") {
+                        requestsFields.push({ key: 'CPU', value: requestsData.cpu });
+                      }
+                      if (requestsData.memory && requestsData.memory !== "") {
+                        requestsFields.push({ key: 'Memory', value: requestsData.memory });
+                      }
+                      if (requestsData['ephemeral-storage'] && requestsData['ephemeral-storage'] !== "") {
+                        requestsFields.push({ key: 'Ephemeral Storage', value: requestsData['ephemeral-storage'] });
+                      }
+
+                      if (requestsFields.length === 0) return null;
+
+                      return (
+                        <div>
+                          <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Requests</h5>
+                          {requestsFields.map((field, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span className="attributeKey" style={{ minWidth: '150px' }}>{field.key}:</span>
+                              <span className="attributeValue">{formatValue(field.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {resources.limits && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
+                      <button
+                        className="iconBtn iconBtn-primary"
+                        onClick={() => {
+                          const defaultRequestCpu = resources.limits?.cpu || "";
+                          const defaultRequestMemory = resources.limits?.memory || "";
+                          const defaultRequestEphemeralStorage = resources.limits?.["ephemeral-storage"] || "";
+                          const defaultCpu = resources.limits?.default?.cpu || "";
+                          const defaultMemory = resources.limits?.default?.memory || "";
+                          const defaultEphemeralStorage = resources.limits?.default?.["ephemeral-storage"] || "";
+
+                          let yamlLines = [
+                            'apiVersion: v1',
+                            'kind: LimitRange',
+                            'metadata:',
+                            `  name: default`,
+                            `  namespace: ${namespaceName}`,
+                            'spec:',
+                            '  limits:',
+                            '  - default:'
+                          ];
+
+                          if (defaultEphemeralStorage && defaultEphemeralStorage !== "0") {
+                            yamlLines.push(`      ephemeral-storage: "${defaultEphemeralStorage}"`);
+                          }
+                          if (defaultMemory && defaultMemory !== "0") {
+                            yamlLines.push(`      memory: "${defaultMemory}"`);
+                          }
+                          if (defaultCpu && defaultCpu !== "0") {
+                            yamlLines.push(`      cpu: "${defaultCpu}"`);
+                          }
+
+                          yamlLines.push('    defaultRequest:');
+
+                          if (defaultRequestCpu && defaultRequestCpu !== "0") {
+                            yamlLines.push(`      cpu: "${defaultRequestCpu}"`);
+                          }
+                          if (defaultRequestMemory && defaultRequestMemory !== "0") {
+                            yamlLines.push(`      memory: "${defaultRequestMemory}"`);
+                          }
+                          if (defaultRequestEphemeralStorage && defaultRequestEphemeralStorage !== "0") {
+                            yamlLines.push(`      ephemeral-storage: "${defaultRequestEphemeralStorage}"`);
+                          }
+
+                          yamlLines.push('    type: Container');
+
+                          const limitRangeYaml = yamlLines.join('\n');
+
+                          const modal = document.createElement('div');
+                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+                          const modalContent = document.createElement('div');
+                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+
+                          const header = document.createElement('div');
+                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">LimitRange Definition</h3>';
+
+                          const closeBtn = document.createElement('button');
+                          closeBtn.innerHTML = '&times;';
+                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                          closeBtn.onclick = () => modal.remove();
+                          header.appendChild(closeBtn);
+
+                          const pre = document.createElement('pre');
+                          pre.textContent = limitRangeYaml;
+                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+
+                          const footer = document.createElement('div');
+                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+
+                          const copyBtn = document.createElement('button');
+                          copyBtn.textContent = 'Copy';
+                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                          copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(limitRangeYaml).then(() => alert('Copied to clipboard!'));
+                          };
+
+                          const closeBtn2 = document.createElement('button');
+                          closeBtn2.textContent = 'Close';
+                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                          closeBtn2.onclick = () => modal.remove();
+
+                          footer.appendChild(copyBtn);
+                          footer.appendChild(closeBtn2);
+
+                          modalContent.appendChild(header);
+                          modalContent.appendChild(pre);
+                          modalContent.appendChild(footer);
+                          modal.appendChild(modalContent);
+
+                          document.body.appendChild(modal);
+                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                        }}
+                        aria-label="View YAML"
+                        title="View LimitRange YAML definition"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                        </svg>
+                      </button>
+                    </div>
+                    {/* Display defaultRequest fields */}
+                    {(() => {
+                      const defaultRequestFields = [];
+                      const limitsData = resources.limits || {};
+
+                      // Collect defaultRequest fields (top-level limits fields excluding 'default')
+                      if (limitsData.cpu && limitsData.cpu !== "") {
+                        defaultRequestFields.push({ key: 'CPU', value: limitsData.cpu });
+                      }
+                      if (limitsData.memory && limitsData.memory !== "") {
+                        defaultRequestFields.push({ key: 'Memory', value: limitsData.memory });
+                      }
+                      if (limitsData['ephemeral-storage'] && limitsData['ephemeral-storage'] !== "") {
+                        defaultRequestFields.push({ key: 'Ephemeral Storage', value: limitsData['ephemeral-storage'] });
+                      }
+
+                      if (defaultRequestFields.length === 0) return null;
+
+                      return (
+                        <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
+                          <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default Request</h5>
+                          {defaultRequestFields.map((field, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span className="attributeKey" style={{ minWidth: '150px' }}>{field.key}:</span>
+                              <span className="attributeValue">{formatValue(field.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {/* Display default fields */}
+                    {(() => {
+                      const defaultFields = [];
+                      const defaultData = resources.limits?.default || {};
+
+                      if (defaultData.cpu && defaultData.cpu !== "") {
+                        defaultFields.push({ key: 'CPU', value: defaultData.cpu });
+                      }
+                      if (defaultData.memory && defaultData.memory !== "") {
+                        defaultFields.push({ key: 'Memory', value: defaultData.memory });
+                      }
+                      if (defaultData['ephemeral-storage'] && defaultData['ephemeral-storage'] !== "") {
+                        defaultFields.push({ key: 'Ephemeral Storage', value: defaultData['ephemeral-storage'] });
+                      }
+
+                      if (defaultFields.length === 0) return null;
+
+                      return (
+                        <div>
+                          <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default</h5>
+                          {defaultFields.map((field, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                              <span className="attributeKey" style={{ minWidth: '150px' }}>{field.key}:</span>
+                              <span className="attributeValue">{formatValue(field.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {!resources.requests && !resources.limits && (
+                  <p className="muted">No resource information available</p>
+                )}
+              </div>
+            ) : (
+              <p className="muted">No resource information available</p>
+            )}
+          </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
