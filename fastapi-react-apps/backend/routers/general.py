@@ -466,7 +466,7 @@ def get_portal_mode():
 
 
 @router.get("/catalog/role_refs")
-def get_role_refs(kind: str):
+def get_role_refs(kind: str, env: Optional[str] = None):
     kind_key = str(kind or "").strip()
     if kind_key not in ("Role", "ClusterRole"):
         raise HTTPException(status_code=400, detail="Invalid kind; expected Role or ClusterRole")
@@ -474,9 +474,11 @@ def get_role_refs(kind: str):
     templates_root = _templates_repo_root()
     catalog_dir = templates_root / "catalog_roles"
     if kind_key == "Role":
-        path = catalog_dir / "role_list.yaml"
+        filename = "role_list.yaml"
     else:
-        path = catalog_dir / "clusterrole_list.yaml"
+        filename = "clusterrole_list.yaml"
+
+    path = catalog_dir / filename
 
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=400, detail="not initialized")
@@ -486,7 +488,21 @@ def get_role_refs(kind: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read role catalog: {e}")
 
-    return _normalize_role_catalog(raw)
+    base = _normalize_role_catalog(raw)
+
+    env_key = str(env or "").strip()
+    if env_key:
+        env_path = catalog_dir / env_key / filename
+        if env_path.exists() and env_path.is_file():
+            try:
+                env_raw = yaml.safe_load(env_path.read_text())
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to read env role catalog: {e}")
+
+            env_items = _normalize_role_catalog(env_raw)
+            return sorted(set([*base, *env_items]), key=lambda s: s.lower())
+
+    return base
 
 
 @router.get("/requests/changes")

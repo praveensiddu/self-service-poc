@@ -133,9 +133,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         if (!editEnabled) return;
         setRoleCatalogError("");
 
+        const envKey = String(env || "").trim();
+        const envParam = envKey ? `&env=${encodeURIComponent(envKey)}` : "";
+
         const [rolesRes, clusterRolesRes] = await Promise.all([
-          fetch("/api/catalog/role_refs?kind=Role", { headers: { Accept: "application/json" } }),
-          fetch("/api/catalog/role_refs?kind=ClusterRole", { headers: { Accept: "application/json" } }),
+          fetch(`/api/catalog/role_refs?kind=Role${envParam}`, { headers: { Accept: "application/json" } }),
+          fetch(`/api/catalog/role_refs?kind=ClusterRole${envParam}`, { headers: { Accept: "application/json" } }),
         ]);
 
         const parseList = async (res) => {
@@ -158,7 +161,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return () => {
       mounted = false;
     };
-  }, [editEnabled]);
+  }, [editEnabled, env]);
 
   async function fetchRoleBindingYaml({ subjects, roleRef, bindingIndex }) {
     const envKey = String(env || "").trim();
