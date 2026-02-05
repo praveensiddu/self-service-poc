@@ -1,4 +1,4 @@
-function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onViewDetails, onCreateNamespace, env, appname, showCreate, onOpenCreate, onCloseCreate, argocdEnabled, requestsChanges }) {
+function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onViewDetails, onCreateNamespace, env, appname, showCreate, onOpenCreate, onCloseCreate, argocdEnabled, requestsChanges, readonly }) {
   const [filters, setFilters] = React.useState({
     name: "",
     clusters: "",
@@ -133,6 +133,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       showCreate={showCreate}
       onOpenCreate={onOpenCreate}
       onCloseCreate={onCloseCreate}
+      readonly={readonly}
     />
   );
 }

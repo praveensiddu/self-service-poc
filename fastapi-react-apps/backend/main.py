@@ -11,8 +11,13 @@ except Exception:
     pass
 
 from backend.routers import apps, general, clusters, namespaces, l4_ingress, pull_requests, egress_ip, rolebindings, app_argocd, nsargocd, egressfirewall
+from backend.middleware.readonly import ReadOnlyMiddleware
 
 app = FastAPI(title="Application Management API")
+
+# Add read-only middleware
+app.add_middleware(ReadOnlyMiddleware)
+
 # execute the following command to run
 # uvicorn backend.main:app --reload
 app.include_router(general.router, prefix="/api")

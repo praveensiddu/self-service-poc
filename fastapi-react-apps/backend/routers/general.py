@@ -8,6 +8,8 @@ import subprocess
 
 import yaml
 
+from backend.config.settings import is_readonly
+
 router = APIRouter(tags=["general"])
 
 logger = logging.getLogger("uvicorn.error")
@@ -421,6 +423,14 @@ def get_deployment_type():
 @router.get("/current-user")
 def get_current_user():
     return {"user": "user1"}
+
+
+@router.get("/portal-mode")
+def get_portal_mode():
+    """Return the portal mode (readonly or not)"""
+    return {
+        "readonly": is_readonly()
+    }
 
 
 @router.get("/requests/changes")
