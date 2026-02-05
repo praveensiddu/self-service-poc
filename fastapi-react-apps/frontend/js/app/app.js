@@ -1132,7 +1132,7 @@ function App() {
       const saved = await postJson("/api/config", {
         workspace: "~/workspace",
         requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
-        templatesRepo: "https://github.com/praveensiddu/kselfservice-template",
+        templatesRepo: "https://github.com/praveensiddu/kselfservice-templates",
         renderedManifestsRepo: "https://github.com/praveensiddu/kselfservice-rendered",
         controlRepo: "https://github.com/praveensiddu/kselfservice-control",
       });

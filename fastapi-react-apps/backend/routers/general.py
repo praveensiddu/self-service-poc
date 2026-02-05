@@ -92,6 +92,14 @@ def _requests_repo_root() -> Path:
     return workspace_path / "kselfserv" / "cloned-repositories" / "requests"
 
 
+def _templates_repo_root() -> Path:
+    workspace_path = _require_workspace_path()
+    root = workspace_path / "kselfserv" / "cloned-repositories" / "templates"
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+    return root
+
+
 def _run_git(repo_dir: Path, args: List[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", "-C", str(repo_dir), *args],
@@ -104,6 +112,7 @@ def _run_git(repo_dir: Path, args: List[str]) -> subprocess.CompletedProcess:
 def _as_string_list(value: Any) -> List[str]:
     if value is None:
         return []
+
     if isinstance(value, list):
         out: List[str] = []
         for v in value:
@@ -118,6 +127,29 @@ def _as_string_list(value: Any) -> List[str]:
         if not s:
             return []
         return [p.strip() for p in s.split(",") if p.strip()]
+    return []
+
+
+def _normalize_role_catalog(raw: Any) -> List[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return sorted({str(x).strip() for x in raw if str(x).strip()}, key=lambda s: s.lower())
+    if isinstance(raw, dict):
+        v = raw.get("roles", raw.get("role_list", raw.get("items", raw.get("data"))))
+        if isinstance(v, list):
+            return sorted({str(x).strip() for x in v if str(x).strip()}, key=lambda s: s.lower())
+
+        # Support catalogs shaped like:
+        # role-name-1: {}
+        # role-name-2: {}
+        # ...
+        keys = [str(k).strip() for k in raw.keys() if str(k).strip()]
+        if keys:
+            return sorted(set(keys), key=lambda s: s.lower())
+    if isinstance(raw, str):
+        s = raw.strip()
+        return [s] if s else []
     return []
 
 
@@ -431,6 +463,30 @@ def get_portal_mode():
     return {
         "readonly": is_readonly()
     }
+
+
+@router.get("/catalog/role_refs")
+def get_role_refs(kind: str):
+    kind_key = str(kind or "").strip()
+    if kind_key not in ("Role", "ClusterRole"):
+        raise HTTPException(status_code=400, detail="Invalid kind; expected Role or ClusterRole")
+
+    templates_root = _templates_repo_root()
+    catalog_dir = templates_root / "catalog_roles"
+    if kind_key == "Role":
+        path = catalog_dir / "role_list.yaml"
+    else:
+        path = catalog_dir / "clusterrole_list.yaml"
+
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=400, detail="not initialized")
+
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read role catalog: {e}")
+
+    return _normalize_role_catalog(raw)
 
 
 @router.get("/requests/changes")

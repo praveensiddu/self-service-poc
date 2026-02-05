@@ -24,6 +24,9 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftLimMemory, setDraftLimMemory] = React.useState("");
   const [draftRoleBindingsEntries, setDraftRoleBindingsEntries] = React.useState([]);
 
+  const [roleCatalogByKind, setRoleCatalogByKind] = React.useState({ Role: [], ClusterRole: [] });
+  const [roleCatalogError, setRoleCatalogError] = React.useState("");
+
   React.useEffect(() => {
     // Don't reload draft state if we're in edit mode - this prevents losing unsaved changes
     // when the namespace prop updates (e.g., after a save or external update)
@@ -121,6 +124,41 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       mounted = false;
     };
   }, [editEnabled, env, appname]);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    async function loadRoleCatalogs() {
+      try {
+        if (!editEnabled) return;
+        setRoleCatalogError("");
+
+        const [rolesRes, clusterRolesRes] = await Promise.all([
+          fetch("/api/catalog/role_refs?kind=Role", { headers: { Accept: "application/json" } }),
+          fetch("/api/catalog/role_refs?kind=ClusterRole", { headers: { Accept: "application/json" } }),
+        ]);
+
+        const parseList = async (res) => {
+          if (!res.ok) return [];
+          const data = await res.json();
+          return Array.isArray(data) ? data.map(String) : [];
+        };
+
+        const [roles, clusterRoles] = await Promise.all([parseList(rolesRes), parseList(clusterRolesRes)]);
+        if (!mounted) return;
+        setRoleCatalogByKind({ Role: roles, ClusterRole: clusterRoles });
+      } catch (e) {
+        if (!mounted) return;
+        setRoleCatalogByKind({ Role: [], ClusterRole: [] });
+        setRoleCatalogError(e?.message || String(e));
+      }
+    }
+
+    loadRoleCatalogs();
+    return () => {
+      mounted = false;
+    };
+  }, [editEnabled]);
 
   async function fetchRoleBindingYaml({ subjects, roleRef, bindingIndex }) {
     const envKey = String(env || "").trim();
@@ -1084,6 +1122,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                         const subjects = Array.isArray(entry.subjects) ? entry.subjects : [];
                         const rowSpan = Math.max(subjects.length, 1);
 
+                        const roleKind = entry.roleRef?.kind === "Role" ? "Role" : "ClusterRole";
+                        const catalog = Array.isArray(roleCatalogByKind?.[roleKind]) ? roleCatalogByKind[roleKind] : [];
+                        const roleRefName = String(entry.roleRef?.name || "");
+                        const roleRefOptions = catalog.includes(roleRefName) || !roleRefName
+                          ? catalog
+                          : [roleRefName, ...catalog];
+
                         return subjects.length === 0 ? (
                           // Empty subjects case
                           <tr key={idx}>
@@ -1095,7 +1140,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                   const updated = [...draftRoleBindingsEntries];
                                   updated[idx] = {
                                     ...updated[idx],
-                                    roleRef: { ...updated[idx].roleRef, kind: e.target.value }
+                                    roleRef: { ...updated[idx].roleRef, kind: e.target.value, name: "" }
                                   };
                                   setDraftRoleBindingsEntries(updated);
                                 }}
@@ -1105,9 +1150,9 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               </select>
                             </td>
                             <td>
-                              <input
+                              <select
                                 className="filterInput"
-                                value={entry.roleRef?.name || ""}
+                                value={roleRefName}
                                 onChange={(e) => {
                                   const updated = [...draftRoleBindingsEntries];
                                   updated[idx] = {
@@ -1116,8 +1161,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                   };
                                   setDraftRoleBindingsEntries(updated);
                                 }}
-                                placeholder="e.g., cluster-admin, view"
-                              />
+                              >
+                                <option value="">Select...</option>
+                                {roleRefOptions.map((name) => (
+                                  <option key={name} value={name}>{name}</option>
+                                ))}
+                              </select>
                             </td>
                             <td colSpan={2} style={{ textAlign: 'center' }}>
                               <button
@@ -1227,7 +1276,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                         const updated = [...draftRoleBindingsEntries];
                                         updated[idx] = {
                                           ...updated[idx],
-                                          roleRef: { ...updated[idx].roleRef, kind: e.target.value }
+                                          roleRef: { ...updated[idx].roleRef, kind: e.target.value, name: "" }
                                         };
                                         setDraftRoleBindingsEntries(updated);
                                       }}
@@ -1237,9 +1286,9 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                     </select>
                                   </td>
                                   <td rowSpan={rowSpan}>
-                                    <input
+                                    <select
                                       className="filterInput"
-                                      value={entry.roleRef?.name || ""}
+                                      value={roleRefName}
                                       onChange={(e) => {
                                         const updated = [...draftRoleBindingsEntries];
                                         updated[idx] = {
@@ -1248,8 +1297,12 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                                         };
                                         setDraftRoleBindingsEntries(updated);
                                       }}
-                                      placeholder="e.g., cluster-admin, view"
-                                    />
+                                    >
+                                      <option value="">Select...</option>
+                                      {roleRefOptions.map((name) => (
+                                        <option key={name} value={name}>{name}</option>
+                                      ))}
+                                    </select>
                                   </td>
                                 </>
                               )}
