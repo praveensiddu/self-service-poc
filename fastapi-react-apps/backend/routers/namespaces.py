@@ -415,7 +415,6 @@ def delete_namespaces(appname: str, env: Optional[str] = None, namespaces: Optio
 def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate, env: Optional[str] = None):
     env = _require_env(env)
 
-
     requests_root = _require_initialized_workspace()
     ns_dir = requests_root / env / appname / namespace
     if not ns_dir.exists() or not ns_dir.is_dir():
