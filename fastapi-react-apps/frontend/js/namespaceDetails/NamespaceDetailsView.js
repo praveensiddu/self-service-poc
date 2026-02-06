@@ -213,6 +213,52 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return await resp.text();
   }
 
+  async function fetchResourceQuotaYaml(resources) {
+    const envKey = String(env || "").trim();
+    const appKey = String(appname || "").trim();
+    const nsKey = String(namespaceName || "").trim();
+    if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
+
+    const resp = await fetch(
+      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/resources/resourcequota_yaml?env=${encodeURIComponent(envKey)}`,
+      {
+        method: "POST",
+        headers: { Accept: "text/yaml", "Content-Type": "application/json" },
+        body: JSON.stringify({ resources }),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+    }
+
+    return await resp.text();
+  }
+
+  async function fetchLimitRangeYaml(resources) {
+    const envKey = String(env || "").trim();
+    const appKey = String(appname || "").trim();
+    const nsKey = String(namespaceName || "").trim();
+    if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
+
+    const resp = await fetch(
+      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/resources/limitrange_yaml?env=${encodeURIComponent(envKey)}`,
+      {
+        method: "POST",
+        headers: { Accept: "text/yaml", "Content-Type": "application/json" },
+        body: JSON.stringify({ resources }),
+      },
+    );
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+    }
+
+    return await resp.text();
+  }
+
   async function fetchEgressFirewallYaml(rules) {
     const envKey = String(env || "").trim();
     const appKey = String(appname || "").trim();
@@ -2023,84 +2069,59 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       <button
                         className="iconBtn iconBtn-primary"
                         onClick={() => {
-                          const limEphemeralStorage = resources.quota_limits?.["ephemeral-storage"] || "";
-                          const limMemory = resources.quota_limits?.memory || "";
-                          const reqCpu = resources.requests?.cpu || "0";
-                          const reqMemory = resources.requests?.memory || "0";
-                          const reqEphemeralStorage = resources.requests?.["ephemeral-storage"] || "";
+                          (async () => {
+                            const resourceQuotaYaml = await fetchResourceQuotaYaml({
+                              requests: resources.requests || {},
+                              quota_limits: resources.quota_limits || {},
+                              limits: resources.limits || {},
+                            });
 
-                          let yamlLines = [
-                            'apiVersion: v1',
-                            'kind: ResourceQuota',
-                            'metadata:',
-                            `  name: ${namespaceName}-quota`,
-                            `  namespace: ${namespaceName}`,
-                            'spec:',
-                            '  hard:'
-                          ];
+                            const modal = document.createElement('div');
+                            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                          if (limEphemeralStorage && limEphemeralStorage !== "0") {
-                            yamlLines.push(`    limits.ephemeral-storage: "${limEphemeralStorage}"`);
-                          }
-                          if (limMemory && limMemory !== "0") {
-                            yamlLines.push(`    limits.memory: "${limMemory}"`);
-                          }
-                          if (reqCpu && reqCpu !== "0") {
-                            yamlLines.push(`    requests.cpu: "${reqCpu}"`);
-                          }
-                          if (reqEphemeralStorage && reqEphemeralStorage !== "0") {
-                            yamlLines.push(`    requests.ephemeral-storage: "${reqEphemeralStorage}"`);
-                          }
-                          if (reqMemory && reqMemory !== "0") {
-                            yamlLines.push(`    requests.memory: "${reqMemory}"`);
-                          }
+                            const modalContent = document.createElement('div');
+                            modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
-                          const resourceQuotaYaml = yamlLines.join('\n');
-                          const modal = document.createElement('div');
-                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                            const header = document.createElement('div');
+                            header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                            header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
 
-                          const modalContent = document.createElement('div');
-                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                            const closeBtn = document.createElement('button');
+                            closeBtn.innerHTML = '&times;';
+                            closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                            closeBtn.onclick = () => modal.remove();
+                            header.appendChild(closeBtn);
 
-                          const header = document.createElement('div');
-                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
+                            const pre = document.createElement('pre');
+                            pre.textContent = resourceQuotaYaml;
+                            pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                          const closeBtn = document.createElement('button');
-                          closeBtn.innerHTML = '&times;';
-                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                          closeBtn.onclick = () => modal.remove();
-                          header.appendChild(closeBtn);
+                            const footer = document.createElement('div');
+                            footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                          const pre = document.createElement('pre');
-                          pre.textContent = resourceQuotaYaml;
-                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+                            const copyBtn = document.createElement('button');
+                            copyBtn.textContent = 'Copy';
+                            copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                            copyBtn.onclick = () => {
+                              navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
+                            };
 
-                          const footer = document.createElement('div');
-                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
+                            const closeBtn2 = document.createElement('button');
+                            closeBtn2.textContent = 'Close';
+                            closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                            closeBtn2.onclick = () => modal.remove();
 
-                          const copyBtn = document.createElement('button');
-                          copyBtn.textContent = 'Copy';
-                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                          copyBtn.onclick = () => {
-                            navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
-                          };
+                            footer.appendChild(copyBtn);
+                            footer.appendChild(closeBtn2);
 
-                          const closeBtn2 = document.createElement('button');
-                          closeBtn2.textContent = 'Close';
-                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                          closeBtn2.onclick = () => modal.remove();
+                            modalContent.appendChild(header);
+                            modalContent.appendChild(pre);
+                            modalContent.appendChild(footer);
+                            modal.appendChild(modalContent);
 
-                          footer.appendChild(copyBtn);
-                          footer.appendChild(closeBtn2);
-
-                          modalContent.appendChild(header);
-                          modalContent.appendChild(pre);
-                          modalContent.appendChild(footer);
-                          modal.appendChild(modalContent);
-
-                          document.body.appendChild(modal);
-                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                            document.body.appendChild(modal);
+                            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                          })().catch((e) => alert(e?.message || String(e)));
                         }}
                         aria-label="View YAML"
                         title="View ResourceQuota YAML definition"
@@ -2175,95 +2196,59 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       <button
                         className="iconBtn iconBtn-primary"
                         onClick={() => {
-                          const defaultRequestCpu = resources.limits?.cpu || "";
-                          const defaultRequestMemory = resources.limits?.memory || "";
-                          const defaultRequestEphemeralStorage = resources.limits?.["ephemeral-storage"] || "";
-                          const defaultCpu = resources.limits?.default?.cpu || "";
-                          const defaultMemory = resources.limits?.default?.memory || "";
-                          const defaultEphemeralStorage = resources.limits?.default?.["ephemeral-storage"] || "";
+                          (async () => {
+                            const limitRangeYaml = await fetchLimitRangeYaml({
+                              requests: resources.requests || {},
+                              quota_limits: resources.quota_limits || {},
+                              limits: resources.limits || {},
+                            });
 
-                          let yamlLines = [
-                            'apiVersion: v1',
-                            'kind: LimitRange',
-                            'metadata:',
-                            `  name: default`,
-                            `  namespace: ${namespaceName}`,
-                            'spec:',
-                            '  limits:',
-                            '  - default:'
-                          ];
+                            const modal = document.createElement('div');
+                            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                          if (defaultEphemeralStorage && defaultEphemeralStorage !== "0") {
-                            yamlLines.push(`      ephemeral-storage: "${defaultEphemeralStorage}"`);
-                          }
-                          if (defaultMemory && defaultMemory !== "0") {
-                            yamlLines.push(`      memory: "${defaultMemory}"`);
-                          }
-                          if (defaultCpu && defaultCpu !== "0") {
-                            yamlLines.push(`      cpu: "${defaultCpu}"`);
-                          }
+                            const modalContent = document.createElement('div');
+                            modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
-                          yamlLines.push('    defaultRequest:');
+                            const header = document.createElement('div');
+                            header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                            header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">LimitRange Definition</h3>';
 
-                          if (defaultRequestCpu && defaultRequestCpu !== "0") {
-                            yamlLines.push(`      cpu: "${defaultRequestCpu}"`);
-                          }
-                          if (defaultRequestMemory && defaultRequestMemory !== "0") {
-                            yamlLines.push(`      memory: "${defaultRequestMemory}"`);
-                          }
-                          if (defaultRequestEphemeralStorage && defaultRequestEphemeralStorage !== "0") {
-                            yamlLines.push(`      ephemeral-storage: "${defaultRequestEphemeralStorage}"`);
-                          }
+                            const closeBtn = document.createElement('button');
+                            closeBtn.innerHTML = '&times;';
+                            closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                            closeBtn.onclick = () => modal.remove();
+                            header.appendChild(closeBtn);
 
-                          yamlLines.push('    type: Container');
+                            const pre = document.createElement('pre');
+                            pre.textContent = limitRangeYaml;
+                            pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                          const limitRangeYaml = yamlLines.join('\n');
+                            const footer = document.createElement('div');
+                            footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                          const modal = document.createElement('div');
-                          modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                            const copyBtn = document.createElement('button');
+                            copyBtn.textContent = 'Copy';
+                            copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                            copyBtn.onclick = () => {
+                              navigator.clipboard.writeText(limitRangeYaml).then(() => alert('Copied to clipboard!'));
+                            };
 
-                          const modalContent = document.createElement('div');
-                          modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                            const closeBtn2 = document.createElement('button');
+                            closeBtn2.textContent = 'Close';
+                            closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                            closeBtn2.onclick = () => modal.remove();
 
-                          const header = document.createElement('div');
-                          header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                          header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">LimitRange Definition</h3>';
+                            footer.appendChild(copyBtn);
+                            footer.appendChild(closeBtn2);
 
-                          const closeBtn = document.createElement('button');
-                          closeBtn.innerHTML = '&times;';
-                          closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                          closeBtn.onclick = () => modal.remove();
-                          header.appendChild(closeBtn);
+                            modalContent.appendChild(header);
+                            modalContent.appendChild(pre);
+                            modalContent.appendChild(footer);
+                            modal.appendChild(modalContent);
 
-                          const pre = document.createElement('pre');
-                          pre.textContent = limitRangeYaml;
-                          pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                          const footer = document.createElement('div');
-                          footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                          const copyBtn = document.createElement('button');
-                          copyBtn.textContent = 'Copy';
-                          copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                          copyBtn.onclick = () => {
-                            navigator.clipboard.writeText(limitRangeYaml).then(() => alert('Copied to clipboard!'));
-                          };
-
-                          const closeBtn2 = document.createElement('button');
-                          closeBtn2.textContent = 'Close';
-                          closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                          closeBtn2.onclick = () => modal.remove();
-
-                          footer.appendChild(copyBtn);
-                          footer.appendChild(closeBtn2);
-
-                          modalContent.appendChild(header);
-                          modalContent.appendChild(pre);
-                          modalContent.appendChild(footer);
-                          modal.appendChild(modalContent);
-
-                          document.body.appendChild(modal);
-                          modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                            document.body.appendChild(modal);
+                            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                          })().catch((e) => alert(e?.message || String(e)));
                         }}
                         aria-label="View YAML"
                         title="View LimitRange YAML definition"

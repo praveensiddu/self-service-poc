@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from typing import List, Optional
 import shutil
 import re
@@ -93,6 +93,10 @@ class NamespaceUpdate(BaseModel):
     rolebindings: Optional[RoleBindingList] = None
 
 
+class NamespaceResourcesYamlRequest(BaseModel):
+    resources: NamespaceResourcesUpdate
+
+
 def _parse_bool(v) -> bool:
     if isinstance(v, bool):
         return v
@@ -124,6 +128,191 @@ def _read_yaml_list(path) -> list:
         return []
 
 
+def _as_trimmed_str(v) -> Optional[str]:
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s if s else None
+
+
+def _parse_limitrange_manifest(path) -> dict:
+    if not path.exists() or not path.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+def _parse_resourcequota_manifest(path) -> dict:
+    if not path.exists() or not path.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+def _requests_and_quota_limits_from_resourcequota(resourcequota: dict) -> tuple[dict, dict]:
+    spec = resourcequota.get("spec") if isinstance(resourcequota, dict) else None
+    hard = spec.get("hard") if isinstance(spec, dict) else None
+    hard = hard if isinstance(hard, dict) else {}
+
+    requests = {
+        "cpu": _as_trimmed_str(hard.get("requests.cpu")),
+        "memory": _as_trimmed_str(hard.get("requests.memory")),
+        "ephemeral-storage": _as_trimmed_str(hard.get("requests.ephemeral-storage")),
+    }
+    quota_limits = {
+        "memory": _as_trimmed_str(hard.get("limits.memory")),
+        "ephemeral-storage": _as_trimmed_str(hard.get("limits.ephemeral-storage")),
+    }
+
+    return requests, quota_limits
+
+
+def _limits_from_limitrange(limitrange: dict) -> dict:
+    spec = limitrange.get("spec") if isinstance(limitrange, dict) else None
+    limits_list = spec.get("limits") if isinstance(spec, dict) else None
+    first = limits_list[0] if isinstance(limits_list, list) and len(limits_list) > 0 and isinstance(limits_list[0], dict) else {}
+
+    default_request = first.get("defaultRequest") if isinstance(first, dict) else None
+    default_obj = first.get("default") if isinstance(first, dict) else None
+
+    out = {
+        "cpu": _as_trimmed_str(default_request.get("cpu")) if isinstance(default_request, dict) else None,
+        "memory": _as_trimmed_str(default_request.get("memory")) if isinstance(default_request, dict) else None,
+        "ephemeral-storage": _as_trimmed_str(default_request.get("ephemeral-storage")) if isinstance(default_request, dict) else None,
+        "default": None,
+    }
+
+    default_out = {
+        "cpu": _as_trimmed_str(default_obj.get("cpu")) if isinstance(default_obj, dict) else None,
+        "memory": _as_trimmed_str(default_obj.get("memory")) if isinstance(default_obj, dict) else None,
+        "ephemeral-storage": _as_trimmed_str(default_obj.get("ephemeral-storage")) if isinstance(default_obj, dict) else None,
+    }
+
+    if any(v is not None for v in default_out.values()):
+        out["default"] = default_out
+
+    return out
+
+
+def _is_set(v: Optional[str]) -> bool:
+    s = str(v or "").strip()
+    return bool(s) and s != "0"
+
+
+def _build_limitrange_obj(namespace: str, limits: Optional[NamespaceResourcesLimits]) -> dict:
+    default_request = {}
+    default = {}
+
+    if limits is not None:
+        if _is_set(limits.cpu):
+            default_request["cpu"] = str(limits.cpu).strip()
+        if _is_set(limits.memory):
+            default_request["memory"] = str(limits.memory).strip()
+        if _is_set(limits.ephemeral_storage):
+            default_request["ephemeral-storage"] = str(limits.ephemeral_storage).strip()
+
+        if limits.default is not None:
+            if _is_set(limits.default.cpu):
+                default["cpu"] = str(limits.default.cpu).strip()
+            if _is_set(limits.default.memory):
+                default["memory"] = str(limits.default.memory).strip()
+            if _is_set(limits.default.ephemeral_storage):
+                default["ephemeral-storage"] = str(limits.default.ephemeral_storage).strip()
+
+    limit_entry = {
+        "type": "Container",
+    }
+    if default:
+        limit_entry["default"] = default
+    if default_request:
+        limit_entry["defaultRequest"] = default_request
+
+    return {
+        "apiVersion": "v1",
+        "kind": "LimitRange",
+        "metadata": {
+            "name": "default",
+            "namespace": namespace,
+        },
+        "spec": {
+            "limits": [limit_entry],
+        },
+    }
+
+
+def _build_resourcequota_obj(
+    namespace: str,
+    requests: Optional[NamespaceResourcesCpuMem],
+    quota_limits: Optional[NamespaceResourcesQuotaLimits],
+) -> dict:
+    hard = {}
+
+    if quota_limits is not None:
+        if _is_set(quota_limits.ephemeral_storage):
+            hard["limits.ephemeral-storage"] = str(quota_limits.ephemeral_storage).strip()
+        if _is_set(quota_limits.memory):
+            hard["limits.memory"] = str(quota_limits.memory).strip()
+
+    if requests is not None:
+        if _is_set(requests.cpu):
+            hard["requests.cpu"] = str(requests.cpu).strip()
+        if _is_set(requests.memory):
+            hard["requests.memory"] = str(requests.memory).strip()
+        if _is_set(requests.ephemeral_storage):
+            hard["requests.ephemeral-storage"] = str(requests.ephemeral_storage).strip()
+
+    return {
+        "apiVersion": "v1",
+        "kind": "ResourceQuota",
+        "metadata": {
+            "name": f"{namespace}-quota",
+            "namespace": namespace,
+        },
+        "spec": {
+            "hard": hard,
+        },
+    }
+
+
+def _build_resourcequota_file_obj(
+    requests: Optional[NamespaceResourcesCpuMem],
+    quota_limits: Optional[NamespaceResourcesQuotaLimits],
+) -> dict:
+    rq_obj = _build_resourcequota_obj(namespace="__PLACEHOLDER__", requests=requests, quota_limits=quota_limits)
+    rq_obj["metadata"]["name"] = "default"
+    rq_obj["metadata"]["namespace"] = "{{ .Values.namespacename }}"
+    return rq_obj
+
+
+@router.post("/apps/{appname}/namespaces/{namespace}/resources/resourcequota_yaml")
+def get_resourcequota_yaml(appname: str, namespace: str, payload: NamespaceResourcesYamlRequest, env: Optional[str] = None):
+    env = _require_env(env)
+
+    req = payload.resources.requests if payload and payload.resources is not None else None
+    quota_limits = payload.resources.quota_limits if payload and payload.resources is not None else None
+
+    rq_obj = _build_resourcequota_obj(namespace=namespace, requests=req, quota_limits=quota_limits)
+
+    yaml_text = yaml.safe_dump(rq_obj, sort_keys=False)
+    return Response(content=yaml_text, media_type="text/yaml")
+
+
+@router.post("/apps/{appname}/namespaces/{namespace}/resources/limitrange_yaml")
+def get_limitrange_yaml(appname: str, namespace: str, payload: NamespaceResourcesYamlRequest, env: Optional[str] = None):
+    env = _require_env(env)
+
+    limits = payload.resources.limits if payload and payload.resources is not None else None
+    lr_obj = _build_limitrange_obj(namespace=namespace, limits=limits)
+    yaml_text = yaml.safe_dump(lr_obj, sort_keys=False)
+    return Response(content=yaml_text, media_type="text/yaml")
+
+
 @router.get("/apps/{appname}/namespaces")
 def get_namespaces(appname: str, env: Optional[str] = None):
     env = _require_env(env)
@@ -147,8 +336,8 @@ def get_namespaces(appname: str, env: Optional[str] = None):
 
         ns_name = child.name
         ns_info_path = child / "namespace_info.yaml"
-        limits_path = child / "limits.yaml"
-        requests_path = child / "requests.yaml"
+        limitrange_path = child / "limitrange.yaml"
+        resourcequota_path = child / "resourcequota.yaml"
         rolebinding_path = child / "rolebinding_requests.yaml"
         egress_firewall_path = child / "egress_firewall_requests.yaml"
 
@@ -164,33 +353,11 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         nsargocd_path = child / "nsargocd.yaml"
         nsargocd = _read_yaml_dict(nsargocd_path)
 
-        limits = {}
-        if limits_path.exists() and limits_path.is_file():
-            try:
-                parsed = yaml.safe_load(limits_path.read_text()) or {}
-                if isinstance(parsed, dict):
-                    limits = parsed
-            except Exception:
-                limits = {}
+        limitrange = _parse_limitrange_manifest(limitrange_path)
+        limits = _limits_from_limitrange(limitrange)
 
-        reqs = {}
-        if requests_path.exists() and requests_path.is_file():
-            try:
-                parsed = yaml.safe_load(requests_path.read_text()) or {}
-                if isinstance(parsed, dict):
-                    reqs = parsed
-            except Exception:
-                reqs = {}
-
-        quota_limits_path = child / "quota_limits.yaml"
-        quota_limits = {}
-        if quota_limits_path.exists() and quota_limits_path.is_file():
-            try:
-                parsed = yaml.safe_load(quota_limits_path.read_text()) or {}
-                if isinstance(parsed, dict):
-                    quota_limits = parsed
-            except Exception:
-                quota_limits = {}
+        resourcequota = _parse_resourcequota_manifest(resourcequota_path)
+        reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
 
         rolebinding = None
         if rolebinding_path.exists() and rolebinding_path.is_file():
@@ -246,26 +413,19 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             "status": status,
             "resources": {
                 "requests": {
-                    "cpu": (None if reqs.get("cpu") in (None, "") else str(reqs.get("cpu"))),
-                    "memory": (None if reqs.get("memory") in (None, "") else str(reqs.get("memory"))),
-                    "ephemeral-storage": (None if reqs.get("ephemeral-storage") in (None, "") else str(reqs.get("ephemeral-storage"))),
+                    "cpu": reqs.get("cpu"),
+                    "memory": reqs.get("memory"),
+                    "ephemeral-storage": reqs.get("ephemeral-storage"),
                 },
                 "quota_limits": {
-                    "memory": (None if quota_limits.get("memory") in (None, "") else str(quota_limits.get("memory"))),
-                    "ephemeral-storage": (None if quota_limits.get("ephemeral-storage") in (None, "") else str(quota_limits.get("ephemeral-storage"))),
+                    "memory": quota_limits.get("memory"),
+                    "ephemeral-storage": quota_limits.get("ephemeral-storage"),
                 },
                 "limits": {
-                    "cpu": (None if limits.get("cpu") in (None, "") else str(limits.get("cpu"))),
-                    "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
-                    "ephemeral-storage": (None if limits.get("ephemeral-storage") in (None, "") else str(limits.get("ephemeral-storage"))),
-                    "default": (lambda: {
-                        "cpu": (None if limits.get("default", {}).get("cpu") in (None, "") else str(limits.get("default", {}).get("cpu"))),
-                        "memory": (None if limits.get("default", {}).get("memory") in (None, "") else str(limits.get("default", {}).get("memory"))),
-                        "ephemeral-storage": (None if limits.get("default", {}).get("ephemeral-storage") in (None, "") else str(limits.get("default", {}).get("ephemeral-storage"))),
-                    })() if limits.get("default") and any(
-                        limits.get("default", {}).get(k) not in (None, "")
-                        for k in ["cpu", "memory", "ephemeral-storage"]
-                    ) else None,
+                    "cpu": limits.get("cpu"),
+                    "memory": limits.get("memory"),
+                    "ephemeral-storage": limits.get("ephemeral-storage"),
+                    "default": limits.get("default"),
                 },
             },
             "rolebindings": role_bindings,
@@ -438,109 +598,19 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
 
         if payload.resources is not None:
-            if payload.resources.requests is not None:
-                req_path = ns_dir / "requests.yaml"
-                req_existing = {}
-                if req_path.exists() and req_path.is_file():
-                    parsed = yaml.safe_load(req_path.read_text()) or {}
-                    if isinstance(parsed, dict):
-                        req_existing = parsed
-
-                if payload.resources.requests.cpu is not None:
-                    cpu_val = str(payload.resources.requests.cpu).strip()
-                    if cpu_val:
-                        req_existing["cpu"] = cpu_val
-
-                if payload.resources.requests.memory is not None:
-                    mem_val = str(payload.resources.requests.memory).strip()
-                    if mem_val:
-                        req_existing["memory"] = mem_val
-
-                if payload.resources.requests.ephemeral_storage is not None:
-                    eph_val = str(payload.resources.requests.ephemeral_storage).strip()
-                    if eph_val:
-                        req_existing["ephemeral-storage"] = eph_val
-
-                req_path.write_text(yaml.safe_dump(req_existing, sort_keys=False))
-
-            # Handle quota_limits (ResourceQuota limits section)
-            if payload.resources.quota_limits is not None:
-                quota_lim_path = ns_dir / "quota_limits.yaml"
-                quota_lim_existing = {}
-                if quota_lim_path.exists() and quota_lim_path.is_file():
-                    parsed = yaml.safe_load(quota_lim_path.read_text()) or {}
-                    if isinstance(parsed, dict):
-                        quota_lim_existing = parsed
-
-                if payload.resources.quota_limits.memory is not None:
-                    mem_val = str(payload.resources.quota_limits.memory).strip()
-                    if mem_val:
-                        quota_lim_existing["memory"] = mem_val
-
-                if payload.resources.quota_limits.ephemeral_storage is not None:
-                    eph_val = str(payload.resources.quota_limits.ephemeral_storage).strip()
-                    if eph_val:
-                        quota_lim_existing["ephemeral-storage"] = eph_val
-
-                quota_lim_path.write_text(yaml.safe_dump(quota_lim_existing, sort_keys=False))
+            if payload.resources.requests is not None or payload.resources.quota_limits is not None:
+                resourcequota_path = ns_dir / "resourcequota.yaml"
+                rq_obj = _build_resourcequota_file_obj(
+                    requests=payload.resources.requests,
+                    quota_limits=payload.resources.quota_limits,
+                )
+                resourcequota_path.write_text(yaml.safe_dump(rq_obj, sort_keys=False))
 
             if payload.resources.limits is not None:
-                lim_path = ns_dir / "limits.yaml"
-                lim_existing = {}
-                if lim_path.exists() and lim_path.is_file():
-                    parsed = yaml.safe_load(lim_path.read_text()) or {}
-                    if isinstance(parsed, dict):
-                        lim_existing = parsed
+                limitrange_path = ns_dir / "limitrange.yaml"
 
-                # Update top-level limits fields (defaultRequest)
-                if payload.resources.limits.cpu is not None:
-                    cpu_val = str(payload.resources.limits.cpu).strip()
-                    if cpu_val:
-                        lim_existing["cpu"] = cpu_val
-
-                if payload.resources.limits.memory is not None:
-                    mem_val = str(payload.resources.limits.memory).strip()
-                    if mem_val:
-                        lim_existing["memory"] = mem_val
-
-                if payload.resources.limits.ephemeral_storage is not None:
-                    eph_val = str(payload.resources.limits.ephemeral_storage).strip()
-                    if eph_val:
-                        lim_existing["ephemeral-storage"] = eph_val
-
-                # Handle default nested object
-                if payload.resources.limits.default is not None:
-                    if "default" not in lim_existing:
-                        lim_existing["default"] = {}
-
-                    if payload.resources.limits.default.cpu is not None:
-                        cpu_val = str(payload.resources.limits.default.cpu).strip()
-                        if cpu_val:
-                            lim_existing["default"]["cpu"] = cpu_val
-
-                    if payload.resources.limits.default.memory is not None:
-                        mem_val = str(payload.resources.limits.default.memory).strip()
-                        if mem_val:
-                            lim_existing["default"]["memory"] = mem_val
-
-                    if payload.resources.limits.default.ephemeral_storage is not None:
-                        eph_val = str(payload.resources.limits.default.ephemeral_storage).strip()
-                        if eph_val:
-                            lim_existing["default"]["ephemeral-storage"] = eph_val
-
-                # Clean up empty default object if it has no values
-                if "default" in lim_existing:
-                    # Remove keys with None or empty string values
-                    default_obj = lim_existing.get("default", {})
-                    if isinstance(default_obj, dict):
-                        # Keep only non-empty values
-                        cleaned_default = {k: v for k, v in default_obj.items() if v and str(v).strip()}
-                        if cleaned_default:
-                            lim_existing["default"] = cleaned_default
-                        else:
-                            del lim_existing["default"]
-
-                lim_path.write_text(yaml.safe_dump(lim_existing, sort_keys=False))
+                limitrange_obj = _build_limitrange_obj(namespace=namespace, limits=payload.resources.limits)
+                limitrange_path.write_text(yaml.safe_dump(limitrange_obj, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
 
@@ -619,22 +689,16 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
     # Return updated namespace in the same shape as get_namespaces
     # by reusing the same file parsing logic.
     try:
-        limits_path = ns_dir / "limits.yaml"
-        requests_path = ns_dir / "requests.yaml"
+        limitrange_path = ns_dir / "limitrange.yaml"
+        resourcequota_path = ns_dir / "resourcequota.yaml"
         rolebinding_path = ns_dir / "rolebinding_requests.yaml"
         egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
 
-        limits = {}
-        if limits_path.exists() and limits_path.is_file():
-            parsed = yaml.safe_load(limits_path.read_text()) or {}
-            if isinstance(parsed, dict):
-                limits = parsed
+        limitrange = _parse_limitrange_manifest(limitrange_path)
+        limits = _limits_from_limitrange(limitrange)
 
-        reqs = {}
-        if requests_path.exists() and requests_path.is_file():
-            parsed = yaml.safe_load(requests_path.read_text()) or {}
-            if isinstance(parsed, dict):
-                reqs = parsed
+        resourcequota = _parse_resourcequota_manifest(resourcequota_path)
+        reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
 
         rolebinding = None
         if rolebinding_path.exists() and rolebinding_path.is_file():
@@ -697,22 +761,19 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             "status": status,
             "resources": {
                 "requests": {
-                    "cpu": (None if reqs.get("cpu") in (None, "") else str(reqs.get("cpu"))),
-                    "memory": (None if reqs.get("memory") in (None, "") else str(reqs.get("memory"))),
-                    "ephemeral-storage": (None if reqs.get("ephemeral-storage") in (None, "") else str(reqs.get("ephemeral-storage"))),
+                    "cpu": reqs.get("cpu"),
+                    "memory": reqs.get("memory"),
+                    "ephemeral-storage": reqs.get("ephemeral-storage"),
+                },
+                "quota_limits": {
+                    "memory": quota_limits.get("memory"),
+                    "ephemeral-storage": quota_limits.get("ephemeral-storage"),
                 },
                 "limits": {
-                    "cpu": (None if limits.get("cpu") in (None, "") else str(limits.get("cpu"))),
-                    "memory": (None if limits.get("memory") in (None, "") else str(limits.get("memory"))),
-                    "ephemeral-storage": (None if limits.get("ephemeral-storage") in (None, "") else str(limits.get("ephemeral-storage"))),
-                    "default": (lambda: {
-                        "cpu": (None if limits.get("default", {}).get("cpu") in (None, "") else str(limits.get("default", {}).get("cpu"))),
-                        "memory": (None if limits.get("default", {}).get("memory") in (None, "") else str(limits.get("default", {}).get("memory"))),
-                        "ephemeral-storage": (None if limits.get("default", {}).get("ephemeral-storage") in (None, "") else str(limits.get("default", {}).get("ephemeral-storage"))),
-                    })() if limits.get("default") and any(
-                        limits.get("default", {}).get(k) not in (None, "")
-                        for k in ["cpu", "memory", "ephemeral-storage"]
-                    ) else None,
+                    "cpu": limits.get("cpu"),
+                    "memory": limits.get("memory"),
+                    "ephemeral-storage": limits.get("ephemeral-storage"),
+                    "default": limits.get("default"),
                 },
             },
             "rolebindings": role_bindings,
