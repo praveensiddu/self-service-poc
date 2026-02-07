@@ -45,7 +45,7 @@ function NamespaceEgressFirewallCard({
             )}
             {!isEditingEgressFirewall && egressFirewallRules.length > 0 && (
               <button
-                className="iconBtn iconBtn-primary"
+                className="iconBtn iconBtn-plain"
                 style={{ marginLeft: 'auto' }}
                 onClick={async () => {
                   try {
