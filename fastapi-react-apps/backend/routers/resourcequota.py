@@ -11,7 +11,6 @@ from backend.routers.namespaces import (
     NamespaceResourcesQuotaLimits,
     NamespaceResourcesYamlRequest,
     NamespaceResourceQuotaUpdate,
-    _reload_namespace_details,
     _require_namespace_dir,
 )
 from backend.routers import pull_requests
@@ -189,4 +188,18 @@ def put_namespace_resourcequota(appname: str, namespace: str, payload: Namespace
     except Exception as e:
         logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
-    return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir)
+    reqs = payload.requests
+    ql = payload.quota_limits
+    return {
+        "resources": {
+            "requests": {
+                "cpu": None if reqs is None else reqs.cpu,
+                "memory": None if reqs is None else reqs.memory,
+                "ephemeral-storage": None if reqs is None else reqs.ephemeral_storage,
+            },
+            "quota_limits": {
+                "memory": None if ql is None else ql.memory,
+                "ephemeral-storage": None if ql is None else ql.ephemeral_storage,
+            },
+        }
+    }

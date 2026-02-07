@@ -10,7 +10,6 @@ from backend.routers.namespaces import (
     NamespaceResourcesLimits,
     NamespaceResourcesYamlRequest,
     _as_trimmed_str,
-    _reload_namespace_details,
     _require_namespace_dir,
 )
 from backend.routers import pull_requests
@@ -140,7 +139,21 @@ def put_namespace_limitrange(appname: str, namespace: str, payload: NamespaceLim
     except Exception as e:
         logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
-    return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir)
+    limits = payload.limits
+    return {
+        "resources": {
+            "limits": {
+                "cpu": None if limits is None else limits.cpu,
+                "memory": None if limits is None else limits.memory,
+                "ephemeral-storage": None if limits is None else limits.ephemeral_storage,
+                "default": (None if limits is None else (None if limits.default is None else {
+                    "cpu": limits.default.cpu,
+                    "memory": limits.default.memory,
+                    "ephemeral-storage": limits.default.ephemeral_storage,
+                })),
+            }
+        }
+    }
 
 
 @router.get("/apps/{appname}/namespaces/{namespace}/resources/limitrange")

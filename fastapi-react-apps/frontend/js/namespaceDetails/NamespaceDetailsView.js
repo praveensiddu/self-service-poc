@@ -17,6 +17,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [draftNsArgoSyncStrategy, setDraftNsArgoSyncStrategy] = React.useState("auto");
   const [draftNsArgoGitRepoUrl, setDraftNsArgoGitRepoUrl] = React.useState("");
   const [draftEgressNameId, setDraftEgressNameId] = React.useState("");
+  const [draftEnablePodBasedEgressIp, setDraftEnablePodBasedEgressIp] = React.useState(false);
   const [draftEgressFirewallEntries, setDraftEgressFirewallEntries] = React.useState([]);
   const [draftReqCpu, setDraftReqCpu] = React.useState("");
   const [draftReqMemory, setDraftReqMemory] = React.useState("");
@@ -78,6 +79,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         await onUpdateNamespaceInfo(namespaceName, {
           namespace_info: {
             egress_nameid: egress_nameid ? egress_nameid : null,
+            enable_pod_based_egress_ip: Boolean(draftEnablePodBasedEgressIp),
           },
         });
       } else if (block === "rolebindings") {
@@ -172,6 +174,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
     setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
     setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
+    setDraftEnablePodBasedEgressIp(Boolean(namespace?.enable_pod_based_egress_ip));
     setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
     setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
     setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
@@ -584,6 +587,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     effectiveNamespace = {
       ...namespace,
       egress_nameid: draftEgressNameId ? draftEgressNameId : null,
+      enable_pod_based_egress_ip: Boolean(draftEnablePodBasedEgressIp),
     };
   } else if (isEditingResourceQuota || isEditingLimitRange) {
     effectiveNamespace = {
@@ -918,9 +922,20 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               </div>
               <div className="detailRow">
                 <span className="detailLabel">Pod-Based Egress IP:</span>
-                <span className={`detailBadge ${podBasedEgress === 'Enabled' ? 'detailBadgeSuccess' : 'detailBadgeWarning'}`}>
-                  {podBasedEgress}
-                </span>
+                {isEditingEgress ? (
+                  <select
+                    className="filterInput"
+                    value={draftEnablePodBasedEgressIp ? "Enabled" : "Disabled"}
+                    onChange={(e) => setDraftEnablePodBasedEgressIp(e.target.value === "Enabled")}
+                  >
+                    <option value="Enabled">Enabled</option>
+                    <option value="Disabled">Disabled</option>
+                  </select>
+                ) : (
+                  <span className={`detailBadge ${podBasedEgress === 'Enabled' ? 'detailBadgeSuccess' : 'detailBadgeWarning'}`}>
+                    {podBasedEgress}
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -857,6 +857,7 @@ function App() {
         egress_firewall_rules: Array.isArray(egressFirewall?.rules) ? egressFirewall.rules : [],
       };
 
+      setDetailAppName(appname);
       setDetailNamespace(nextNamespace);
       setDetailNamespaceName(namespaceName);
       setView("namespaceDetails");
@@ -908,10 +909,32 @@ function App() {
     const hasRoleBindings = Boolean(nextUpdates && nextUpdates.rolebindings);
 
     if (hasNamespaceInfo) {
-      updated = await putJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/basic?${envParam}`,
-        { namespace_info: nextUpdates.namespace_info || {} },
-      );
+      const nsInfo = nextUpdates.namespace_info || {};
+      const hasClusters = Object.prototype.hasOwnProperty.call(nsInfo, "clusters");
+      const hasEgressNameId = Object.prototype.hasOwnProperty.call(nsInfo, "egress_nameid");
+      const hasPodBased = Object.prototype.hasOwnProperty.call(nsInfo, "enable_pod_based_egress_ip");
+
+      if (hasClusters) {
+        const basicResp = await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/basic?${envParam}`,
+          { namespace_info: { clusters: nsInfo.clusters } },
+        );
+        updated = { ...(updated || {}), ...(basicResp || {}) };
+      }
+
+      if (hasEgressNameId || hasPodBased) {
+        const egressResp = await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/egress?${envParam}`,
+          {
+            namespace_info: {
+              ...(hasEgressNameId ? { egress_nameid: nsInfo.egress_nameid } : {}),
+              ...(hasPodBased ? { enable_pod_based_egress_ip: nsInfo.enable_pod_based_egress_ip } : {}),
+            },
+          },
+        );
+        updated = { ...(updated || {}), ...(egressResp || {}) };
+      }
+
       delete nextUpdates.namespace_info;
     }
 
@@ -950,14 +973,14 @@ function App() {
       }
       delete nextUpdates.rolebindings;
     }
-
-    if (!updated) {
-      throw new Error("No matching namespace update route for the provided payload.");
-    }
-
     const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;
     const shouldWriteEgressFirewall = Boolean(egressFirewallUpdates);
     let didSideEffectWrite = false;
+    let sideEffectPatch = null;
+
+    if (!updated && !shouldWriteNsArgo && !shouldWriteEgressFirewall) {
+      throw new Error("No matching namespace update route for the provided payload.");
+    }
 
     if (shouldWriteNsArgo) {
       const payload = { ...(nsargocdUpdates || {}) };
@@ -968,11 +991,18 @@ function App() {
           `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
           { method: "DELETE", headers: { Accept: "application/json" } },
         );
+        sideEffectPatch = {
+          ...(sideEffectPatch || {}),
+          need_argo: false,
+          argocd_sync_strategy: "",
+          gitrepourl: "",
+        };
       } else {
-        await putJson(
+        const nsArgoResp = await putJson(
           `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
           payload,
         );
+        sideEffectPatch = { ...(sideEffectPatch || {}), ...(nsArgoResp || {}) };
       }
       didSideEffectWrite = true;
     }
@@ -984,28 +1014,26 @@ function App() {
           `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
           { method: "DELETE", headers: { Accept: "application/json" } },
         );
+        sideEffectPatch = { ...(sideEffectPatch || {}), egress_firewall_rules: [] };
       } else {
-        await putJson(
+        const efResp = await putJson(
           `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
           { rules },
         );
+        const nextRules = Array.isArray(efResp?.rules) ? efResp.rules : rules;
+        sideEffectPatch = { ...(sideEffectPatch || {}), egress_firewall_rules: nextRules };
       }
       didSideEffectWrite = true;
     }
 
-    if (didSideEffectWrite) {
-      const refreshed = await fetchJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-      );
-      setNamespaces(refreshed || {});
-      const refreshedNs = (refreshed || {})[namespaceName] || updated;
-      setDetailNamespace(refreshedNs);
-      return refreshedNs;
-    }
-
-    setDetailNamespace(updated);
-    setNamespaces((prev) => ({ ...(prev || {}), [namespaceName]: updated }));
-    return updated;
+    const merged = {
+      ...(detailNamespace || {}),
+      ...(updated || {}),
+      ...(sideEffectPatch || {}),
+    };
+    setDetailNamespace(merged);
+    setNamespaces((prev) => ({ ...(prev || {}), [namespaceName]: merged }));
+    return merged;
   }
 
   async function deleteNamespace(namespaceName) {
