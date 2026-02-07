@@ -659,13 +659,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             <h3>Basic Information</h3>
             {!readonly && !isEditingBasic ? (
               <button
-                className="btn btn-primary"
+                className="iconBtn iconBtn-primary"
                 type="button"
                 style={{ marginLeft: 'auto' }}
                 onClick={() => onEnableBlockEdit("basic")}
                 disabled={!canStartEditing("basic")}
+                aria-label="Enable edit"
+                title="Enable edit"
               >
-                Enable Edit
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                  <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                </svg>
               </button>
             ) : null}
             {!readonly && isEditingBasic ? (
@@ -873,13 +878,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             <h3>Egress Configuration</h3>
             {!readonly && !isEditingEgress ? (
               <button
-                className="btn btn-primary"
+                className="iconBtn iconBtn-primary"
                 type="button"
                 style={{ marginLeft: 'auto' }}
                 onClick={() => onEnableBlockEdit("egress")}
                 disabled={!canStartEditing("egress")}
+                aria-label="Enable edit"
+                title="Enable edit"
               >
-                Enable Edit
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                  <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                </svg>
               </button>
             ) : null}
             {!readonly && isEditingEgress ? (
@@ -925,13 +935,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <h3>Role Bindings</h3>
               {!readonly && !isEditingRoleBindings ? (
                 <button
-                  className="btn btn-primary"
+                  className="iconBtn iconBtn-primary"
                   type="button"
                   style={{ marginLeft: 'auto' }}
                   onClick={() => onEnableBlockEdit("rolebindings")}
                   disabled={!canStartEditing("rolebindings")}
+                  aria-label="Enable edit"
+                  title="Enable edit"
                 >
-                  Enable Edit
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                    <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                  </svg>
                 </button>
               ) : null}
               {!readonly && isEditingRoleBindings ? (
@@ -1334,6 +1349,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                             subjects = [binding.subject];
                           }
                           const rowSpan = Math.max(subjects.length, 1);
+
                           return subjects.length === 0 ? (
                             <tr key={idx}>
                               <td>{binding.roleRef?.kind || "N/A"}</td>
@@ -1516,13 +1532,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <h3>Egress Firewall</h3>
               {!readonly && !isEditingEgressFirewall ? (
                 <button
-                  className="btn btn-primary"
+                  className="iconBtn iconBtn-primary"
                   type="button"
                   style={{ marginLeft: 'auto' }}
                   onClick={() => onEnableBlockEdit("egressfirewall")}
                   disabled={!canStartEditing("egressfirewall")}
+                  aria-label="Enable edit"
+                  title="Enable edit"
                 >
-                  Enable Edit
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                    <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                  </svg>
                 </button>
               ) : null}
               {!readonly && isEditingEgressFirewall ? (
@@ -1644,7 +1665,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                         <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
+                  <tbody>
                         {(() => {
                           const dnsEntries = draftEgressFirewallEntries
                             .map((entry, idx) => ({ entry, idx }))
@@ -1961,16 +1982,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
                     {!readonly && !isEditingResourceQuota ? (
                       <button
-                        className="btn btn-primary"
+                        className="iconBtn iconBtn-primary"
                         type="button"
+                        style={{ marginLeft: 'auto' }}
                         onClick={() => onEnableBlockEdit("resourcequota")}
                         disabled={!canStartEditing("resourcequota")}
+                        aria-label="Enable edit"
+                        title="Enable edit"
                       >
-                        Enable Edit
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                          <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                        </svg>
                       </button>
                     ) : null}
                     {!readonly && isEditingResourceQuota ? (
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                         <button className="btn" type="button" onClick={onDiscardBlockEdits}>
                           Discard Edits
                         </button>
@@ -2032,16 +2059,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
                     {!readonly && !isEditingLimitRange ? (
                       <button
-                        className="btn btn-primary"
+                        className="iconBtn iconBtn-primary"
                         type="button"
+                        style={{ marginLeft: 'auto' }}
                         onClick={() => onEnableBlockEdit("limitrange")}
                         disabled={!canStartEditing("limitrange")}
+                        aria-label="Enable edit"
+                        title="Enable edit"
                       >
-                        Enable Edit
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                          <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                        </svg>
                       </button>
                     ) : null}
                     {!readonly && isEditingLimitRange ? (
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                         <button className="btn" type="button" onClick={onDiscardBlockEdits}>
                           Discard Edits
                         </button>
@@ -2116,12 +2149,17 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         {!readonly ? (
                           <button
-                            className="btn btn-primary"
+                            className="iconBtn iconBtn-primary"
                             type="button"
                             onClick={() => onEnableBlockEdit("resourcequota")}
                             disabled={!canStartEditing("resourcequota")}
+                            aria-label="Enable edit"
+                            title="Enable edit"
                           >
-                            Enable Edit
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                              <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                            </svg>
                           </button>
                         ) : null}
                         <button
@@ -2140,42 +2178,42 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                               const modalContent = document.createElement('div');
                               modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
-                            const header = document.createElement('div');
-                            header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                            header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
+                              const header = document.createElement('div');
+                              header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                              header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">ResourceQuota Definition</h3>';
 
-                            const closeBtn = document.createElement('button');
-                            closeBtn.innerHTML = '&times;';
-                            closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                            closeBtn.onclick = () => modal.remove();
-                            header.appendChild(closeBtn);
+                              const closeBtn = document.createElement('button');
+                              closeBtn.innerHTML = '&times;';
+                              closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                              closeBtn.onclick = () => modal.remove();
+                              header.appendChild(closeBtn);
 
-                            const pre = document.createElement('pre');
-                            pre.textContent = resourceQuotaYaml;
-                            pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+                              const pre = document.createElement('pre');
+                              pre.textContent = resourceQuotaYaml;
+                              pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                            const footer = document.createElement('div');
-                            footer.style.cssText = 'margin-top: 16px; text-align: right;';
+                              const footer = document.createElement('div');
+                              footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                            const copyBtn = document.createElement('button');
-                            copyBtn.textContent = 'Copy';
-                            copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                            copyBtn.onclick = () => {
-                              navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
-                            };
+                              const copyBtn = document.createElement('button');
+                              copyBtn.textContent = 'Copy';
+                              copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                              copyBtn.onclick = () => {
+                                navigator.clipboard.writeText(resourceQuotaYaml).then(() => alert('Copied to clipboard!'));
+                              };
 
-                            const closeBtn2 = document.createElement('button');
-                            closeBtn2.textContent = 'Close';
-                            closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                            closeBtn2.onclick = () => modal.remove();
+                              const closeBtn2 = document.createElement('button');
+                              closeBtn2.textContent = 'Close';
+                              closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                              closeBtn2.onclick = () => modal.remove();
 
-                            footer.appendChild(copyBtn);
-                            footer.appendChild(closeBtn2);
+                              footer.appendChild(copyBtn);
+                              footer.appendChild(closeBtn2);
 
-                            modalContent.appendChild(header);
-                            modalContent.appendChild(pre);
-                            modalContent.appendChild(footer);
-                            modal.appendChild(modalContent);
+                              modalContent.appendChild(header);
+                              modalContent.appendChild(pre);
+                              modalContent.appendChild(footer);
+                              modal.appendChild(modalContent);
 
                               document.body.appendChild(modal);
                               modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
@@ -2255,12 +2293,17 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         {!readonly ? (
                           <button
-                            className="btn btn-primary"
+                            className="iconBtn iconBtn-primary"
                             type="button"
                             onClick={() => onEnableBlockEdit("limitrange")}
                             disabled={!canStartEditing("limitrange")}
+                            aria-label="Enable edit"
+                            title="Enable edit"
                           >
-                            Enable Edit
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                              <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                            </svg>
                           </button>
                         ) : null}
                         <button

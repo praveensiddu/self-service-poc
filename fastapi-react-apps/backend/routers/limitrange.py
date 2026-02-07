@@ -141,3 +141,22 @@ def put_namespace_limitrange(appname: str, namespace: str, payload: NamespaceLim
         logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
     return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir)
+
+
+@router.get("/apps/{appname}/namespaces/{namespace}/resources/limitrange")
+def get_namespace_limitrange(appname: str, namespace: str, env: Optional[str] = None):
+    env = _require_env(env)
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+
+    limitrange_path = ns_dir / "limitrange.yaml"
+    lr = _parse_limitrange_manifest(limitrange_path)
+    limits = _limits_from_limitrange(lr)
+
+    return {
+        "limits": {
+            "cpu": limits.get("cpu"),
+            "memory": limits.get("memory"),
+            "ephemeral-storage": limits.get("ephemeral-storage"),
+            "default": limits.get("default"),
+        }
+    }

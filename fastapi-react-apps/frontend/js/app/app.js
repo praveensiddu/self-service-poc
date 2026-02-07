@@ -409,10 +409,9 @@ function App() {
             await openEgressIps(pr.appname, false);
           } else if (pr.view === "namespaceDetails" && pr.appname) {
             setPendingRoute({ env: activeEnv, view: "apps", appname: "" });
-            const nsResp = await openNamespaces(pr.appname, false);
             const nsName = pr.ns || "";
-            if (nsResp && nsName && nsResp[nsName]) {
-              viewNamespaceDetails(nsName, nsResp[nsName], pr.appname);
+            if (nsName) {
+              await viewNamespaceDetails(nsName, null, pr.appname);
             }
           } else {
             setPendingRoute({ env: activeEnv, view: "apps", appname: "" });
@@ -804,12 +803,69 @@ function App() {
     await openL4Ingress(appname, true);
   }
 
-  function viewNamespaceDetails(namespaceName, namespaceData, appnameOverride) {
-    setDetailNamespace(namespaceData);
-    setDetailNamespaceName(namespaceName);
-    setView("namespaceDetails");
+  async function viewNamespaceDetails(namespaceName, namespaceData, appnameOverride) {
     const appname = appnameOverride || detailAppName;
-    pushUiUrl({ view: "namespaceDetails", env: activeEnv, appname, ns: namespaceName }, false);
+    if (!appname) {
+      setError("No application selected.");
+      return;
+    }
+    if (!namespaceName) {
+      setError("No namespace selected.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const envParam = `env=${encodeURIComponent(activeEnv)}`;
+      const base = `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}`;
+
+      const [
+        basic,
+        egress,
+        rolebindings,
+        egressFirewall,
+        resourcequota,
+        limitrange,
+      ] = await Promise.all([
+        fetchJson(`${base}/namespace_info/basic?${envParam}`),
+        fetchJson(`${base}/namespace_info/egress?${envParam}`),
+        fetchJson(`${base}/rolebinding_requests?${envParam}`),
+        fetchJson(`${base}/egressfirewall?${envParam}`),
+        fetchJson(`${base}/resources/resourcequota?${envParam}`),
+        fetchJson(`${base}/resources/limitrange?${envParam}`),
+      ]);
+
+      const nextNamespace = {
+        name: namespaceName,
+        clusters: Array.isArray(basic?.clusters) ? basic.clusters : [],
+        egress_nameid: egress?.egress_nameid ?? null,
+        enable_pod_based_egress_ip: Boolean(egress?.enable_pod_based_egress_ip),
+        allow_all_egress: Boolean(egress?.allow_all_egress),
+        need_argo: Boolean(basic?.need_argo),
+        argocd_sync_strategy: String(basic?.argocd_sync_strategy || ""),
+        gitrepourl: String(basic?.gitrepourl || ""),
+        generate_argo_app: Boolean(basic?.generate_argo_app),
+        status: String(basic?.status || ""),
+        resources: {
+          requests: resourcequota?.requests || {},
+          quota_limits: resourcequota?.quota_limits || {},
+          limits: limitrange?.limits || {},
+        },
+        rolebindings: Array.isArray(rolebindings?.bindings) ? rolebindings.bindings : [],
+        egress_firewall_rules: Array.isArray(egressFirewall?.rules) ? egressFirewall.rules : [],
+      };
+
+      setDetailNamespace(nextNamespace);
+      setDetailNamespaceName(namespaceName);
+      setView("namespaceDetails");
+      pushUiUrl({ view: "namespaceDetails", env: activeEnv, appname, ns: namespaceName }, false);
+    } catch (e) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
   function onBackFromNamespaceDetails() {
@@ -896,10 +952,7 @@ function App() {
     }
 
     if (!updated) {
-      updated = await putJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info?${envParam}`,
-        nextUpdates || {},
-      );
+      throw new Error("No matching namespace update route for the provided payload.");
     }
 
     const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;

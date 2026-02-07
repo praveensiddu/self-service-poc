@@ -5,7 +5,6 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
     egressIp: "",
     egressFirewall: "",
     managedByArgo: "",
-    attributes: "",
   });
 
   function formatValue(val) {
@@ -75,8 +74,6 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       const statusText = formatValue(ns?.status);
       const policyText = formatValue(ns?.policy);
 
-      const attributesSearch = `${statusText} ${resourceQuotaText} ${limitRangeText} ${rolebindingsText} ${policyText}`;
-
       return {
         namespace: ns,
         name,
@@ -89,7 +86,6 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         rolebindingsText,
         statusText,
         policyText,
-        attributesSearch,
       };
     })
     .filter((r) => {
@@ -100,8 +96,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         (r.egressFirewallText || "").toLowerCase().includes((filters.egressFirewall || "").toLowerCase()) &&
         String(r.managedByArgo ? "true" : "false")
           .toLowerCase()
-          .includes((filters.managedByArgo || "").toLowerCase()) &&
-        (r.attributesSearch || "").toLowerCase().includes((filters.attributes || "").toLowerCase())
+          .includes((filters.managedByArgo || "").toLowerCase())
       );
     });
 

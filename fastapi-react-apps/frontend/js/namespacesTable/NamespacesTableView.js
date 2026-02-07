@@ -506,7 +506,6 @@ function NamespacesTableView({
             <th>EgressIP</th>
             <th>Egress Firewall</th>
             <th>Managed by ArgoCD</th>
-            <th>Attributes</th>
             <th>Actions</th>
           </tr>
           <tr>
@@ -551,25 +550,17 @@ function NamespacesTableView({
                 data-testid="filter-managed-by-argo"
               />
             </th>
-            <th>
-              <input
-                className="filterInput"
-                value={filters.attributes}
-                onChange={(e) => setFilters((p) => ({ ...p, attributes: e.target.value }))}
-                data-testid="filter-attributes"
-              />
-            </th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {keysLength === 0 ? (
             <tr>
-              <td colSpan={8} className="muted" data-testid="no-namespaces-message">No namespaces found.</td>
+              <td colSpan={7} className="muted" data-testid="no-namespaces-message">No namespaces found.</td>
             </tr>
           ) : filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="muted" data-testid="no-matches-message">No matches.</td>
+              <td colSpan={7} className="muted" data-testid="no-matches-message">No matches.</td>
             </tr>
           ) : (
             filteredRows.map((r) => (
@@ -598,26 +589,6 @@ function NamespacesTableView({
                 <td>{r.egressIpText}</td>
                 <td>{r.egressFirewallText}</td>
                 <td>{r.managedByArgo ? "True" : "False"}</td>
-                <td>
-                  <div className="attrGrid">
-                    <div className="attrRow">
-                      <div className="attrCell">
-                        <div className="attrTitle">ResourceQuota</div>
-                        <div className="attrValue">{r.resourceQuotaText}</div>
-                      </div>
-                      <div className="attrCell">
-                        <div className="attrTitle">LimitRange</div>
-                        <div className="attrValue">{r.limitRangeText}</div>
-                      </div>
-                    </div>
-                    <div className="attrRow">
-                      <div className="attrCell">
-                        <div className="attrTitle">RoleBinding</div>
-                        <div className="attrValue">{r.rolebindingsText}</div>
-                      </div>
-                    </div>
-                  </div>
-                </td>
                 <td>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button

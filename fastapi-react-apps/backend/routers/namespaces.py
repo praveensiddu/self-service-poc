@@ -25,6 +25,42 @@ def _require_namespace_dir(env: str, appname: str, namespace: str) -> Path:
     return ns_dir
 
 
+def _nsargocd_summary(*, env: str, appname: str, ns_dir: Path) -> dict:
+    try:
+        requests_root = _require_initialized_workspace()
+
+        nsargocd_path = ns_dir / "nsargocd.yaml"
+        nsargocd = _read_yaml_dict(nsargocd_path)
+        need_argo = _parse_bool(nsargocd.get("need_argo"))
+        argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
+        gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
+
+        argocd_exists = False
+        try:
+            argocd_path = (requests_root / env / appname) / "argocd.yaml"
+            argocd_exists = argocd_path.exists() and argocd_path.is_file()
+        except Exception:
+            argocd_exists = False
+        if not argocd_exists:
+            need_argo = False
+
+        status = "Argo used" if need_argo else "Argo not used"
+
+        return {
+            "need_argo": need_argo,
+            "argocd_sync_strategy": argocd_sync_strategy,
+            "gitrepourl": gitrepourl,
+            "status": status,
+        }
+    except Exception:
+        return {
+            "need_argo": False,
+            "argocd_sync_strategy": "",
+            "gitrepourl": "",
+            "status": "Argo not used",
+        }
+
+
 def _reload_namespace_details(
     *,
     env: str,
@@ -329,39 +365,6 @@ def _is_set(v: Optional[str]) -> bool:
     return bool(s) and s != "0"
 
 
-def _build_resourcequota_file_obj(
-    requests: Optional[NamespaceResourcesCpuMem],
-    quota_limits: Optional[NamespaceResourcesQuotaLimits],
-) -> dict:
-    hard = {}
-
-    if quota_limits is not None:
-        if _is_set(quota_limits.ephemeral_storage):
-            hard["limits.ephemeral-storage"] = str(quota_limits.ephemeral_storage).strip()
-        if _is_set(quota_limits.memory):
-            hard["limits.memory"] = str(quota_limits.memory).strip()
-
-    if requests is not None:
-        if _is_set(requests.cpu):
-            hard["requests.cpu"] = str(requests.cpu).strip()
-        if _is_set(requests.memory):
-            hard["requests.memory"] = str(requests.memory).strip()
-        if _is_set(requests.ephemeral_storage):
-            hard["requests.ephemeral-storage"] = str(requests.ephemeral_storage).strip()
-
-    return {
-        "apiVersion": "v1",
-        "kind": "ResourceQuota",
-        "metadata": {
-            "name": "default",
-            "namespace": "{{ .Values.namespacename }}",
-        },
-        "spec": {
-            "hard": hard,
-        },
-    }
-
-
 @router.get("/apps/{appname}/namespaces")
 def get_namespaces(appname: str, env: Optional[str] = None):
     env = _require_env(env)
@@ -385,10 +388,6 @@ def get_namespaces(appname: str, env: Optional[str] = None):
 
         ns_name = child.name
         ns_info_path = child / "namespace_info.yaml"
-        limitrange_path = child / "limitrange.yaml"
-        resourcequota_path = child / "resourcequota.yaml"
-        rolebinding_path = child / "rolebinding_requests.yaml"
-        egress_firewall_path = child / "egress_firewall_requests.yaml"
 
         ns_info = {}
         if ns_info_path.exists() and ns_info_path.is_file():
@@ -402,87 +401,22 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         nsargocd_path = child / "nsargocd.yaml"
         nsargocd = _read_yaml_dict(nsargocd_path)
 
-        from backend.routers.limitrange import _parse_limitrange_manifest
-        limitrange = _parse_limitrange_manifest(limitrange_path)
-        from backend.routers.limitrange import _limits_from_limitrange
-        limits = _limits_from_limitrange(limitrange)
-
-        from backend.routers.resourcequota import _parse_resourcequota_manifest
-        resourcequota = _parse_resourcequota_manifest(resourcequota_path)
-        from backend.routers.resourcequota import _requests_and_quota_limits_from_resourcequota
-        reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
-
-        rolebinding = None
-        if rolebinding_path.exists() and rolebinding_path.is_file():
-            try:
-                parsed = yaml.safe_load(rolebinding_path.read_text())
-                if parsed is not None:
-                    rolebinding = parsed
-            except Exception:
-                rolebinding = None
-
-        # Convert rolebinding to array of bindings format
-        role_bindings = []
-        if isinstance(rolebinding, list):
-            # Already in new format: array of bindings
-            role_bindings = rolebinding
-        elif isinstance(rolebinding, dict) and rolebinding.get("subjects"):
-            # Old format: single binding with multiple subjects - convert to array
-            subjects = rolebinding.get("subjects", [])
-            role_ref = rolebinding.get("roleRef", {})
-            for subject in subjects:
-                role_bindings.append({
-                    "subject": subject,
-                    "roleRef": role_ref
-                })
-
-        egress_firewall_rules = _read_yaml_list(egress_firewall_path)
-        if not all(isinstance(r, dict) for r in egress_firewall_rules):
-            egress_firewall_rules = [r for r in egress_firewall_rules if isinstance(r, dict)]
-
         clusters = ns_info.get("clusters")
         if not isinstance(clusters, list):
             clusters = []
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
         need_argo = _parse_bool(nsargocd.get("need_argo"))
-        argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
-        gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
         if not argocd_exists:
             need_argo = False
-        status = "Argo used" if need_argo else "Argo not used"
 
         out[ns_name] = {
             "name": ns_name,
             "description": str(ns_info.get("description", "") or ""),
             "clusters": clusters,
-            "egress_nameid": (None if ns_info.get("egress_nameid") in (None, "") else str(ns_info.get("egress_nameid"))),
             "enable_pod_based_egress_ip": _parse_bool(ns_info.get("enable_pod_based_egress_ip")),
             "allow_all_egress": _parse_bool(ns_info.get("allow_all_egress")),
             "need_argo": need_argo,
-            "argocd_sync_strategy": argocd_sync_strategy,
-            "gitrepourl": gitrepourl,
-            "generate_argo_app": _parse_bool(ns_info.get("generate_argo_app")),
-            "status": status,
-            "resources": {
-                "requests": {
-                    "cpu": reqs.get("cpu"),
-                    "memory": reqs.get("memory"),
-                    "ephemeral-storage": reqs.get("ephemeral-storage"),
-                },
-                "quota_limits": {
-                    "memory": quota_limits.get("memory"),
-                    "ephemeral-storage": quota_limits.get("ephemeral-storage"),
-                },
-                "limits": {
-                    "cpu": limits.get("cpu"),
-                    "memory": limits.get("memory"),
-                    "ephemeral-storage": limits.get("ephemeral-storage"),
-                    "default": limits.get("default"),
-                },
-            },
-            "rolebindings": role_bindings,
-            "egress_firewall_rules": egress_firewall_rules,
         }
 
     return out
@@ -559,18 +493,7 @@ def create_namespace(appname: str, payload: NamespaceCreate, env: Optional[str] 
         "allow_all_egress": False,
         "need_argo": need_argo,
         "generate_argo_app": False,
-        "status": status,
-        "resources": {
-            "requests": {
-                "cpu": None,
-                "memory": None,
-            },
-            "limits": {
-                "cpu": None,
-                "memory": None,
-            },
-        },
-        "rolebindings": [],
+        "status": status
     }
 
 
@@ -729,219 +652,54 @@ def put_namespace_info_basic(appname: str, namespace: str, payload: NamespaceInf
     return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir, ns_info=existing)
 
 
-@router.put("/apps/{appname}/namespaces/{namespace}/namespace_info")
-def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate, env: Optional[str] = None):
+@router.get("/apps/{appname}/namespaces/{namespace}/namespace_info/basic")
+def get_namespace_info_basic(appname: str, namespace: str, env: Optional[str] = None):
     env = _require_env(env)
-
-    requests_root = _require_initialized_workspace()
-    ns_dir = requests_root / env / appname / namespace
-    if not ns_dir.exists() or not ns_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"Namespace folder not found: {ns_dir}")
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
 
     ns_info_path = ns_dir / "namespace_info.yaml"
-    try:
-        existing = {}
-        if ns_info_path.exists() and ns_info_path.is_file():
+    ns_info = {}
+    if ns_info_path.exists() and ns_info_path.is_file():
+        try:
             parsed = yaml.safe_load(ns_info_path.read_text()) or {}
             if isinstance(parsed, dict):
-                existing = parsed
-
-        if payload.namespace_info is not None:
-            ni = payload.namespace_info
-            if ni.clusters is not None:
-                existing["clusters"] = [str(c) for c in ni.clusters if c is not None and str(c).strip()]
-            if ni.egress_nameid is not None:
-                existing["egress_nameid"] = str(ni.egress_nameid)
-
-        ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
-
-        if payload.resources is not None:
-            if payload.resources.requests is not None or payload.resources.quota_limits is not None:
-                resourcequota_path = ns_dir / "resourcequota.yaml"
-                rq_obj = _build_resourcequota_file_obj(
-                    requests=payload.resources.requests,
-                    quota_limits=payload.resources.quota_limits,
-                )
-                resourcequota_path.write_text(yaml.safe_dump(rq_obj, sort_keys=False))
-
-            if payload.resources.limits is not None:
-                limitrange_path = ns_dir / "limitrange.yaml"
-
-                from backend.routers.limitrange import _build_limitrange_file_obj
-
-                limitrange_obj = _build_limitrange_file_obj(namespace=namespace, limits=payload.resources.limits)
-                limitrange_path.write_text(yaml.safe_dump(limitrange_obj, sort_keys=False))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
-
-    try:
-        pull_requests.ensure_pull_request(appname=appname, env=env)
-    except Exception as e:
-        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
-
-    # RoleBindings validation and update - outside try-except so validation errors return proper 400 status
-    if payload.rolebindings is not None and payload.rolebindings.bindings is not None:
-        rolebinding_path = ns_dir / "rolebinding_requests.yaml"
-        egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
-
-        # Convert bindings to array format for storage with validation
-        rolebindings_data = []
-        for idx, binding in enumerate(payload.rolebindings.bindings):
-            # Validate roleRef fields
-            roleref_kind = str(binding.roleRef.kind).strip() if binding.roleRef.kind is not None else ""
-            roleref_name = str(binding.roleRef.name).strip() if binding.roleRef.name is not None else ""
-
-            if not roleref_kind:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}: Role Type is mandatory and cannot be empty"
-                )
-            if not roleref_name:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
-                )
-
-            # Validate subjects array
-            if not binding.subjects or len(binding.subjects) == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}: At least one subject is required"
-                )
-
-            # Validate each subject
-            validated_subjects = []
-            for sub_idx, subject in enumerate(binding.subjects):
-                subject_kind = str(subject.kind).strip() if subject.kind is not None else ""
-                subject_name = str(subject.name).strip() if subject.name is not None else ""
-
-                if not subject_kind:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Kind is mandatory and cannot be empty"
-                    )
-                if not subject_name:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Name is mandatory and cannot be empty"
-                    )
-
-                validated_subjects.append({
-                    "kind": subject_kind,
-                    "name": subject_name
-                })
-
-            binding_dict = {
-                "subjects": validated_subjects,
-                "roleRef": {
-                    "kind": roleref_kind,
-                    "name": roleref_name
-                }
-            }
-            rolebindings_data.append(binding_dict)
-
-        # Write rolebindings data - even if array is empty, write it to clear previous values
-        try:
-            rolebinding_path.write_text(yaml.safe_dump(rolebindings_data, sort_keys=False))
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to write RoleBinding: {e}")
-
-    # Return updated namespace in the same shape as get_namespaces
-    # by reusing the same file parsing logic.
-    try:
-        limitrange_path = ns_dir / "limitrange.yaml"
-        resourcequota_path = ns_dir / "resourcequota.yaml"
-        rolebinding_path = ns_dir / "rolebinding_requests.yaml"
-        egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
-
-        from backend.routers.limitrange import _parse_limitrange_manifest
-        limitrange = _parse_limitrange_manifest(limitrange_path)
-        from backend.routers.limitrange import _limits_from_limitrange
-        limits = _limits_from_limitrange(limitrange)
-
-        from backend.routers.resourcequota import _parse_resourcequota_manifest
-        resourcequota = _parse_resourcequota_manifest(resourcequota_path)
-        from backend.routers.resourcequota import _requests_and_quota_limits_from_resourcequota
-        reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
-
-        rolebinding = None
-        if rolebinding_path.exists() and rolebinding_path.is_file():
-            parsed = yaml.safe_load(rolebinding_path.read_text())
-            if parsed is not None:
-                rolebinding = parsed
-
-        # Convert rolebinding to array of bindings format
-        role_bindings = []
-        if isinstance(rolebinding, list):
-            # Already in new format: array of bindings
-            role_bindings = rolebinding
-        elif isinstance(rolebinding, dict) and rolebinding.get("subjects"):
-            # Old format: single binding with multiple subjects - convert to array
-            subjects = rolebinding.get("subjects", [])
-            role_ref = rolebinding.get("roleRef", {})
-            for subject in subjects:
-                role_bindings.append({
-                    "subject": subject,
-                    "roleRef": role_ref
-                })
-
-        egress_firewall_rules = _read_yaml_list(egress_firewall_path)
-        if not all(isinstance(r, dict) for r in egress_firewall_rules):
-            egress_firewall_rules = [r for r in egress_firewall_rules if isinstance(r, dict)]
-
-        clusters = existing.get("clusters")
-        if not isinstance(clusters, list):
-            clusters = []
-        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
-
-        nsargocd_path = ns_dir / "nsargocd.yaml"
-        nsargocd = _read_yaml_dict(nsargocd_path)
-        need_argo = _parse_bool(nsargocd.get("need_argo"))
-        argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
-        gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
-        argocd_exists = False
-        try:
-            argocd_path = (requests_root / env / appname) / "argocd.yaml"
-            argocd_exists = argocd_path.exists() and argocd_path.is_file()
+                ns_info = parsed
         except Exception:
-            argocd_exists = False
-        if not argocd_exists:
-            need_argo = False
-        status = "Argo used" if need_argo else "Argo not used"
+            ns_info = {}
 
-        return {
-            "name": namespace,
-            "description": str(existing.get("description", "") or ""),
-            "clusters": clusters,
-            "egress_nameid": (
-                None if existing.get("egress_nameid") in (None, "") else str(existing.get("egress_nameid"))
-            ),
-            "enable_pod_based_egress_ip": _parse_bool(existing.get("enable_pod_based_egress_ip")),
-            "allow_all_egress": _parse_bool(existing.get("allow_all_egress")),
-            "need_argo": need_argo,
-            "argocd_sync_strategy": argocd_sync_strategy,
-            "gitrepourl": gitrepourl,
-            "generate_argo_app": _parse_bool(existing.get("generate_argo_app")),
-            "status": status,
-            "resources": {
-                "requests": {
-                    "cpu": reqs.get("cpu"),
-                    "memory": reqs.get("memory"),
-                    "ephemeral-storage": reqs.get("ephemeral-storage"),
-                },
-                "quota_limits": {
-                    "memory": quota_limits.get("memory"),
-                    "ephemeral-storage": quota_limits.get("ephemeral-storage"),
-                },
-                "limits": {
-                    "cpu": limits.get("cpu"),
-                    "memory": limits.get("memory"),
-                    "ephemeral-storage": limits.get("ephemeral-storage"),
-                    "default": limits.get("default"),
-                },
-            },
-            "rolebindings": role_bindings,
-            "egress_firewall_rules": egress_firewall_rules,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")
+    clusters = ns_info.get("clusters")
+    if not isinstance(clusters, list):
+        clusters = []
+    clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
+
+    out = {
+        "clusters": clusters,
+        "generate_argo_app": _parse_bool(ns_info.get("generate_argo_app")),
+    }
+    out.update(_nsargocd_summary(env=env, appname=appname, ns_dir=ns_dir))
+    return out
+
+
+@router.get("/apps/{appname}/namespaces/{namespace}/namespace_info/egress")
+def get_namespace_info_egress(appname: str, namespace: str, env: Optional[str] = None):
+    env = _require_env(env)
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+
+    ns_info_path = ns_dir / "namespace_info.yaml"
+    ns_info = {}
+    if ns_info_path.exists() and ns_info_path.is_file():
+        try:
+            parsed = yaml.safe_load(ns_info_path.read_text()) or {}
+            if isinstance(parsed, dict):
+                ns_info = parsed
+        except Exception:
+            ns_info = {}
+
+    egress_nameid = ns_info.get("egress_nameid")
+    egress_nameid = None if egress_nameid in (None, "") else str(egress_nameid)
+
+    return {
+        "egress_nameid": egress_nameid,
+        "enable_pod_based_egress_ip": _parse_bool(ns_info.get("enable_pod_based_egress_ip")),
+        "allow_all_egress": _parse_bool(ns_info.get("allow_all_egress")),
+    }

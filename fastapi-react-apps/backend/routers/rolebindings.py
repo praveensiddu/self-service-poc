@@ -134,4 +134,39 @@ def put_namespace_rolebinding_requests(appname: str, namespace: str, payload: Na
     except Exception as e:
         logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
-    return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir)
+    return {"bindings": rolebindings_data}
+
+
+@router.get("/apps/{appname}/namespaces/{namespace}/rolebinding_requests")
+def get_namespace_rolebinding_requests(appname: str, namespace: str, env: Optional[str] = None):
+    env = _require_env(env)
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+
+    rolebinding_path = ns_dir / "rolebinding_requests.yaml"
+    if not rolebinding_path.exists() or not rolebinding_path.is_file():
+        return {"bindings": []}
+
+    try:
+        parsed = yaml.safe_load(rolebinding_path.read_text())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read RoleBinding: {e}")
+
+    if parsed is None:
+        return {"bindings": []}
+
+    if isinstance(parsed, list):
+        bindings = [b for b in parsed if isinstance(b, dict)]
+        return {"bindings": bindings}
+
+    if isinstance(parsed, dict) and parsed.get("subjects"):
+        subjects = parsed.get("subjects", [])
+        role_ref = parsed.get("roleRef", {})
+        bindings = []
+        if isinstance(subjects, list):
+            bindings.append({
+                "subjects": [s for s in subjects if isinstance(s, dict)],
+                "roleRef": role_ref if isinstance(role_ref, dict) else {},
+            })
+        return {"bindings": bindings}
+
+    return {"bindings": []}

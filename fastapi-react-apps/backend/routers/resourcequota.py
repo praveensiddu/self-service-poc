@@ -11,7 +11,6 @@ from backend.routers.namespaces import (
     NamespaceResourcesQuotaLimits,
     NamespaceResourcesYamlRequest,
     NamespaceResourceQuotaUpdate,
-    _build_resourcequota_file_obj,
     _reload_namespace_details,
     _require_namespace_dir,
 )
@@ -24,6 +23,7 @@ logger = logging.getLogger("uvicorn.error")
 __all__ = [
     "_parse_resourcequota_manifest",
     "_requests_and_quota_limits_from_resourcequota",
+    "_build_resourcequota_file_obj",
 ]
 
 
@@ -94,6 +94,61 @@ def _build_resourcequota_obj(
         "metadata": {
             "name": f"{namespace}-quota",
             "namespace": namespace,
+        },
+        "spec": {
+            "hard": hard,
+        },
+    }
+
+
+@router.get("/apps/{appname}/namespaces/{namespace}/resources/resourcequota")
+def get_namespace_resourcequota(appname: str, namespace: str, env: Optional[str] = None):
+    env = _require_env(env)
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+
+    resourcequota_path = ns_dir / "resourcequota.yaml"
+    rq = _parse_resourcequota_manifest(resourcequota_path)
+    reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(rq)
+
+    return {
+        "requests": {
+            "cpu": reqs.get("cpu"),
+            "memory": reqs.get("memory"),
+            "ephemeral-storage": reqs.get("ephemeral-storage"),
+        },
+        "quota_limits": {
+            "memory": quota_limits.get("memory"),
+            "ephemeral-storage": quota_limits.get("ephemeral-storage"),
+        },
+    }
+
+
+def _build_resourcequota_file_obj(
+    requests: Optional[NamespaceResourcesCpuMem],
+    quota_limits: Optional[NamespaceResourcesQuotaLimits],
+) -> dict:
+    hard = {}
+
+    if quota_limits is not None:
+        if _is_set(quota_limits.ephemeral_storage):
+            hard["limits.ephemeral-storage"] = str(quota_limits.ephemeral_storage).strip()
+        if _is_set(quota_limits.memory):
+            hard["limits.memory"] = str(quota_limits.memory).strip()
+
+    if requests is not None:
+        if _is_set(requests.cpu):
+            hard["requests.cpu"] = str(requests.cpu).strip()
+        if _is_set(requests.memory):
+            hard["requests.memory"] = str(requests.memory).strip()
+        if _is_set(requests.ephemeral_storage):
+            hard["requests.ephemeral-storage"] = str(requests.ephemeral_storage).strip()
+
+    return {
+        "apiVersion": "v1",
+        "kind": "ResourceQuota",
+        "metadata": {
+            "name": "default",
+            "namespace": "{{ .Values.namespacename }}",
         },
         "spec": {
             "hard": hard,
