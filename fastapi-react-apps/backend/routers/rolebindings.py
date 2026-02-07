@@ -7,13 +7,8 @@ import yaml
 from pydantic import BaseModel
 
 from backend.routers.apps import _require_env
-from backend.routers.namespaces import (
-    NamespaceRoleBindingsUpdate,
-    RBRoleRef,
-    RBSubject,
-    _reload_namespace_details,
-    _require_namespace_dir,
-)
+from backend.routers.ns_models import NamespaceRoleBindingsUpdate, RBRoleRef, RBSubject
+from backend.routers.namespaces import _require_namespace_dir
 from backend.routers import pull_requests
 
 router = APIRouter(tags=["rolebindings"])

@@ -6,13 +6,13 @@ import logging
 import yaml
 
 from backend.routers.apps import _require_env
-from backend.routers.namespaces import (
+from backend.routers.ns_models import (
     NamespaceResourcesCpuMem,
     NamespaceResourcesQuotaLimits,
     NamespaceResourcesYamlRequest,
     NamespaceResourceQuotaUpdate,
-    _require_namespace_dir,
 )
+from backend.routers.namespaces import _require_namespace_dir
 from backend.routers import pull_requests
 
 router = APIRouter(tags=["resourcequota"])
