@@ -52,7 +52,7 @@ function NamespaceResourceQuotaCard({
         right={
           !readonly && !isEditing ? (
             <button
-              className="iconBtn iconBtn-primary"
+              className="iconBtn iconBtn-plain"
               type="button"
               onClick={() => {
                 (async () => {
