@@ -943,21 +943,48 @@ function App() {
 
       const hasResourceQuota = Boolean(resources && (resources.requests || resources.quota_limits));
       if (hasResourceQuota) {
-        updated = await putJson(
+        const rqResp = await putJson(
           `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/resourcequota?${envParam}`,
           {
             requests: resources.requests || null,
             quota_limits: resources.quota_limits || null,
           },
         );
+
+        const prevResources = {
+          ...((detailNamespace && detailNamespace.resources) || {}),
+          ...((updated && updated.resources) || {}),
+        };
+
+        updated = {
+          ...(updated || {}),
+          resources: {
+            ...prevResources,
+            requests: rqResp && Object.prototype.hasOwnProperty.call(rqResp, "requests") ? rqResp.requests : null,
+            quota_limits: rqResp && Object.prototype.hasOwnProperty.call(rqResp, "quota_limits") ? rqResp.quota_limits : null,
+          },
+        };
       }
 
       const hasLimitRange = Boolean(resources && resources.limits);
       if (hasLimitRange) {
-        updated = await putJson(
+        const lrResp = await putJson(
           `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/limitrange?${envParam}`,
           { limits: resources.limits || null },
         );
+
+        const prevResources = {
+          ...((detailNamespace && detailNamespace.resources) || {}),
+          ...((updated && updated.resources) || {}),
+        };
+
+        updated = {
+          ...(updated || {}),
+          resources: {
+            ...prevResources,
+            limits: lrResp && Object.prototype.hasOwnProperty.call(lrResp, "limits") ? lrResp.limits : null,
+          },
+        };
       }
 
       delete nextUpdates.resources;

@@ -140,18 +140,16 @@ def put_namespace_limitrange(appname: str, namespace: str, payload: NamespaceLim
 
     limits = payload.limits
     return {
-        "resources": {
-            "limits": {
-                "cpu": None if limits is None else limits.cpu,
-                "memory": None if limits is None else limits.memory,
-                "ephemeral-storage": None if limits is None else limits.ephemeral_storage,
-                "default": (None if limits is None else (None if limits.default is None else {
-                    "cpu": limits.default.cpu,
-                    "memory": limits.default.memory,
-                    "ephemeral-storage": limits.default.ephemeral_storage,
-                })),
-            }
-        }
+        "limits": {
+            "cpu": None if limits is None else limits.cpu,
+            "memory": None if limits is None else limits.memory,
+            "ephemeral-storage": None if limits is None else limits.ephemeral_storage,
+            "default": (None if limits is None else (None if limits.default is None else {
+                "cpu": limits.default.cpu,
+                "memory": limits.default.memory,
+                "ephemeral-storage": limits.default.ephemeral_storage,
+            })),
+        },
     }
 
 

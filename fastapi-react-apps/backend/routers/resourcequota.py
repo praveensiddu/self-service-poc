@@ -191,15 +191,13 @@ def put_namespace_resourcequota(appname: str, namespace: str, payload: Namespace
     reqs = payload.requests
     ql = payload.quota_limits
     return {
-        "resources": {
-            "requests": {
-                "cpu": None if reqs is None else reqs.cpu,
-                "memory": None if reqs is None else reqs.memory,
-                "ephemeral-storage": None if reqs is None else reqs.ephemeral_storage,
-            },
-            "quota_limits": {
-                "memory": None if ql is None else ql.memory,
-                "ephemeral-storage": None if ql is None else ql.ephemeral_storage,
-            },
-        }
+        "requests": {
+            "cpu": None if reqs is None else reqs.cpu,
+            "memory": None if reqs is None else reqs.memory,
+            "ephemeral-storage": None if reqs is None else reqs.ephemeral_storage,
+        },
+        "quota_limits": {
+            "memory": None if ql is None else ql.memory,
+            "ephemeral-storage": None if ql is None else ql.ephemeral_storage,
+        },
     }

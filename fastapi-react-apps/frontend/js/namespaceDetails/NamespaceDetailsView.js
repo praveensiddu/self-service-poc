@@ -76,10 +76,17 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     try {
       if (block === "basic") {
         const clusters = (draftBasic?.clustersList || []).map((s) => String(s).trim()).filter(Boolean);
+        const needArgo = Boolean(draftBasic?.managedByArgo);
+        const nsargocd = {
+          argocd_sync_strategy: String(draftBasic?.nsArgoSyncStrategy || "").trim(),
+          gitrepourl: String(draftBasic?.nsArgoGitRepoUrl || "").trim(),
+        };
         await onUpdateNamespaceInfo(namespaceName, {
           namespace_info: {
             clusters,
+            need_argo: needArgo,
           },
+          nsargocd,
         });
       } else if (block === "egress") {
         const egress_nameid = (draftEgress?.egressNameId || "").trim();
@@ -721,20 +728,23 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
         {/* Right Column - Resources (1/3 width) */}
         <div>
-          <NamespaceResourcesCard
-            header={getHeaderProps("resources", isEditingResourceQuota || isEditingLimitRange)}
-            readonly={readonly}
-            isEditingResourceQuota={isEditingResourceQuota}
-            isEditingLimitRange={isEditingLimitRange}
-            canStartEditing={canStartEditing}
-            onEnableBlockEdit={onEnableBlockEdit}
-            onDiscardBlockEdits={onDiscardBlockEdits}
-            onSaveBlock={onSaveBlock}
+          <NamespaceResourceQuotaCard
+            header={getHeaderProps("resourcequota", isEditingResourceQuota)}
             resources={resources}
             formatValue={formatValue}
             draft={draftResources}
             setDraft={setDraftResources}
             fetchResourceQuotaYaml={fetchResourceQuotaYaml}
+          />
+
+          <div style={{ height: 16 }} />
+
+          <NamespaceLimitRangeCard
+            header={getHeaderProps("limitrange", isEditingLimitRange)}
+            resources={resources}
+            formatValue={formatValue}
+            draft={draftResources}
+            setDraft={setDraftResources}
             fetchLimitRangeYaml={fetchLimitRangeYaml}
           />
         </div>
