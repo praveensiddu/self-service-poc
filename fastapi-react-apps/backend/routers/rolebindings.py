@@ -1,14 +1,24 @@
 from fastapi import APIRouter, HTTPException, Response
 from typing import Optional, List
 
+import logging
 import yaml
 
 from pydantic import BaseModel
 
 from backend.routers.apps import _require_env
-from backend.routers.namespaces import RBRoleRef, RBSubject
+from backend.routers.namespaces import (
+    NamespaceRoleBindingsUpdate,
+    RBRoleRef,
+    RBSubject,
+    _reload_namespace_details,
+    _require_namespace_dir,
+)
+from backend.routers import pull_requests
 
 router = APIRouter(tags=["rolebindings"])
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class RoleBindingYamlRequest(BaseModel):
@@ -68,3 +78,60 @@ def get_rolebinding_yaml(appname: str, namespace: str, payload: RoleBindingYamlR
 
     yaml_text = yaml.safe_dump(rolebinding_obj, sort_keys=False)
     return Response(content=yaml_text, media_type="text/yaml")
+
+
+@router.put("/apps/{appname}/namespaces/{namespace}/rolebinding_requests")
+def put_namespace_rolebinding_requests(appname: str, namespace: str, payload: NamespaceRoleBindingsUpdate, env: Optional[str] = None):
+    env = _require_env(env)
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+
+    rolebinding_path = ns_dir / "rolebinding_requests.yaml"
+
+    bindings_in = payload.bindings or []
+    rolebindings_data = []
+    for idx, binding in enumerate(bindings_in):
+        roleref_kind = str(binding.roleRef.kind).strip() if binding.roleRef.kind is not None else ""
+        roleref_name = str(binding.roleRef.name).strip() if binding.roleRef.name is not None else ""
+
+        if not roleref_kind:
+            raise HTTPException(status_code=400, detail=f"Role Binding #{idx + 1}: Role Type is mandatory and cannot be empty")
+        if not roleref_name:
+            raise HTTPException(status_code=400, detail=f"Role Binding #{idx + 1}: Role Reference is mandatory and cannot be empty")
+
+        if not binding.subjects or len(binding.subjects) == 0:
+            raise HTTPException(status_code=400, detail=f"Role Binding #{idx + 1}: At least one subject is required")
+
+        validated_subjects = []
+        for sub_idx, subject in enumerate(binding.subjects):
+            subject_kind = str(subject.kind).strip() if subject.kind is not None else ""
+            subject_name = str(subject.name).strip() if subject.name is not None else ""
+
+            if not subject_kind:
+                raise HTTPException(status_code=400, detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Kind is mandatory and cannot be empty")
+            if not subject_name:
+                raise HTTPException(status_code=400, detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Name is mandatory and cannot be empty")
+
+            validated_subjects.append({
+                "kind": subject_kind,
+                "name": subject_name,
+            })
+
+        rolebindings_data.append({
+            "subjects": validated_subjects,
+            "roleRef": {
+                "kind": roleref_kind,
+                "name": roleref_name,
+            }
+        })
+
+    try:
+        rolebinding_path.write_text(yaml.safe_dump(rolebindings_data, sort_keys=False))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write RoleBinding: {e}")
+
+    try:
+        pull_requests.ensure_pull_request(appname=appname, env=env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
+
+    return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir)

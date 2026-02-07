@@ -844,10 +844,63 @@ function App() {
       delete nextUpdates.egressfirewall;
     }
 
-    const updated = await putJson(
-      `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info?env=${encodeURIComponent(activeEnv)}`,
-      nextUpdates || {},
-    );
+    const envParam = `env=${encodeURIComponent(activeEnv)}`;
+    let updated = null;
+
+    const hasNamespaceInfo = Boolean(nextUpdates && nextUpdates.namespace_info);
+    const hasResources = Boolean(nextUpdates && nextUpdates.resources);
+    const hasRoleBindings = Boolean(nextUpdates && nextUpdates.rolebindings);
+
+    if (hasNamespaceInfo) {
+      updated = await putJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/basic?${envParam}`,
+        { namespace_info: nextUpdates.namespace_info || {} },
+      );
+      delete nextUpdates.namespace_info;
+    }
+
+    if (hasResources) {
+      const resources = nextUpdates.resources || {};
+
+      const hasResourceQuota = Boolean(resources && (resources.requests || resources.quota_limits));
+      if (hasResourceQuota) {
+        updated = await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/resourcequota?${envParam}`,
+          {
+            requests: resources.requests || null,
+            quota_limits: resources.quota_limits || null,
+          },
+        );
+      }
+
+      const hasLimitRange = Boolean(resources && resources.limits);
+      if (hasLimitRange) {
+        updated = await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/limitrange?${envParam}`,
+          { limits: resources.limits || null },
+        );
+      }
+
+      delete nextUpdates.resources;
+    }
+
+    if (hasRoleBindings) {
+      const bindings = nextUpdates?.rolebindings?.bindings;
+      if (bindings !== undefined) {
+        updated = await putJson(
+          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/rolebinding_requests?${envParam}`,
+          { bindings: Array.isArray(bindings) ? bindings : [] },
+        );
+      }
+      delete nextUpdates.rolebindings;
+    }
+
+    if (!updated) {
+      updated = await putJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info?${envParam}`,
+        nextUpdates || {},
+      );
+    }
 
     const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;
     const shouldWriteEgressFirewall = Boolean(egressFirewallUpdates);

@@ -7,7 +7,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     );
   }
 
-  const [editEnabled, setEditEnabled] = React.useState(false);
+  const [editBlock, setEditBlock] = React.useState(null);
   const [draftClusters, setDraftClusters] = React.useState("");
   const [draftClustersList, setDraftClustersList] = React.useState([]);
   const [clusterOptions, setClusterOptions] = React.useState([]);
@@ -34,17 +34,140 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   const [roleCatalogByKind, setRoleCatalogByKind] = React.useState({ Role: [], ClusterRole: [] });
   const [roleCatalogError, setRoleCatalogError] = React.useState("");
 
-  React.useEffect(() => {
-    // Don't reload draft state if we're in edit mode - this prevents losing unsaved changes
-    // when the namespace prop updates (e.g., after a save or external update)
-    if (editEnabled) {
+  const editEnabled = Boolean(editBlock);
+
+  const isEditingBasic = editBlock === "basic";
+  const isEditingEgress = editBlock === "egress";
+  const isEditingRoleBindings = editBlock === "rolebindings";
+  const isEditingEgressFirewall = editBlock === "egressfirewall";
+  const isEditingResourceQuota = editBlock === "resourcequota";
+  const isEditingLimitRange = editBlock === "limitrange";
+
+  function canStartEditing(block) {
+    if (readonly) return false;
+    if (!editBlock) return true;
+    return editBlock === block;
+  }
+
+  function onEnableBlockEdit(block) {
+    if (!canStartEditing(block)) return;
+    resetDraftFromNamespace();
+    setEditBlock(block);
+  }
+
+  function onDiscardBlockEdits() {
+    resetDraftFromNamespace();
+    setEditBlock(null);
+  }
+
+  async function onSaveBlock(block) {
+    if (typeof onUpdateNamespaceInfo !== "function") {
+      setEditBlock(null);
       return;
     }
+    try {
+      if (block === "basic") {
+        const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
+        await onUpdateNamespaceInfo(namespaceName, {
+          namespace_info: {
+            clusters,
+          },
+        });
+      } else if (block === "egress") {
+        const egress_nameid = (draftEgressNameId || "").trim();
+        await onUpdateNamespaceInfo(namespaceName, {
+          namespace_info: {
+            egress_nameid: egress_nameid ? egress_nameid : null,
+          },
+        });
+      } else if (block === "rolebindings") {
+        const bindings = (draftRoleBindingsEntries || [])
+          .map((entry) => ({
+            subjects: Array.isArray(entry?.subjects)
+              ? entry.subjects
+                  .filter((s) => (s?.kind && String(s.kind).trim()) || (s?.name && String(s.name).trim()))
+                  .map((s) => ({ kind: s?.kind || "User", name: s?.name || "" }))
+              : [],
+            roleRef: {
+              kind: entry?.roleRef?.kind || "ClusterRole",
+              name: entry?.roleRef?.name || "",
+            },
+          }))
+          .filter((b) => Array.isArray(b.subjects) && b.subjects.length > 0);
 
+        await onUpdateNamespaceInfo(namespaceName, {
+          rolebindings: {
+            bindings,
+          },
+        });
+      } else if (block === "egressfirewall") {
+        const rules = (draftEgressFirewallEntries || [])
+          .map((r) => ({
+            egressType: String(r?.egressType || "").trim(),
+            egressValue: String(r?.egressValue || "").trim(),
+            ports: String(r?.egressType || "").trim() === "cidrSelector"
+              ? (Array.isArray(r?.ports) ? r.ports : [])
+                  .filter((p) => {
+                    const portValue = p?.port === "" || p?.port == null ? "" : String(p.port).trim();
+                    return p?.protocol && portValue !== "" && !isNaN(Number(portValue));
+                  })
+                  .map((p) => ({
+                    protocol: String(p?.protocol || "").trim(),
+                    port: Number(p.port),
+                  }))
+              : undefined,
+          }))
+          .filter((r) => r.egressType && r.egressValue);
 
+        await onUpdateNamespaceInfo(namespaceName, {
+          egressfirewall: {
+            rules,
+          },
+        });
+      } else if (block === "resourcequota") {
+        await onUpdateNamespaceInfo(namespaceName, {
+          resources: {
+            requests: {
+              cpu: (draftReqCpu || "").trim(),
+              memory: (draftReqMemory || "").trim(),
+              "ephemeral-storage": (draftReqEphemeralStorage || "").trim(),
+            },
+            quota_limits: {
+              memory: (draftQuotaLimMemory || "").trim(),
+              "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim(),
+            },
+          },
+        });
+      } else if (block === "limitrange") {
+        await onUpdateNamespaceInfo(namespaceName, {
+          resources: {
+            limits: {
+              cpu: (draftLimCpu || "").trim(),
+              memory: (draftLimMemory || "").trim(),
+              "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
+              default: {
+                cpu: (draftLimDefaultCpu || "").trim(),
+                memory: (draftLimDefaultMemory || "").trim(),
+                "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim(),
+              },
+            },
+          },
+        });
+      }
+
+      setEditBlock(null);
+    } catch (error) {
+      const errorMessage = error?.message || String(error);
+      alert(`Failed to save changes:\n\n${errorMessage}`);
+    }
+  }
+
+  function resetDraftFromNamespace() {
     const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
     setDraftClusters(initialClusters);
     setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
+    setClusterQuery("");
+    setClusterPickerOpen(false);
     setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
     setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
     setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
@@ -61,37 +184,30 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
     setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
 
-    // Initialize RoleBindings draft values
-    // Backend returns array of bindings with subjects array in each
     let rolebindingsEntries = [];
-
     if (Array.isArray(namespace?.rolebindings)) {
       rolebindingsEntries = namespace.rolebindings.map(binding => {
-        // Handle both new format (subjects array) and legacy format (single subject)
         let subjects = [];
         if (Array.isArray(binding.subjects)) {
           subjects = binding.subjects.map(s => ({
             kind: s?.kind || "User",
-            name: s?.name || ""
+            name: s?.name || "",
           }));
         } else if (binding.subject) {
-          // Legacy support: convert single subject to array
           subjects = [{
             kind: binding.subject?.kind || "User",
-            name: binding.subject?.name || ""
+            name: binding.subject?.name || "",
           }];
         }
-
         return {
           subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
           roleRef: {
             kind: binding.roleRef?.kind || "ClusterRole",
-            name: binding.roleRef?.name || ""
+            name: binding.roleRef?.name || "",
           }
         };
       });
     }
-
     setDraftRoleBindingsEntries(rolebindingsEntries);
 
     let egressFirewallEntries = [];
@@ -109,13 +225,22 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         }));
     }
     setDraftEgressFirewallEntries(egressFirewallEntries);
+  }
+
+  React.useEffect(() => {
+    // Don't reload draft state if we're in edit mode - this prevents losing unsaved changes
+    // when the namespace prop updates (e.g., after a save or external update)
+    if (editEnabled) {
+      return;
+    }
+    resetDraftFromNamespace();
   }, [namespace, namespaceName, editEnabled]);
 
   React.useEffect(() => {
     let mounted = true;
     async function loadClusters() {
       try {
-        if (!editEnabled) return;
+        if (editBlock !== "basic") return;
         if (!env || !appname) return;
         const res = await fetch(
           `/api/clusters?env=${encodeURIComponent(env)}&app=${encodeURIComponent(appname)}`,
@@ -138,14 +263,14 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return () => {
       mounted = false;
     };
-  }, [editEnabled, env, appname]);
+  }, [editBlock, env, appname]);
 
   React.useEffect(() => {
     let mounted = true;
 
     async function loadRoleCatalogs() {
       try {
-        if (!editEnabled) return;
+        if (editBlock !== "rolebindings") return;
         setRoleCatalogError("");
 
         const envKey = String(env || "").trim();
@@ -176,7 +301,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return () => {
       mounted = false;
     };
-  }, [editEnabled, env]);
+  }, [editBlock, env]);
 
   async function fetchRoleBindingYaml({ subjects, roleRef, bindingIndex }) {
     const envKey = String(env || "").trim();
@@ -436,7 +561,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     return String(val);
   }
 
-  const effectiveClusters = editEnabled
+  const effectiveClusters = isEditingBasic
     ? (draftClustersList || [])
         .map((s) => String(s).trim())
         .filter(Boolean)
@@ -444,50 +569,59 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       ? namespace.clusters
       : [];
 
-  const effectiveNamespace = editEnabled
-    ? {
-        ...namespace,
-        clusters: effectiveClusters,
-        egress_nameid: draftEgressNameId ? draftEgressNameId : null,
-        need_argo: Boolean(draftManagedByArgo),
-        argocd_sync_strategy: String(draftNsArgoSyncStrategy || "auto") || "auto",
-        gitrepourl: String(draftNsArgoGitRepoUrl || ""),
-        generate_argo_app: false,
-        status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
-        resources: {
-          ...(namespace?.resources || {}),
-          requests: {
-            ...(namespace?.resources?.requests || {}),
-            cpu: (draftReqCpu || "").trim(),
-            memory: (draftReqMemory || "").trim(),
-            "ephemeral-storage": (draftReqEphemeralStorage || "").trim(),
-          },
-          quota_limits: {
-            memory: (draftQuotaLimMemory || "").trim(),
-            "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim(),
-          },
-          limits: {
-            ...(namespace?.resources?.limits || {}),
-            cpu: (draftLimCpu || "").trim(),
-            memory: (draftLimMemory || "").trim(),
-            "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
-            default: {
-              cpu: (draftLimDefaultCpu || "").trim(),
-              memory: (draftLimDefaultMemory || "").trim(),
-              "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim(),
-            },
+  let effectiveNamespace = namespace;
+  if (isEditingBasic) {
+    effectiveNamespace = {
+      ...namespace,
+      clusters: effectiveClusters,
+      need_argo: Boolean(draftManagedByArgo),
+      argocd_sync_strategy: String(draftNsArgoSyncStrategy || "auto") || "auto",
+      gitrepourl: String(draftNsArgoGitRepoUrl || ""),
+      generate_argo_app: false,
+      status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
+    };
+  } else if (isEditingEgress) {
+    effectiveNamespace = {
+      ...namespace,
+      egress_nameid: draftEgressNameId ? draftEgressNameId : null,
+    };
+  } else if (isEditingResourceQuota || isEditingLimitRange) {
+    effectiveNamespace = {
+      ...namespace,
+      resources: {
+        ...(namespace?.resources || {}),
+        requests: {
+          ...(namespace?.resources?.requests || {}),
+          cpu: (draftReqCpu || "").trim(),
+          memory: (draftReqMemory || "").trim(),
+          "ephemeral-storage": (draftReqEphemeralStorage || "").trim(),
+        },
+        quota_limits: {
+          memory: (draftQuotaLimMemory || "").trim(),
+          "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim(),
+        },
+        limits: {
+          ...(namespace?.resources?.limits || {}),
+          cpu: (draftLimCpu || "").trim(),
+          memory: (draftLimMemory || "").trim(),
+          "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
+          default: {
+            cpu: (draftLimDefaultCpu || "").trim(),
+            memory: (draftLimDefaultMemory || "").trim(),
+            "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim(),
           },
         },
-      }
-    : namespace;
+      },
+    };
+  }
 
   const clusters = formatValue(effectiveNamespace?.clusters);
   const egressNameId = formatValue(effectiveNamespace?.egress_nameid);
   const podBasedEgress = effectiveNamespace?.enable_pod_based_egress_ip ? "Enabled" : "Disabled";
 
-  // Use draft egress firewall entries for BOTH edit and view mode
-  // This ensures view mode shows the most recent saved data
-  const egressFirewallRules = draftEgressFirewallEntries;
+  const egressFirewallRules = isEditingEgressFirewall
+    ? draftEgressFirewallEntries
+    : (Array.isArray(namespace?.egress_firewall_rules) ? namespace.egress_firewall_rules : []);
 
   const managedByArgo = effectiveNamespace?.need_argo || effectiveNamespace?.generate_argo_app ? "Yes" : "No";
 
@@ -499,270 +633,14 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   // Notify parent about header buttons
   React.useEffect(() => {
     if (typeof renderHeaderButtons === 'function' && !readonly) {
-      renderHeaderButtons(
-        !editEnabled ? (
-          <button className="btn btn-primary" type="button" onClick={() => {
-            // Reload draft states from current namespace prop
-            const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
-            setDraftClusters(initialClusters);
-            setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
-            setClusterQuery("");
-            setClusterPickerOpen(false);
-            setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
-            setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
-            setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
-            setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
-            setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
-            setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
-            setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
-            setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
-            setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
-            setDraftLimEphemeralStorage(namespace?.resources?.limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits["ephemeral-storage"]));
-
-            // Debug logging
-
-            setDraftLimDefaultCpu(namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu));
-            setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
-            setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
-
-            let rolebindingsEntries = [];
-            if (Array.isArray(namespace?.rolebindings)) {
-              rolebindingsEntries = namespace.rolebindings.map(binding => {
-                let subjects = [];
-                if (Array.isArray(binding.subjects)) {
-                  subjects = binding.subjects.map(s => ({
-                    kind: s?.kind || "User",
-                    name: s?.name || ""
-                  }));
-                } else if (binding.subject) {
-                  subjects = [{
-                    kind: binding.subject?.kind || "User",
-                    name: binding.subject?.name || ""
-                  }];
-                }
-                return {
-                  subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
-                  roleRef: {
-                    kind: binding.roleRef?.kind || "ClusterRole",
-                    name: binding.roleRef?.name || ""
-                  }
-                };
-              });
-            }
-            setDraftRoleBindingsEntries(rolebindingsEntries);
-
-            let egressFirewallEntries = [];
-            if (Array.isArray(namespace?.egress_firewall_rules)) {
-              egressFirewallEntries = namespace.egress_firewall_rules
-                .filter((r) => r && typeof r === "object")
-                .map((r) => ({
-                  egressType: String(r.egressType || "dnsName"),
-                  egressValue: String(r.egressValue || ""),
-                  ports: Array.isArray(r.ports)
-                    ? r.ports
-                      .filter((p) => p && typeof p === "object")
-                      .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
-                    : [],
-                }));
-            }
-            setDraftEgressFirewallEntries(egressFirewallEntries);
-
-            setEditEnabled(true);
-          }}>
-            Enable Edit
-          </button>
-        ) : (
-          <>
-            <button
-              className="btn"
-              type="button"
-              onClick={() => {
-                const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
-                setDraftClusters(initialClusters);
-                setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
-                setClusterQuery("");
-                setClusterPickerOpen(false);
-                setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
-                setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
-                setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
-                setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
-                setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
-                setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
-                setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
-                setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
-                setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
-                setDraftLimEphemeralStorage(namespace?.resources?.limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits["ephemeral-storage"]));
-                setDraftLimDefaultCpu(namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu));
-                setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
-                setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
-
-                let rolebindingsEntries = [];
-                if (Array.isArray(namespace?.rolebindings)) {
-                  rolebindingsEntries = namespace.rolebindings.map(binding => {
-                    let subjects = [];
-                    if (Array.isArray(binding.subjects)) {
-                      subjects = binding.subjects.map(s => ({
-                        kind: s?.kind || "User",
-                        name: s?.name || ""
-                      }));
-                    } else if (binding.subject) {
-                      subjects = [{
-                        kind: binding.subject?.kind || "User",
-                        name: binding.subject?.name || ""
-                      }];
-                    }
-                    return {
-                      subjects: subjects.length > 0 ? subjects : [{ kind: "User", name: "" }],
-                      roleRef: {
-                        kind: binding.roleRef?.kind || "ClusterRole",
-                        name: binding.roleRef?.name || ""
-                      }
-                    };
-                  });
-                }
-                setDraftRoleBindingsEntries(rolebindingsEntries);
-
-                let egressFirewallEntries = [];
-                if (Array.isArray(namespace?.egress_firewall_rules)) {
-                  egressFirewallEntries = namespace.egress_firewall_rules
-                    .filter((r) => r && typeof r === "object")
-                    .map((r) => ({
-                      egressType: String(r.egressType || "dnsName"),
-                      egressValue: String(r.egressValue || ""),
-                      ports: Array.isArray(r.ports)
-                        ? r.ports
-                          .filter((p) => p && typeof p === "object")
-                          .map((p) => ({ protocol: String(p.protocol || ""), port: p.port == null ? "" : String(p.port) }))
-                        : [],
-                    }));
-                }
-                setDraftEgressFirewallEntries(egressFirewallEntries);
-                setEditEnabled(false);
-              }}
-            >
-              Discard Edits
-            </button>
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={async () => {
-                if (typeof onUpdateNamespaceInfo !== "function") {
-                  setEditEnabled(false);
-                  return;
-                }
-                try {
-                  const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
-                  const egress_nameid = (draftEgressNameId || "").trim();
-
-                  const updatePayload = {
-                    clusters: { clusters },
-                    egress_ip: { egress_nameid, enable_pod_based_egress_ip: Boolean(namespace?.enable_pod_based_egress_ip) },
-                    status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
-                    nsargocd: {
-                      need_argo: Boolean(draftManagedByArgo),
-                      argocd_sync_strategy: String(draftNsArgoSyncStrategy || "").trim(),
-                      gitrepourl: String(draftNsArgoGitRepoUrl || "").trim(),
-                    },
-                    resources: {
-                      requests: {
-                        cpu: (draftReqCpu || "").trim(),
-                        memory: (draftReqMemory || "").trim(),
-                        "ephemeral-storage": (draftReqEphemeralStorage || "").trim()
-                      },
-                      quota_limits: {
-                        memory: (draftQuotaLimMemory || "").trim(),
-                        "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim()
-                      },
-                      limits: {
-                        cpu: (draftLimCpu || "").trim(),
-                        memory: (draftLimMemory || "").trim(),
-                        "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
-                        default: {
-                          cpu: (draftLimDefaultCpu || "").trim(),
-                          memory: (draftLimDefaultMemory || "").trim(),
-                          "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim()
-                        }
-                      },
-                    },
-                    rolebindings: {
-                      bindings: draftRoleBindingsEntries.map(entry => ({
-                        subjects: Array.isArray(entry.subjects)
-                          ? entry.subjects
-                              .filter(s => (s?.kind && String(s.kind).trim()) || (s?.name && String(s.name).trim()))
-                              .map(s => ({ kind: s?.kind || "User", name: s?.name || "" }))
-                          : [],
-                        roleRef: { kind: entry.roleRef?.kind || "ClusterRole", name: entry.roleRef?.name || "" }
-                      })).filter(binding => binding.subjects.length > 0)
-                    },
-                    egressfirewall: {
-                      rules: draftEgressFirewallEntries
-                        .map((r) => ({
-                          egressType: String(r.egressType || "").trim(),
-                          egressValue: String(r.egressValue || "").trim(),
-                          ports: String(r.egressType || "").trim() === "cidrSelector"
-                            ? (Array.isArray(r.ports) ? r.ports : [])
-                              .filter((p) => {
-                                const portValue = p.port === "" || p.port == null ? "" : String(p.port).trim();
-                                return p.protocol && portValue !== "" && !isNaN(Number(portValue));
-                              })
-                              .map((p) => ({
-                                protocol: String(p.protocol || "").trim(),
-                                port: Number(p.port)
-                              }))
-                            : undefined,
-                        }))
-                        .filter((r) => r.egressType && r.egressValue)
-                    },
-                  };
-
-
-                  await onUpdateNamespaceInfo(namespaceName, updatePayload);
-
-
-                  setEditEnabled(false);
-                } catch (error) {
-                  const errorMessage = error?.message || String(error);
-                  alert(`Failed to save changes:\n\n${errorMessage}`);
-                }
-              }}
-            >
-              Submit
-            </button>
-          </>
-        )
-      );
+      renderHeaderButtons(null);
     }
     return () => {
       if (typeof renderHeaderButtons === 'function') {
         renderHeaderButtons(null);
       }
     };
-  }, [
-    editEnabled,
-    readonly,
-    renderHeaderButtons,
-    namespace,
-    namespaceName,
-    // Add all draft states so Submit button always has latest values
-    draftEgressFirewallEntries,
-    draftRoleBindingsEntries,
-    draftClustersList,
-    draftManagedByArgo,
-    draftNsArgoSyncStrategy,
-    draftNsArgoGitRepoUrl,
-    draftEgressNameId,
-    draftReqCpu,
-    draftReqMemory,
-    draftReqEphemeralStorage,
-    draftQuotaLimMemory,
-    draftQuotaLimEphemeralStorage,
-    draftLimCpu,
-    draftLimMemory,
-    draftLimEphemeralStorage,
-    draftLimDefaultCpu,
-    draftLimDefaultMemory,
-    draftLimDefaultEphemeralStorage,
-  ]);
+  }, [readonly, renderHeaderButtons]);
 
   return (
     <div>
@@ -779,11 +657,32 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
             </svg>
             <h3>Basic Information</h3>
+            {!readonly && !isEditingBasic ? (
+              <button
+                className="btn btn-primary"
+                type="button"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => onEnableBlockEdit("basic")}
+                disabled={!canStartEditing("basic")}
+              >
+                Enable Edit
+              </button>
+            ) : null}
+            {!readonly && isEditingBasic ? (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+                  Discard Edits
+                </button>
+                <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("basic")}>
+                  Submit
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="dashboardCardBody">
             <div className="detailRow">
               <span className="detailLabel">Clusters:</span>
-              {editEnabled ? (
+              {isEditingBasic ? (
                 <div
                   style={{ position: "relative", flex: 1 }}
                   onBlur={(e) => {
@@ -915,7 +814,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             </div>
             <div className="detailRow">
               <span className="detailLabel">Managed by ArgoCD:</span>
-              {editEnabled ? (
+              {isEditingBasic ? (
                 <select
                   className="filterInput"
                   value={draftManagedByArgo ? "Yes" : "No"}
@@ -933,7 +832,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
             <div className="detailRow">
               <span className="detailLabel">ArgoCD Sync Strategy:</span>
-              {editEnabled ? (
+              {isEditingBasic ? (
                 <select
                   className="filterInput"
                   value={draftNsArgoSyncStrategy}
@@ -950,7 +849,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
             <div className="detailRow">
               <span className="detailLabel">ArgoCD Git Repo URL:</span>
-              {editEnabled ? (
+              {isEditingBasic ? (
                 <input
                   className="filterInput"
                   value={draftNsArgoGitRepoUrl}
@@ -972,11 +871,32 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <path fillRule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.854 10.803a.5.5 0 1 1-.708-.707L9.243 6H6.475a.5.5 0 1 1 0-1h3.975a.5.5 0 0 1 .5.5v3.975a.5.5 0 1 1-1 0V6.707l-4.096 4.096z"/>
             </svg>
             <h3>Egress Configuration</h3>
+            {!readonly && !isEditingEgress ? (
+              <button
+                className="btn btn-primary"
+                type="button"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => onEnableBlockEdit("egress")}
+                disabled={!canStartEditing("egress")}
+              >
+                Enable Edit
+              </button>
+            ) : null}
+            {!readonly && isEditingEgress ? (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+                  Discard Edits
+                </button>
+                <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("egress")}>
+                  Submit
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="dashboardCardBody">
               <div className="detailRow">
                 <span className="detailLabel">Egress Name ID:</span>
-                {editEnabled ? (
+                {isEditingEgress ? (
                   <input
                     className="filterInput"
                     value={draftEgressNameId}
@@ -1003,10 +923,31 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
               </svg>
               <h3>Role Bindings</h3>
-              {editEnabled && (
+              {!readonly && !isEditingRoleBindings ? (
                 <button
                   className="btn btn-primary"
+                  type="button"
                   style={{ marginLeft: 'auto' }}
+                  onClick={() => onEnableBlockEdit("rolebindings")}
+                  disabled={!canStartEditing("rolebindings")}
+                >
+                  Enable Edit
+                </button>
+              ) : null}
+              {!readonly && isEditingRoleBindings ? (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                  <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+                    Discard Edits
+                  </button>
+                  <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("rolebindings")}>
+                    Submit
+                  </button>
+                </div>
+              ) : null}
+              {isEditingRoleBindings && (
+                <button
+                  className="btn btn-primary"
+                  style={{ marginLeft: (!readonly && isEditingRoleBindings) ? 0 : 'auto' }}
                   onClick={() => {
                     setDraftRoleBindingsEntries([...draftRoleBindingsEntries, {
                       subjects: [{ kind: "User", name: "" }],
@@ -1031,7 +972,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                     </tr>
                   </thead>
                   <tbody>
-                    {editEnabled ? (
+                    {isEditingRoleBindings ? (
                       draftRoleBindingsEntries.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="muted" style={{ textAlign: 'center' }}>
@@ -1573,10 +1514,32 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z"/>
               </svg>
               <h3>Egress Firewall</h3>
-            {editEnabled && draftEgressFirewallEntries.length > 0 && (
+              {!readonly && !isEditingEgressFirewall ? (
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => onEnableBlockEdit("egressfirewall")}
+                  disabled={!canStartEditing("egressfirewall")}
+                >
+                  Enable Edit
+                </button>
+              ) : null}
+              {!readonly && isEditingEgressFirewall ? (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                  <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+                    Discard Edits
+                  </button>
+                  <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("egressfirewall")}>
+                    Submit
+                  </button>
+                </div>
+              ) : null}
+
+            {isEditingEgressFirewall && draftEgressFirewallEntries.length > 0 && (
               <button
                 className="iconBtn iconBtn-warning"
-                style={{ marginLeft: 'auto' }}
+                style={{ marginLeft: (!readonly && isEditingEgressFirewall) ? 0 : 'auto' }}
                 onClick={previewEgressFirewallWithDraft}
                 aria-label="Preview YAML"
                 title="Preview EgressFirewall YAML with current draft changes"
@@ -1587,7 +1550,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                 </svg>
               </button>
             )}
-            {!editEnabled && egressFirewallRules.length > 0 && (
+            {!isEditingEgressFirewall && egressFirewallRules.length > 0 && (
               <button
                 className="iconBtn iconBtn-primary"
                 style={{ marginLeft: 'auto' }}
@@ -1655,7 +1618,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             )}
           </div>
           <div className="dashboardCardBody">
-            {editEnabled ? (
+            {isEditingEgressFirewall ? (
               <div style={{ display: 'flex', gap: '16px' }}>
                 {/* DNS Names Table - Left Side (40%) */}
                 <div style={{ flex: '0 0 40%', minWidth: 0 }}>
@@ -1991,71 +1954,155 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
               <h3>Resources</h3>
             </div>
             <div className="dashboardCardBody">
-            {editEnabled ? (
+            {isEditingResourceQuota || isEditingLimitRange ? (
               <div>
                 <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                     <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
+                    {!readonly && !isEditingResourceQuota ? (
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        onClick={() => onEnableBlockEdit("resourcequota")}
+                        disabled={!canStartEditing("resourcequota")}
+                      >
+                        Enable Edit
+                      </button>
+                    ) : null}
+                    {!readonly && isEditingResourceQuota ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+                          Discard Edits
+                        </button>
+                        <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("resourcequota")}>
+                          Submit
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                   <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
                     <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Limits</h5>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftQuotaLimEphemeralStorage} onChange={(e) => setDraftQuotaLimEphemeralStorage(e.target.value)} placeholder="e.g., 2Gi" />
+                      {isEditingResourceQuota ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftQuotaLimEphemeralStorage} onChange={(e) => setDraftQuotaLimEphemeralStorage(e.target.value)} placeholder="e.g., 2Gi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.quota_limits?.["ephemeral-storage"] || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftQuotaLimMemory} onChange={(e) => setDraftQuotaLimMemory(e.target.value)} placeholder="e.g., 64Gi" />
+                      {isEditingResourceQuota ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftQuotaLimMemory} onChange={(e) => setDraftQuotaLimMemory(e.target.value)} placeholder="e.g., 64Gi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.quota_limits?.memory || "")}</span>
+                      )}
                     </div>
                   </div>
                   <div>
                     <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Requests</h5>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>CPU:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftReqCpu} onChange={(e) => setDraftReqCpu(e.target.value)} placeholder="e.g., 8" />
+                      {isEditingResourceQuota ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftReqCpu} onChange={(e) => setDraftReqCpu(e.target.value)} placeholder="e.g., 8" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.requests?.cpu || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftReqMemory} onChange={(e) => setDraftReqMemory(e.target.value)} placeholder="e.g., 64Gi" />
+                      {isEditingResourceQuota ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftReqMemory} onChange={(e) => setDraftReqMemory(e.target.value)} placeholder="e.g., 64Gi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.requests?.memory || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftReqEphemeralStorage} onChange={(e) => setDraftReqEphemeralStorage(e.target.value)} placeholder="e.g., 1Gi" />
+                      {isEditingResourceQuota ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftReqEphemeralStorage} onChange={(e) => setDraftReqEphemeralStorage(e.target.value)} placeholder="e.g., 1Gi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.requests?.["ephemeral-storage"] || "")}</span>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                     <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
+                    {!readonly && !isEditingLimitRange ? (
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        onClick={() => onEnableBlockEdit("limitrange")}
+                        disabled={!canStartEditing("limitrange")}
+                      >
+                        Enable Edit
+                      </button>
+                    ) : null}
+                    {!readonly && isEditingLimitRange ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+                          Discard Edits
+                        </button>
+                        <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("limitrange")}>
+                          Submit
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                   <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
                     <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default Request</h5>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>CPU:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftLimCpu} onChange={(e) => setDraftLimCpu(e.target.value)} placeholder="e.g., 50m" />
+                      {isEditingLimitRange ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftLimCpu} onChange={(e) => setDraftLimCpu(e.target.value)} placeholder="e.g., 50m" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.limits?.cpu || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftLimMemory} onChange={(e) => setDraftLimMemory(e.target.value)} placeholder="e.g., 100Mi" />
+                      {isEditingLimitRange ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftLimMemory} onChange={(e) => setDraftLimMemory(e.target.value)} placeholder="e.g., 100Mi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.limits?.memory || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftLimEphemeralStorage} onChange={(e) => setDraftLimEphemeralStorage(e.target.value)} placeholder="e.g., 50Mi" />
+                      {isEditingLimitRange ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftLimEphemeralStorage} onChange={(e) => setDraftLimEphemeralStorage(e.target.value)} placeholder="e.g., 50Mi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.limits?.["ephemeral-storage"] || "")}</span>
+                      )}
                     </div>
                   </div>
                   <div>
                     <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default</h5>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>CPU:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultCpu} onChange={(e) => setDraftLimDefaultCpu(e.target.value)} placeholder="e.g., 10Gi" />
+                      {isEditingLimitRange ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultCpu} onChange={(e) => setDraftLimDefaultCpu(e.target.value)} placeholder="e.g., 10Gi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.limits?.default?.cpu || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Memory:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultMemory} onChange={(e) => setDraftLimDefaultMemory(e.target.value)} placeholder="e.g., 10Gi" />
+                      {isEditingLimitRange ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultMemory} onChange={(e) => setDraftLimDefaultMemory(e.target.value)} placeholder="e.g., 10Gi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.limits?.default?.memory || "")}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="attributeKey" style={{ minWidth: '150px' }}>Ephemeral Storage:</span>
-                      <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultEphemeralStorage} onChange={(e) => setDraftLimDefaultEphemeralStorage(e.target.value)} placeholder="e.g., 350Mi" />
+                      {isEditingLimitRange ? (
+                        <input className="filterInput" style={{ flex: 1 }} value={draftLimDefaultEphemeralStorage} onChange={(e) => setDraftLimDefaultEphemeralStorage(e.target.value)} placeholder="e.g., 350Mi" />
+                      ) : (
+                        <span className="attributeValue">{formatValue(resources?.limits?.default?.["ephemeral-storage"] || "")}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2066,21 +2113,32 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                   <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                       <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        onClick={() => {
-                          (async () => {
-                            const resourceQuotaYaml = await fetchResourceQuotaYaml({
-                              requests: resources.requests || {},
-                              quota_limits: resources.quota_limits || {},
-                              limits: resources.limits || {},
-                            });
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {!readonly ? (
+                          <button
+                            className="btn btn-primary"
+                            type="button"
+                            onClick={() => onEnableBlockEdit("resourcequota")}
+                            disabled={!canStartEditing("resourcequota")}
+                          >
+                            Enable Edit
+                          </button>
+                        ) : null}
+                        <button
+                          className="iconBtn iconBtn-primary"
+                          onClick={() => {
+                            (async () => {
+                              const resourceQuotaYaml = await fetchResourceQuotaYaml({
+                                requests: resources.requests || {},
+                                quota_limits: resources.quota_limits || {},
+                                limits: resources.limits || {},
+                              });
 
-                            const modal = document.createElement('div');
-                            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                              const modal = document.createElement('div');
+                              modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                            const modalContent = document.createElement('div');
-                            modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                              const modalContent = document.createElement('div');
+                              modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
                             const header = document.createElement('div');
                             header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
@@ -2119,18 +2177,19 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                             modalContent.appendChild(footer);
                             modal.appendChild(modalContent);
 
-                            document.body.appendChild(modal);
-                            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                          })().catch((e) => alert(e?.message || String(e)));
-                        }}
-                        aria-label="View YAML"
-                        title="View ResourceQuota YAML definition"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                        </svg>
-                      </button>
+                              document.body.appendChild(modal);
+                              modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                            })().catch((e) => alert(e?.message || String(e)));
+                          }}
+                          aria-label="View YAML"
+                          title="View ResourceQuota YAML definition"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                            <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     {/* Display Limits fields */}
                     {(() => {
@@ -2193,15 +2252,26 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                       <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        onClick={() => {
-                          (async () => {
-                            const limitRangeYaml = await fetchLimitRangeYaml({
-                              requests: resources.requests || {},
-                              quota_limits: resources.quota_limits || {},
-                              limits: resources.limits || {},
-                            });
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {!readonly ? (
+                          <button
+                            className="btn btn-primary"
+                            type="button"
+                            onClick={() => onEnableBlockEdit("limitrange")}
+                            disabled={!canStartEditing("limitrange")}
+                          >
+                            Enable Edit
+                          </button>
+                        ) : null}
+                        <button
+                          className="iconBtn iconBtn-primary"
+                          onClick={() => {
+                            (async () => {
+                              const limitRangeYaml = await fetchLimitRangeYaml({
+                                requests: resources.requests || {},
+                                quota_limits: resources.quota_limits || {},
+                                limits: resources.limits || {},
+                              });
 
                             const modal = document.createElement('div');
                             modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
@@ -2246,18 +2316,19 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
                             modalContent.appendChild(footer);
                             modal.appendChild(modalContent);
 
-                            document.body.appendChild(modal);
-                            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                          })().catch((e) => alert(e?.message || String(e)));
-                        }}
-                        aria-label="View YAML"
-                        title="View LimitRange YAML definition"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
-                          <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
-                        </svg>
-                      </button>
+                              document.body.appendChild(modal);
+                              modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                            })().catch((e) => alert(e?.message || String(e)));
+                          }}
+                          aria-label="View YAML"
+                          title="View LimitRange YAML definition"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z"/>
+                            <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     {/* Display defaultRequest fields */}
                     {(() => {

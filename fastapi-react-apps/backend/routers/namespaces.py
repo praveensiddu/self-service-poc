@@ -17,6 +17,130 @@ router = APIRouter(tags=["namespaces"])
 logger = logging.getLogger("uvicorn.error")
 
 
+def _require_namespace_dir(env: str, appname: str, namespace: str) -> Path:
+    requests_root = _require_initialized_workspace()
+    ns_dir = requests_root / env / appname / namespace
+    if not ns_dir.exists() or not ns_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Namespace folder not found: {ns_dir}")
+    return ns_dir
+
+
+def _reload_namespace_details(
+    *,
+    env: str,
+    appname: str,
+    namespace: str,
+    ns_dir: Path,
+    ns_info: Optional[dict] = None,
+) -> dict:
+    """Return updated namespace in the same shape as get_namespaces."""
+    try:
+        requests_root = _require_initialized_workspace()
+
+        ns_info_path = ns_dir / "namespace_info.yaml"
+        existing = {}
+        if isinstance(ns_info, dict):
+            existing = ns_info
+        elif ns_info_path.exists() and ns_info_path.is_file():
+            parsed = yaml.safe_load(ns_info_path.read_text()) or {}
+            if isinstance(parsed, dict):
+                existing = parsed
+
+        limitrange_path = ns_dir / "limitrange.yaml"
+        resourcequota_path = ns_dir / "resourcequota.yaml"
+        rolebinding_path = ns_dir / "rolebinding_requests.yaml"
+        egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
+
+        from backend.routers.limitrange import _parse_limitrange_manifest
+        limitrange = _parse_limitrange_manifest(limitrange_path)
+        from backend.routers.limitrange import _limits_from_limitrange
+        limits = _limits_from_limitrange(limitrange)
+
+        from backend.routers.resourcequota import _parse_resourcequota_manifest
+        resourcequota = _parse_resourcequota_manifest(resourcequota_path)
+        from backend.routers.resourcequota import _requests_and_quota_limits_from_resourcequota
+        reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
+
+        rolebinding = None
+        if rolebinding_path.exists() and rolebinding_path.is_file():
+            parsed = yaml.safe_load(rolebinding_path.read_text())
+            if parsed is not None:
+                rolebinding = parsed
+
+        role_bindings = []
+        if isinstance(rolebinding, list):
+            role_bindings = rolebinding
+        elif isinstance(rolebinding, dict) and rolebinding.get("subjects"):
+            subjects = rolebinding.get("subjects", [])
+            role_ref = rolebinding.get("roleRef", {})
+            for subject in subjects:
+                role_bindings.append({
+                    "subject": subject,
+                    "roleRef": role_ref
+                })
+
+        egress_firewall_rules = _read_yaml_list(egress_firewall_path)
+        if not all(isinstance(r, dict) for r in egress_firewall_rules):
+            egress_firewall_rules = [r for r in egress_firewall_rules if isinstance(r, dict)]
+
+        clusters = existing.get("clusters")
+        if not isinstance(clusters, list):
+            clusters = []
+        clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
+
+        nsargocd_path = ns_dir / "nsargocd.yaml"
+        nsargocd = _read_yaml_dict(nsargocd_path)
+        need_argo = _parse_bool(nsargocd.get("need_argo"))
+        argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
+        gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
+        argocd_exists = False
+        try:
+            argocd_path = (requests_root / env / appname) / "argocd.yaml"
+            argocd_exists = argocd_path.exists() and argocd_path.is_file()
+        except Exception:
+            argocd_exists = False
+        if not argocd_exists:
+            need_argo = False
+        status = "Argo used" if need_argo else "Argo not used"
+
+        return {
+            "name": namespace,
+            "description": str(existing.get("description", "") or ""),
+            "clusters": clusters,
+            "egress_nameid": (
+                None if existing.get("egress_nameid") in (None, "") else str(existing.get("egress_nameid"))
+            ),
+            "enable_pod_based_egress_ip": _parse_bool(existing.get("enable_pod_based_egress_ip")),
+            "allow_all_egress": _parse_bool(existing.get("allow_all_egress")),
+            "need_argo": need_argo,
+            "argocd_sync_strategy": argocd_sync_strategy,
+            "gitrepourl": gitrepourl,
+            "generate_argo_app": _parse_bool(existing.get("generate_argo_app")),
+            "status": status,
+            "resources": {
+                "requests": {
+                    "cpu": reqs.get("cpu"),
+                    "memory": reqs.get("memory"),
+                    "ephemeral-storage": reqs.get("ephemeral-storage"),
+                },
+                "quota_limits": {
+                    "memory": quota_limits.get("memory"),
+                    "ephemeral-storage": quota_limits.get("ephemeral-storage"),
+                },
+                "limits": {
+                    "cpu": limits.get("cpu"),
+                    "memory": limits.get("memory"),
+                    "ephemeral-storage": limits.get("ephemeral-storage"),
+                    "default": limits.get("default"),
+                },
+            },
+            "rolebindings": role_bindings,
+            "egress_firewall_rules": egress_firewall_rules,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Updated but failed to reload namespace details: {e}")
+
+
 def _rewrite_default_namespace_in_yaml_files(root: Path, to_namespace: str) -> None:
     to_ns = str(to_namespace or "").strip()
     if not to_ns:
@@ -135,6 +259,23 @@ class NamespaceUpdate(BaseModel):
     rolebindings: Optional[RoleBindingList] = None
 
 
+class NamespaceInfoBasicUpdate(BaseModel):
+    namespace_info: NamespaceInfoUpdate
+
+
+class NamespaceResourceQuotaUpdate(BaseModel):
+    requests: Optional[NamespaceResourcesCpuMem] = None
+    quota_limits: Optional[NamespaceResourcesQuotaLimits] = None
+
+
+class NamespaceLimitRangeUpdate(BaseModel):
+    limits: Optional[NamespaceResourcesLimits] = None
+
+
+class NamespaceRoleBindingsUpdate(BaseModel):
+    bindings: Optional[List[RoleBinding]] = None
+
+
 class NamespaceResourcesYamlRequest(BaseModel):
     resources: NamespaceResourcesUpdate
 
@@ -183,119 +324,12 @@ def _as_trimmed_str(v) -> Optional[str]:
     return s if s else None
 
 
-def _parse_limitrange_manifest(path) -> dict:
-    if not path.exists() or not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text()) or {}
-        return raw if isinstance(raw, dict) else {}
-    except Exception:
-        return {}
-
-
-def _parse_resourcequota_manifest(path) -> dict:
-    if not path.exists() or not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text()) or {}
-        return raw if isinstance(raw, dict) else {}
-    except Exception:
-        return {}
-
-
-def _requests_and_quota_limits_from_resourcequota(resourcequota: dict) -> tuple[dict, dict]:
-    spec = resourcequota.get("spec") if isinstance(resourcequota, dict) else None
-    hard = spec.get("hard") if isinstance(spec, dict) else None
-    hard = hard if isinstance(hard, dict) else {}
-
-    requests = {
-        "cpu": _as_trimmed_str(hard.get("requests.cpu")),
-        "memory": _as_trimmed_str(hard.get("requests.memory")),
-        "ephemeral-storage": _as_trimmed_str(hard.get("requests.ephemeral-storage")),
-    }
-    quota_limits = {
-        "memory": _as_trimmed_str(hard.get("limits.memory")),
-        "ephemeral-storage": _as_trimmed_str(hard.get("limits.ephemeral-storage")),
-    }
-
-    return requests, quota_limits
-
-
-def _limits_from_limitrange(limitrange: dict) -> dict:
-    spec = limitrange.get("spec") if isinstance(limitrange, dict) else None
-    limits_list = spec.get("limits") if isinstance(spec, dict) else None
-    first = limits_list[0] if isinstance(limits_list, list) and len(limits_list) > 0 and isinstance(limits_list[0], dict) else {}
-
-    default_request = first.get("defaultRequest") if isinstance(first, dict) else None
-    default_obj = first.get("default") if isinstance(first, dict) else None
-
-    out = {
-        "cpu": _as_trimmed_str(default_request.get("cpu")) if isinstance(default_request, dict) else None,
-        "memory": _as_trimmed_str(default_request.get("memory")) if isinstance(default_request, dict) else None,
-        "ephemeral-storage": _as_trimmed_str(default_request.get("ephemeral-storage")) if isinstance(default_request, dict) else None,
-        "default": None,
-    }
-
-    default_out = {
-        "cpu": _as_trimmed_str(default_obj.get("cpu")) if isinstance(default_obj, dict) else None,
-        "memory": _as_trimmed_str(default_obj.get("memory")) if isinstance(default_obj, dict) else None,
-        "ephemeral-storage": _as_trimmed_str(default_obj.get("ephemeral-storage")) if isinstance(default_obj, dict) else None,
-    }
-
-    if any(v is not None for v in default_out.values()):
-        out["default"] = default_out
-
-    return out
-
-
 def _is_set(v: Optional[str]) -> bool:
     s = str(v or "").strip()
     return bool(s) and s != "0"
 
 
-def _build_limitrange_obj(namespace: str, limits: Optional[NamespaceResourcesLimits]) -> dict:
-    default_request = {}
-    default = {}
-
-    if limits is not None:
-        if _is_set(limits.cpu):
-            default_request["cpu"] = str(limits.cpu).strip()
-        if _is_set(limits.memory):
-            default_request["memory"] = str(limits.memory).strip()
-        if _is_set(limits.ephemeral_storage):
-            default_request["ephemeral-storage"] = str(limits.ephemeral_storage).strip()
-
-        if limits.default is not None:
-            if _is_set(limits.default.cpu):
-                default["cpu"] = str(limits.default.cpu).strip()
-            if _is_set(limits.default.memory):
-                default["memory"] = str(limits.default.memory).strip()
-            if _is_set(limits.default.ephemeral_storage):
-                default["ephemeral-storage"] = str(limits.default.ephemeral_storage).strip()
-
-    limit_entry = {
-        "type": "Container",
-    }
-    if default:
-        limit_entry["default"] = default
-    if default_request:
-        limit_entry["defaultRequest"] = default_request
-
-    return {
-        "apiVersion": "v1",
-        "kind": "LimitRange",
-        "metadata": {
-            "name": "default",
-            "namespace": namespace,
-        },
-        "spec": {
-            "limits": [limit_entry],
-        },
-    }
-
-
-def _build_resourcequota_obj(
-    namespace: str,
+def _build_resourcequota_file_obj(
     requests: Optional[NamespaceResourcesCpuMem],
     quota_limits: Optional[NamespaceResourcesQuotaLimits],
 ) -> dict:
@@ -319,46 +353,13 @@ def _build_resourcequota_obj(
         "apiVersion": "v1",
         "kind": "ResourceQuota",
         "metadata": {
-            "name": f"{namespace}-quota",
-            "namespace": namespace,
+            "name": "default",
+            "namespace": "{{ .Values.namespacename }}",
         },
         "spec": {
             "hard": hard,
         },
     }
-
-
-def _build_resourcequota_file_obj(
-    requests: Optional[NamespaceResourcesCpuMem],
-    quota_limits: Optional[NamespaceResourcesQuotaLimits],
-) -> dict:
-    rq_obj = _build_resourcequota_obj(namespace="__PLACEHOLDER__", requests=requests, quota_limits=quota_limits)
-    rq_obj["metadata"]["name"] = "default"
-    rq_obj["metadata"]["namespace"] = "{{ .Values.namespacename }}"
-    return rq_obj
-
-
-@router.post("/apps/{appname}/namespaces/{namespace}/resources/resourcequota_yaml")
-def get_resourcequota_yaml(appname: str, namespace: str, payload: NamespaceResourcesYamlRequest, env: Optional[str] = None):
-    env = _require_env(env)
-
-    req = payload.resources.requests if payload and payload.resources is not None else None
-    quota_limits = payload.resources.quota_limits if payload and payload.resources is not None else None
-
-    rq_obj = _build_resourcequota_obj(namespace=namespace, requests=req, quota_limits=quota_limits)
-
-    yaml_text = yaml.safe_dump(rq_obj, sort_keys=False)
-    return Response(content=yaml_text, media_type="text/yaml")
-
-
-@router.post("/apps/{appname}/namespaces/{namespace}/resources/limitrange_yaml")
-def get_limitrange_yaml(appname: str, namespace: str, payload: NamespaceResourcesYamlRequest, env: Optional[str] = None):
-    env = _require_env(env)
-
-    limits = payload.resources.limits if payload and payload.resources is not None else None
-    lr_obj = _build_limitrange_obj(namespace=namespace, limits=limits)
-    yaml_text = yaml.safe_dump(lr_obj, sort_keys=False)
-    return Response(content=yaml_text, media_type="text/yaml")
 
 
 @router.get("/apps/{appname}/namespaces")
@@ -401,10 +402,14 @@ def get_namespaces(appname: str, env: Optional[str] = None):
         nsargocd_path = child / "nsargocd.yaml"
         nsargocd = _read_yaml_dict(nsargocd_path)
 
+        from backend.routers.limitrange import _parse_limitrange_manifest
         limitrange = _parse_limitrange_manifest(limitrange_path)
+        from backend.routers.limitrange import _limits_from_limitrange
         limits = _limits_from_limitrange(limitrange)
 
+        from backend.routers.resourcequota import _parse_resourcequota_manifest
         resourcequota = _parse_resourcequota_manifest(resourcequota_path)
+        from backend.routers.resourcequota import _requests_and_quota_limits_from_resourcequota
         reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
 
         rolebinding = None
@@ -692,6 +697,38 @@ def copy_namespace(appname: str, namespace: str, payload: NamespaceCopyRequest, 
     }
 
 
+@router.put("/apps/{appname}/namespaces/{namespace}/namespace_info/basic")
+def put_namespace_info_basic(appname: str, namespace: str, payload: NamespaceInfoBasicUpdate, env: Optional[str] = None):
+    env = _require_env(env)
+
+    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+    ns_info_path = ns_dir / "namespace_info.yaml"
+
+    try:
+        existing = {}
+        if ns_info_path.exists() and ns_info_path.is_file():
+            parsed = yaml.safe_load(ns_info_path.read_text()) or {}
+            if isinstance(parsed, dict):
+                existing = parsed
+
+        ni = payload.namespace_info
+        if ni.clusters is not None:
+            existing["clusters"] = [str(c) for c in ni.clusters if c is not None and str(c).strip()]
+        if ni.egress_nameid is not None:
+            existing["egress_nameid"] = str(ni.egress_nameid)
+
+        ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
+
+    try:
+        pull_requests.ensure_pull_request(appname=appname, env=env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
+
+    return _reload_namespace_details(env=env, appname=appname, namespace=namespace, ns_dir=ns_dir, ns_info=existing)
+
+
 @router.put("/apps/{appname}/namespaces/{namespace}/namespace_info")
 def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate, env: Optional[str] = None):
     env = _require_env(env)
@@ -730,7 +767,9 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
             if payload.resources.limits is not None:
                 limitrange_path = ns_dir / "limitrange.yaml"
 
-                limitrange_obj = _build_limitrange_obj(namespace=namespace, limits=payload.resources.limits)
+                from backend.routers.limitrange import _build_limitrange_file_obj
+
+                limitrange_obj = _build_limitrange_file_obj(namespace=namespace, limits=payload.resources.limits)
                 limitrange_path.write_text(yaml.safe_dump(limitrange_obj, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
@@ -815,10 +854,14 @@ def update_namespace_info(appname: str, namespace: str, payload: NamespaceUpdate
         rolebinding_path = ns_dir / "rolebinding_requests.yaml"
         egress_firewall_path = ns_dir / "egress_firewall_requests.yaml"
 
+        from backend.routers.limitrange import _parse_limitrange_manifest
         limitrange = _parse_limitrange_manifest(limitrange_path)
+        from backend.routers.limitrange import _limits_from_limitrange
         limits = _limits_from_limitrange(limitrange)
 
+        from backend.routers.resourcequota import _parse_resourcequota_manifest
         resourcequota = _parse_resourcequota_manifest(resourcequota_path)
+        from backend.routers.resourcequota import _requests_and_quota_limits_from_resourcequota
         reqs, quota_limits = _requests_and_quota_limits_from_resourcequota(resourcequota)
 
         rolebinding = None
