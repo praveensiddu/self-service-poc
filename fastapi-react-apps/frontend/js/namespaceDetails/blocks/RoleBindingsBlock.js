@@ -24,6 +24,8 @@ function NamespaceRoleBindingsCard({
         onEnableBlockEdit={header?.onEnableBlockEdit}
         onDiscardBlockEdits={header?.onDiscardBlockEdits}
         onSaveBlock={header?.onSaveBlock}
+        helpDocPath="/static/help/namespaceDetails/rolebindings.html"
+        helpTitle="Role Bindings"
         right={
           isEditingRoleBindings ? (
             <button

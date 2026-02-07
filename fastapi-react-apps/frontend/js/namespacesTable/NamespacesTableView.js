@@ -502,10 +502,30 @@ function NamespacesTableView({
               />
             </th>
             <th>Name</th>
-            <th>Clusters</th>
-            <th>EgressIP</th>
-            <th>Egress Firewall</th>
-            <th>Managed by ArgoCD</th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Clusters</span>
+                <HelpIconButton docPath="/static/help/namespacesTable/clusters.html" title="Clusters" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>EgressIP</span>
+                <HelpIconButton docPath="/static/help/namespacesTable/egressIp.html" title="EgressIP" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Egress Firewall</span>
+                <HelpIconButton docPath="/static/help/namespacesTable/egressFirewall.html" title="Egress Firewall" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Managed by ArgoCD</span>
+                <HelpIconButton docPath="/static/help/namespacesTable/managedByArgoCd.html" title="Managed by ArgoCD" />
+              </span>
+            </th>
             <th>Actions</th>
           </tr>
           <tr>

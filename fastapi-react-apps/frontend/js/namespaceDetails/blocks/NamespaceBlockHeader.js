@@ -8,6 +8,8 @@ function NamespaceBlockHeader({
   onEnableBlockEdit,
   onDiscardBlockEdits,
   onSaveBlock,
+  helpDocPath,
+  helpTitle,
   right,
 }) {
   return (
@@ -31,11 +33,12 @@ function NamespaceBlockHeader({
               </svg>
             </button>
           ) : null}
+          <HelpIconButton docPath={helpDocPath} title={helpTitle || `Help: ${title}`} />
           {right || null}
         </div>
       ) : null}
       {!readonly && isEditing ? (
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             className="iconBtn"
             type="button"
@@ -59,9 +62,10 @@ function NamespaceBlockHeader({
               <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
             </svg>
           </button>
+          <HelpIconButton docPath={helpDocPath} title={helpTitle || `Help: ${title}`} />
+          {right || null}
         </div>
       ) : null}
-      {isEditing ? (right || null) : null}
     </div>
   );
 }

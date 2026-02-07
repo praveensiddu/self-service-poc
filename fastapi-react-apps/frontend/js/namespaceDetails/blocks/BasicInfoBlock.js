@@ -59,6 +59,8 @@ function NamespaceBasicInfoCard({
         onEnableBlockEdit={header?.onEnableBlockEdit}
         onDiscardBlockEdits={header?.onDiscardBlockEdits}
         onSaveBlock={header?.onSaveBlock}
+        helpDocPath="/static/help/namespaceDetails/basic.html"
+        helpTitle="Basic Information"
       />
       <div className="dashboardCardBody">
         <div className="detailRow">

@@ -27,6 +27,8 @@ function NamespaceEgressConfigCard({
         onEnableBlockEdit={header?.onEnableBlockEdit}
         onDiscardBlockEdits={header?.onDiscardBlockEdits}
         onSaveBlock={header?.onSaveBlock}
+        helpDocPath="/static/help/namespaceDetails/egress.html"
+        helpTitle="Egress Configuration"
       />
       <div className="dashboardCardBody">
         <div className="detailRow">

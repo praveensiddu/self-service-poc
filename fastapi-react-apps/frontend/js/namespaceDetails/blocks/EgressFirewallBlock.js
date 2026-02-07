@@ -25,6 +25,8 @@ function NamespaceEgressFirewallCard({
         onEnableBlockEdit={header?.onEnableBlockEdit}
         onDiscardBlockEdits={header?.onDiscardBlockEdits}
         onSaveBlock={header?.onSaveBlock}
+        helpDocPath="/static/help/namespaceDetails/egressFirewall.html"
+        helpTitle="Egress Firewall"
         right={
           <>
             {isEditingEgressFirewall && draftEgressFirewallEntries.length > 0 && (

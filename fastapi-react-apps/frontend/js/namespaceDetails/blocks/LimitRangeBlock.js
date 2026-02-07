@@ -69,6 +69,8 @@ function NamespaceLimitRangeCard({
         onEnableBlockEdit={header?.onEnableBlockEdit || (() => {})}
         onDiscardBlockEdits={header?.onDiscardBlockEdits || (() => {})}
         onSaveBlock={header?.onSaveBlock || (() => {})}
+        helpDocPath="/static/help/namespaceDetails/limitRange.html"
+        helpTitle="LimitRange"
         right={
           !readonly && !isEditing ? (
             <button

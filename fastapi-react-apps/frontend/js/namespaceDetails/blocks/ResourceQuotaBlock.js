@@ -47,6 +47,8 @@ function NamespaceResourceQuotaCard({
         onEnableBlockEdit={header?.onEnableBlockEdit || (() => {})}
         onDiscardBlockEdits={header?.onDiscardBlockEdits || (() => {})}
         onSaveBlock={header?.onSaveBlock || (() => {})}
+        helpDocPath="/static/help/namespaceDetails/resourceQuota.html"
+        helpTitle="ResourceQuota"
         right={
           !readonly && !isEditing ? (
             <button
