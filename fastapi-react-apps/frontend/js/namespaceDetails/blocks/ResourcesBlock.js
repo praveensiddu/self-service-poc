@@ -1,4 +1,5 @@
 function NamespaceResourcesCard({
+  header,
   readonly,
   isEditingResourceQuota,
   isEditingLimitRange,
@@ -8,72 +9,136 @@ function NamespaceResourcesCard({
   onSaveBlock,
   resources,
   formatValue,
-  draftQuotaLimEphemeralStorage,
-  setDraftQuotaLimEphemeralStorage,
-  draftQuotaLimMemory,
-  setDraftQuotaLimMemory,
-  draftReqCpu,
-  setDraftReqCpu,
-  draftReqMemory,
-  setDraftReqMemory,
-  draftReqEphemeralStorage,
-  setDraftReqEphemeralStorage,
-  draftLimCpu,
-  setDraftLimCpu,
-  draftLimMemory,
-  setDraftLimMemory,
-  draftLimEphemeralStorage,
-  setDraftLimEphemeralStorage,
-  draftLimDefaultCpu,
-  setDraftLimDefaultCpu,
-  draftLimDefaultMemory,
-  setDraftLimDefaultMemory,
-  draftLimDefaultEphemeralStorage,
-  setDraftLimDefaultEphemeralStorage,
+  draft,
+  setDraft,
   fetchResourceQuotaYaml,
   fetchLimitRangeYaml,
 }) {
+  const draftQuotaLimEphemeralStorage = String(draft?.quota_limits?.["ephemeral-storage"] || "");
+  const draftQuotaLimMemory = String(draft?.quota_limits?.memory || "");
+  const draftReqCpu = String(draft?.requests?.cpu || "");
+  const draftReqMemory = String(draft?.requests?.memory || "");
+  const draftReqEphemeralStorage = String(draft?.requests?.["ephemeral-storage"] || "");
+
+  const draftLimCpu = String(draft?.limits?.cpu || "");
+  const draftLimMemory = String(draft?.limits?.memory || "");
+  const draftLimEphemeralStorage = String(draft?.limits?.["ephemeral-storage"] || "");
+  const draftLimDefaultCpu = String(draft?.limits?.default?.cpu || "");
+  const draftLimDefaultMemory = String(draft?.limits?.default?.memory || "");
+  const draftLimDefaultEphemeralStorage = String(draft?.limits?.default?.["ephemeral-storage"] || "");
+
+  function setDraftQuotaLimEphemeralStorage(val) {
+    setDraft((prev) => ({ ...prev, quota_limits: { ...(prev?.quota_limits || {}), "ephemeral-storage": val } }));
+  }
+  function setDraftQuotaLimMemory(val) {
+    setDraft((prev) => ({ ...prev, quota_limits: { ...(prev?.quota_limits || {}), memory: val } }));
+  }
+  function setDraftReqCpu(val) {
+    setDraft((prev) => ({ ...prev, requests: { ...(prev?.requests || {}), cpu: val } }));
+  }
+  function setDraftReqMemory(val) {
+    setDraft((prev) => ({ ...prev, requests: { ...(prev?.requests || {}), memory: val } }));
+  }
+  function setDraftReqEphemeralStorage(val) {
+    setDraft((prev) => ({ ...prev, requests: { ...(prev?.requests || {}), "ephemeral-storage": val } }));
+  }
+  function setDraftLimCpu(val) {
+    setDraft((prev) => ({ ...prev, limits: { ...(prev?.limits || {}), cpu: val } }));
+  }
+  function setDraftLimMemory(val) {
+    setDraft((prev) => ({ ...prev, limits: { ...(prev?.limits || {}), memory: val } }));
+  }
+  function setDraftLimEphemeralStorage(val) {
+    setDraft((prev) => ({ ...prev, limits: { ...(prev?.limits || {}), "ephemeral-storage": val } }));
+  }
+  function setDraftLimDefaultCpu(val) {
+    setDraft((prev) => ({
+      ...prev,
+      limits: {
+        ...(prev?.limits || {}),
+        default: { ...(prev?.limits?.default || {}), cpu: val },
+      },
+    }));
+  }
+  function setDraftLimDefaultMemory(val) {
+    setDraft((prev) => ({
+      ...prev,
+      limits: {
+        ...(prev?.limits || {}),
+        default: { ...(prev?.limits?.default || {}), memory: val },
+      },
+    }));
+  }
+  function setDraftLimDefaultEphemeralStorage(val) {
+    setDraft((prev) => ({
+      ...prev,
+      limits: {
+        ...(prev?.limits || {}),
+        default: { ...(prev?.limits?.default || {}), "ephemeral-storage": val },
+      },
+    }));
+  }
+
+  function SectionHeader({ title, blockKey, isEditing, right }) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>{title}</h4>
+        {!readonly && !isEditing ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              className="iconBtn iconBtn-primary"
+              type="button"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => onEnableBlockEdit(blockKey)}
+              disabled={!canStartEditing(blockKey)}
+              aria-label="Enable edit"
+              title="Enable edit"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
+                <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
+              </svg>
+            </button>
+            {right || null}
+          </div>
+        ) : null}
+        {!readonly && isEditing ? (
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button className="btn" type="button" onClick={onDiscardBlockEdits}>
+              Discard Edits
+            </button>
+            <button className="btn btn-primary" type="button" onClick={() => onSaveBlock(blockKey)}>
+              Submit
+            </button>
+          </div>
+        ) : null}
+        {(readonly || isEditing) ? (right || null) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="dashboardCard">
-      <div className="dashboardCardHeader">
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-          <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z" />
-        </svg>
-        <h3>Resources</h3>
-      </div>
+      <NamespaceBlockHeader
+        icon={(
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+            <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z" />
+          </svg>
+        )}
+        title="Resources"
+        readonly={Boolean(header?.readonly ?? true)}
+        isEditing={Boolean(header?.isEditing ?? false)}
+        blockKey={header?.blockKey || "resources"}
+        canStartEditing={header?.canStartEditing || (() => false)}
+        onEnableBlockEdit={header?.onEnableBlockEdit || (() => {})}
+        onDiscardBlockEdits={header?.onDiscardBlockEdits || (() => {})}
+        onSaveBlock={header?.onSaveBlock || (() => {})}
+      />
       <div className="dashboardCardBody">
         {isEditingResourceQuota || isEditingLimitRange ? (
           <div>
             <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                {!readonly && !isEditingResourceQuota ? (
-                  <button
-                    className="iconBtn iconBtn-primary"
-                    type="button"
-                    style={{ marginLeft: 'auto' }}
-                    onClick={() => onEnableBlockEdit("resourcequota")}
-                    disabled={!canStartEditing("resourcequota")}
-                    aria-label="Enable edit"
-                    title="Enable edit"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-                      <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-                    </svg>
-                  </button>
-                ) : null}
-                {!readonly && isEditingResourceQuota ? (
-                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                    <button className="btn" type="button" onClick={onDiscardBlockEdits}>
-                      Discard Edits
-                    </button>
-                    <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("resourcequota")}>
-                      Submit
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+              <SectionHeader title="ResourceQuota" blockKey="resourcequota" isEditing={isEditingResourceQuota} />
               <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
                 <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Limits</h5>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -122,35 +187,7 @@ function NamespaceResourcesCard({
               </div>
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                {!readonly && !isEditingLimitRange ? (
-                  <button
-                    className="iconBtn iconBtn-primary"
-                    type="button"
-                    style={{ marginLeft: 'auto' }}
-                    onClick={() => onEnableBlockEdit("limitrange")}
-                    disabled={!canStartEditing("limitrange")}
-                    aria-label="Enable edit"
-                    title="Enable edit"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-                      <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-                    </svg>
-                  </button>
-                ) : null}
-                {!readonly && isEditingLimitRange ? (
-                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                    <button className="btn" type="button" onClick={onDiscardBlockEdits}>
-                      Discard Edits
-                    </button>
-                    <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("limitrange")}>
-                      Submit
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+              <SectionHeader title="LimitRange" blockKey="limitrange" isEditing={isEditingLimitRange} />
               <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #dee2e6' }}>
                 <h5 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 8px 0', color: '#6c757d' }}>Default Request</h5>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -211,24 +248,11 @@ function NamespaceResourcesCard({
           <div>
             {(resources.requests || resources.quota_limits) && (
               <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '2px solid #e9ecef' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>ResourceQuota</h4>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {!readonly ? (
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        type="button"
-                        onClick={() => onEnableBlockEdit("resourcequota")}
-                        disabled={!canStartEditing("resourcequota")}
-                        aria-label="Enable edit"
-                        title="Enable edit"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-                          <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-                        </svg>
-                      </button>
-                    ) : null}
+                <SectionHeader
+                  title="ResourceQuota"
+                  blockKey="resourcequota"
+                  isEditing={false}
+                  right={(
                     <button
                       className="iconBtn iconBtn-primary"
                       onClick={() => {
@@ -294,8 +318,8 @@ function NamespaceResourcesCard({
                         <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
                       </svg>
                     </button>
-                  </div>
-                </div>
+                  )}
+                />
                 {(() => {
                   const quotaLimitsFields = [];
                   const quotaLimitsData = resources.quota_limits || {};
@@ -353,24 +377,11 @@ function NamespaceResourcesCard({
             )}
             {resources.limits && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <h4 style={{ fontSize: '16px', fontWeight: '600', margin: 0, color: '#495057' }}>LimitRange</h4>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {!readonly ? (
-                      <button
-                        className="iconBtn iconBtn-primary"
-                        type="button"
-                        onClick={() => onEnableBlockEdit("limitrange")}
-                        disabled={!canStartEditing("limitrange")}
-                        aria-label="Enable edit"
-                        title="Enable edit"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-                          <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-                        </svg>
-                      </button>
-                    ) : null}
+                <SectionHeader
+                  title="LimitRange"
+                  blockKey="limitrange"
+                  isEditing={false}
+                  right={(
                     <button
                       className="iconBtn iconBtn-primary"
                       onClick={() => {
@@ -436,8 +447,8 @@ function NamespaceResourcesCard({
                         <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
                       </svg>
                     </button>
-                  </div>
-                </div>
+                  )}
+                />
                 {(() => {
                   const defaultRequestFields = [];
                   const limitsData = resources.limits || {};

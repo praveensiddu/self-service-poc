@@ -1,67 +1,49 @@
 function NamespaceRoleBindingsCard({
-  readonly,
-  isEditingRoleBindings,
-  canStartEditing,
-  onEnableBlockEdit,
-  onDiscardBlockEdits,
-  onSaveBlock,
+  header,
   draftRoleBindingsEntries,
   setDraftRoleBindingsEntries,
   roleCatalogByKind,
   fetchRoleBindingYaml,
   rolebindings,
 }) {
+  const readonly = Boolean(header?.readonly);
+  const isEditingRoleBindings = Boolean(header?.isEditing);
   return (
     <div className="dashboardCard">
-      <div className="dashboardCardHeader">
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-          <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z" />
-        </svg>
-        <h3>Role Bindings</h3>
-        {!readonly && !isEditingRoleBindings ? (
-          <button
-            className="iconBtn iconBtn-primary"
-            type="button"
-            style={{ marginLeft: 'auto' }}
-            onClick={() => onEnableBlockEdit("rolebindings")}
-            disabled={!canStartEditing("rolebindings")}
-            aria-label="Enable edit"
-            title="Enable edit"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-              <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-            </svg>
-          </button>
-        ) : null}
-        {!readonly && isEditingRoleBindings ? (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button className="btn" type="button" onClick={onDiscardBlockEdits}>
-              Discard Edits
-            </button>
-            <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("rolebindings")}>
-              Submit
-            </button>
-          </div>
-        ) : null}
-        {isEditingRoleBindings && (
-          <button
-            className="btn btn-primary"
-            style={{ marginLeft: (!readonly && isEditingRoleBindings) ? 0 : 'auto' }}
-            onClick={() => {
-              setDraftRoleBindingsEntries([
-                ...draftRoleBindingsEntries,
-                {
-                  subjects: [{ kind: "User", name: "" }],
-                  roleRef: { kind: "ClusterRole", name: "" },
-                },
-              ]);
-            }}
-          >
-            + Add RoleBinding Entry
-          </button>
+      <NamespaceBlockHeader
+        icon={(
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z" />
+          </svg>
         )}
-      </div>
+        title="Role Bindings"
+        readonly={readonly}
+        isEditing={isEditingRoleBindings}
+        blockKey={header?.blockKey || "rolebindings"}
+        canStartEditing={header?.canStartEditing}
+        onEnableBlockEdit={header?.onEnableBlockEdit}
+        onDiscardBlockEdits={header?.onDiscardBlockEdits}
+        onSaveBlock={header?.onSaveBlock}
+        right={
+          isEditingRoleBindings ? (
+            <button
+              className="btn btn-primary"
+              style={{ marginLeft: (!readonly && isEditingRoleBindings) ? 0 : 'auto' }}
+              onClick={() => {
+                setDraftRoleBindingsEntries([
+                  ...draftRoleBindingsEntries,
+                  {
+                    subjects: [{ kind: "User", name: "" }],
+                    roleRef: { kind: "ClusterRole", name: "" },
+                  },
+                ]);
+              }}
+            >
+              + Add RoleBinding Entry
+            </button>
+          ) : null
+        }
+      />
       <div className="dashboardCardBody">
         <div style={{ overflowX: 'auto' }}>
           <table>

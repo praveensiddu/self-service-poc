@@ -1,10 +1,5 @@
 function NamespaceEgressFirewallCard({
-  readonly,
-  isEditingEgressFirewall,
-  canStartEditing,
-  onEnableBlockEdit,
-  onDiscardBlockEdits,
-  onSaveBlock,
+  header,
   draftEgressFirewallEntries,
   setDraftEgressFirewallEntries,
   previewEgressFirewallWithDraft,
@@ -12,121 +7,109 @@ function NamespaceEgressFirewallCard({
   fetchEgressFirewallYaml,
   formatValue,
 }) {
+  const readonly = Boolean(header?.readonly);
+  const isEditingEgressFirewall = Boolean(header?.isEditing);
   return (
     <div className="dashboardCard">
-      <div className="dashboardCardHeader">
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-          <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z" />
-        </svg>
-        <h3>Egress Firewall</h3>
-        {!readonly && !isEditingEgressFirewall ? (
-          <button
-            className="iconBtn iconBtn-primary"
-            type="button"
-            style={{ marginLeft: 'auto' }}
-            onClick={() => onEnableBlockEdit("egressfirewall")}
-            disabled={!canStartEditing("egressfirewall")}
-            aria-label="Enable edit"
-            title="Enable edit"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-              <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-            </svg>
-          </button>
-        ) : null}
-        {!readonly && isEditingEgressFirewall ? (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button className="btn" type="button" onClick={onDiscardBlockEdits}>
-              Discard Edits
-            </button>
-            <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("egressfirewall")}>
-              Submit
-            </button>
-          </div>
-        ) : null}
-
-        {isEditingEgressFirewall && draftEgressFirewallEntries.length > 0 && (
-          <button
-            className="iconBtn iconBtn-warning"
-            style={{ marginLeft: (!readonly && isEditingEgressFirewall) ? 0 : 'auto' }}
-            onClick={previewEgressFirewallWithDraft}
-            aria-label="Preview YAML"
-            title="Preview EgressFirewall YAML with current draft changes"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z" />
-              <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
-            </svg>
-          </button>
+      <NamespaceBlockHeader
+        icon={(
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+            <path fillRule="evenodd" d="M2.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-13a.5.5 0 0 0-.5-.5h-11zM3 2h10v12H3V2zm2 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 4.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 6.5zm0 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 5 8.5z" />
+          </svg>
         )}
-        {!isEditingEgressFirewall && egressFirewallRules.length > 0 && (
-          <button
-            className="iconBtn iconBtn-primary"
-            style={{ marginLeft: 'auto' }}
-            onClick={async () => {
-              try {
-                const egressYaml = await fetchEgressFirewallYaml(egressFirewallRules);
+        title="Egress Firewall"
+        readonly={readonly}
+        isEditing={isEditingEgressFirewall}
+        blockKey={header?.blockKey || "egressfirewall"}
+        canStartEditing={header?.canStartEditing}
+        onEnableBlockEdit={header?.onEnableBlockEdit}
+        onDiscardBlockEdits={header?.onDiscardBlockEdits}
+        onSaveBlock={header?.onSaveBlock}
+        right={
+          <>
+            {isEditingEgressFirewall && draftEgressFirewallEntries.length > 0 && (
+              <button
+                className="iconBtn iconBtn-warning"
+                style={{ marginLeft: (!readonly && isEditingEgressFirewall) ? 0 : 'auto' }}
+                onClick={previewEgressFirewallWithDraft}
+                aria-label="Preview YAML"
+                title="Preview EgressFirewall YAML with current draft changes"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z" />
+                  <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
+                </svg>
+              </button>
+            )}
+            {!isEditingEgressFirewall && egressFirewallRules.length > 0 && (
+              <button
+                className="iconBtn iconBtn-primary"
+                style={{ marginLeft: 'auto' }}
+                onClick={async () => {
+                  try {
+                    const egressYaml = await fetchEgressFirewallYaml(egressFirewallRules);
 
-                const modal = document.createElement('div');
-                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                const modalContent = document.createElement('div');
-                modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 800px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);';
+                    const modalContent = document.createElement('div');
+                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 800px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);';
 
-                const header = document.createElement('div');
-                header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">EgressFirewall Details</h3>';
+                    const header = document.createElement('div');
+                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">EgressFirewall Details</h3>';
 
-                const closeBtn = document.createElement('button');
-                closeBtn.innerHTML = '&times;';
-                closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                closeBtn.onclick = () => modal.remove();
-                header.appendChild(closeBtn);
+                    const closeBtn = document.createElement('button');
+                    closeBtn.innerHTML = '&times;';
+                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                    closeBtn.onclick = () => modal.remove();
+                    header.appendChild(closeBtn);
 
-                const pre = document.createElement('pre');
-                pre.textContent = egressYaml;
-                pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+                    const pre = document.createElement('pre');
+                    pre.textContent = egressYaml;
+                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                const footer = document.createElement('div');
-                footer.style.cssText = 'margin-top: 16px; text-align: right;';
+                    const footer = document.createElement('div');
+                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                const copyBtn = document.createElement('button');
-                copyBtn.textContent = 'Copy';
-                copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                copyBtn.onclick = () => {
-                  navigator.clipboard.writeText(egressYaml).then(() => alert('Copied to clipboard!'));
-                };
+                    const copyBtn = document.createElement('button');
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                    copyBtn.onclick = () => {
+                      navigator.clipboard.writeText(egressYaml).then(() => alert('Copied to clipboard!'));
+                    };
 
-                const closeBtn2 = document.createElement('button');
-                closeBtn2.textContent = 'Close';
-                closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                closeBtn2.onclick = () => modal.remove();
+                    const closeBtn2 = document.createElement('button');
+                    closeBtn2.textContent = 'Close';
+                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                    closeBtn2.onclick = () => modal.remove();
 
-                footer.appendChild(copyBtn);
-                footer.appendChild(closeBtn2);
+                    footer.appendChild(copyBtn);
+                    footer.appendChild(closeBtn2);
 
-                modalContent.appendChild(header);
-                modalContent.appendChild(pre);
-                modalContent.appendChild(footer);
-                modal.appendChild(modalContent);
+                    modalContent.appendChild(header);
+                    modalContent.appendChild(pre);
+                    modalContent.appendChild(footer);
+                    modal.appendChild(modalContent);
 
-                document.body.appendChild(modal);
-                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-              } catch (err) {
-                alert('Failed to load EgressFirewall YAML: ' + String(err.message || err));
-              }
-            }}
-            aria-label="View YAML"
-            title="View EgressFirewall YAML definition"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
-              <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
-            </svg>
-          </button>
-        )}
-      </div>
+                    document.body.appendChild(modal);
+                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                  } catch (err) {
+                    alert('Failed to load EgressFirewall YAML: ' + String(err.message || err));
+                  }
+                }}
+                aria-label="View YAML"
+                title="View EgressFirewall YAML definition"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
+                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
+                </svg>
+              </button>
+            )}
+          </>
+        }
+      />
 
       <div className="dashboardCardBody">
         {isEditingEgressFirewall ? (

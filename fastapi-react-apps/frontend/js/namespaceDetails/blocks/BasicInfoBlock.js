@@ -1,63 +1,65 @@
 function NamespaceBasicInfoCard({
-  readonly,
-  isEditingBasic,
-  canStartEditing,
-  onEnableBlockEdit,
-  onDiscardBlockEdits,
-  onSaveBlock,
+  header,
   clusters,
   managedByArgo,
   effectiveNamespace,
-  draftClustersList,
-  removeCluster,
   clusterQuery,
   setClusterQuery,
   clusterPickerOpen,
   setClusterPickerOpen,
   filteredClusterOptions,
-  addCluster,
-  draftManagedByArgo,
-  setDraftManagedByArgo,
-  draftNsArgoSyncStrategy,
-  setDraftNsArgoSyncStrategy,
-  draftNsArgoGitRepoUrl,
-  setDraftNsArgoGitRepoUrl,
+  draft,
+  setDraft,
   formatValue,
 }) {
+  const readonly = Boolean(header?.readonly);
+  const isEditingBasic = Boolean(header?.isEditing);
+
+  const draftClustersList = Array.isArray(draft?.clustersList) ? draft.clustersList : [];
+  const draftManagedByArgo = Boolean(draft?.managedByArgo);
+  const draftNsArgoSyncStrategy = String(draft?.nsArgoSyncStrategy || "auto");
+  const draftNsArgoGitRepoUrl = String(draft?.nsArgoGitRepoUrl || "");
+
+  function addCluster(name) {
+    const v = String(name || "").trim();
+    if (!v) return;
+    setDraft((prev) => {
+      const list = Array.isArray(prev?.clustersList) ? prev.clustersList : [];
+      const exists = list.some((x) => String(x).toLowerCase() === v.toLowerCase());
+      const nextList = exists ? list : [...list, v];
+      return { ...prev, clustersList: nextList };
+    });
+    setClusterQuery("");
+    setClusterPickerOpen(true);
+  }
+
+  function removeCluster(name) {
+    const v = String(name || "").trim();
+    if (!v) return;
+    setDraft((prev) => {
+      const list = Array.isArray(prev?.clustersList) ? prev.clustersList : [];
+      const nextList = list.filter((x) => String(x).toLowerCase() !== v.toLowerCase());
+      return { ...prev, clustersList: nextList };
+    });
+  }
+
   return (
     <div className="dashboardCard">
-      <div className="dashboardCardHeader">
-        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
-          <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
-        </svg>
-        <h3>Basic Information</h3>
-        {!readonly && !isEditingBasic ? (
-          <button
-            className="iconBtn iconBtn-primary"
-            type="button"
-            style={{ marginLeft: 'auto' }}
-            onClick={() => onEnableBlockEdit("basic")}
-            disabled={!canStartEditing("basic")}
-            aria-label="Enable edit"
-            title="Enable edit"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
-              <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
-            </svg>
-          </button>
-        ) : null}
-        {!readonly && isEditingBasic ? (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button className="btn" type="button" onClick={onDiscardBlockEdits}>
-              Discard Edits
-            </button>
-            <button className="btn btn-primary" type="button" onClick={() => onSaveBlock("basic")}>
-              Submit
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <NamespaceBlockHeader
+        icon={(
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
+            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+          </svg>
+        )}
+        title="Basic Information"
+        readonly={readonly}
+        isEditing={isEditingBasic}
+        blockKey={header?.blockKey || "basic"}
+        canStartEditing={header?.canStartEditing}
+        onEnableBlockEdit={header?.onEnableBlockEdit}
+        onDiscardBlockEdits={header?.onDiscardBlockEdits}
+        onSaveBlock={header?.onSaveBlock}
+      />
       <div className="dashboardCardBody">
         <div className="detailRow">
           <span className="detailLabel">Clusters:</span>
@@ -139,7 +141,7 @@ function NamespaceBasicInfoCard({
                       setClusterPickerOpen(false);
                     }
                   }}
-                  placeholder={(draftClustersList || []).length ? "" : "Type to search clusters..."}
+                  placeholder="Add cluster..."
                   data-testid="ns-edit-input-clusters"
                 />
               </div>
@@ -192,52 +194,45 @@ function NamespaceBasicInfoCard({
           )}
         </div>
         <div className="detailRow">
-          <span className="detailLabel">Managed by ArgoCD:</span>
+          <span className="detailLabel">Managed By Argo:</span>
           {isEditingBasic ? (
             <select
               className="filterInput"
               value={draftManagedByArgo ? "Yes" : "No"}
-              onChange={(e) => setDraftManagedByArgo(e.target.value === "Yes")}
+              onChange={(e) => setDraft((prev) => ({ ...prev, managedByArgo: e.target.value === "Yes" }))}
             >
               <option value="Yes">Yes</option>
               <option value="No">No</option>
             </select>
           ) : (
-            <span className={`detailBadge ${managedByArgo === 'Yes' ? 'detailBadgeSuccess' : 'detailBadgeSecondary'}`}>
+            <span className={`detailBadge ${managedByArgo === 'Yes' ? 'detailBadgeSuccess' : 'detailBadgeWarning'}`}>
               {managedByArgo}
             </span>
           )}
         </div>
 
         <div className="detailRow">
-          <span className="detailLabel">ArgoCD Sync Strategy:</span>
+          <span className="detailLabel">Argo Sync Strategy:</span>
           {isEditingBasic ? (
-            <select
+            <input
               className="filterInput"
               value={draftNsArgoSyncStrategy}
-              onChange={(e) => setDraftNsArgoSyncStrategy(e.target.value)}
-              disabled={!draftManagedByArgo}
-            >
-              <option value="auto">auto</option>
-              <option value="manual">manual</option>
-            </select>
+              onChange={(e) => setDraft((prev) => ({ ...prev, nsArgoSyncStrategy: e.target.value }))}
+            />
           ) : (
-            <span className="detailValue">{formatValue(effectiveNamespace?.argocd_sync_strategy || "")}</span>
+            <span className="detailValue">{formatValue(effectiveNamespace?.argocd_sync_strategy)}</span>
           )}
         </div>
-
         <div className="detailRow">
-          <span className="detailLabel">ArgoCD Git Repo URL:</span>
+          <span className="detailLabel">Argo Git Repo URL:</span>
           {isEditingBasic ? (
             <input
               className="filterInput"
               value={draftNsArgoGitRepoUrl}
-              onChange={(e) => setDraftNsArgoGitRepoUrl(e.target.value)}
-              placeholder="https://github.com/org/repo"
-              disabled={!draftManagedByArgo}
+              onChange={(e) => setDraft((prev) => ({ ...prev, nsArgoGitRepoUrl: e.target.value }))}
             />
           ) : (
-            <span className="detailValue">{formatValue(effectiveNamespace?.gitrepourl || "")}</span>
+            <span className="detailValue">{formatValue(effectiveNamespace?.gitrepourl)}</span>
           )}
         </div>
       </div>

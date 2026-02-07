@@ -8,28 +8,35 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   }
 
   const [editBlock, setEditBlock] = React.useState(null);
-  const [draftClusters, setDraftClusters] = React.useState("");
-  const [draftClustersList, setDraftClustersList] = React.useState([]);
+  const [draftBasic, setDraftBasic] = React.useState({
+    clustersList: [],
+    managedByArgo: false,
+    nsArgoSyncStrategy: "auto",
+    nsArgoGitRepoUrl: "",
+  });
+
   const [clusterOptions, setClusterOptions] = React.useState([]);
   const [clusterQuery, setClusterQuery] = React.useState("");
   const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
-  const [draftManagedByArgo, setDraftManagedByArgo] = React.useState(false);
-  const [draftNsArgoSyncStrategy, setDraftNsArgoSyncStrategy] = React.useState("auto");
-  const [draftNsArgoGitRepoUrl, setDraftNsArgoGitRepoUrl] = React.useState("");
-  const [draftEgressNameId, setDraftEgressNameId] = React.useState("");
-  const [draftEnablePodBasedEgressIp, setDraftEnablePodBasedEgressIp] = React.useState(false);
+
+  const [draftEgress, setDraftEgress] = React.useState({
+    egressNameId: "",
+    enablePodBasedEgressIp: false,
+  });
+
   const [draftEgressFirewallEntries, setDraftEgressFirewallEntries] = React.useState([]);
-  const [draftReqCpu, setDraftReqCpu] = React.useState("");
-  const [draftReqMemory, setDraftReqMemory] = React.useState("");
-  const [draftReqEphemeralStorage, setDraftReqEphemeralStorage] = React.useState("");
-  const [draftQuotaLimMemory, setDraftQuotaLimMemory] = React.useState("");
-  const [draftQuotaLimEphemeralStorage, setDraftQuotaLimEphemeralStorage] = React.useState("");
-  const [draftLimCpu, setDraftLimCpu] = React.useState("");
-  const [draftLimMemory, setDraftLimMemory] = React.useState("");
-  const [draftLimEphemeralStorage, setDraftLimEphemeralStorage] = React.useState("");
-  const [draftLimDefaultCpu, setDraftLimDefaultCpu] = React.useState("");
-  const [draftLimDefaultMemory, setDraftLimDefaultMemory] = React.useState("");
-  const [draftLimDefaultEphemeralStorage, setDraftLimDefaultEphemeralStorage] = React.useState("");
+
+  const [draftResources, setDraftResources] = React.useState({
+    requests: { cpu: "", memory: "", "ephemeral-storage": "" },
+    quota_limits: { memory: "", "ephemeral-storage": "" },
+    limits: {
+      cpu: "",
+      memory: "",
+      "ephemeral-storage": "",
+      default: { cpu: "", memory: "", "ephemeral-storage": "" },
+    },
+  });
+
   const [draftRoleBindingsEntries, setDraftRoleBindingsEntries] = React.useState([]);
 
   const [roleCatalogByKind, setRoleCatalogByKind] = React.useState({ Role: [], ClusterRole: [] });
@@ -68,18 +75,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     }
     try {
       if (block === "basic") {
-        const clusters = (draftClustersList || []).map((s) => String(s).trim()).filter(Boolean);
+        const clusters = (draftBasic?.clustersList || []).map((s) => String(s).trim()).filter(Boolean);
         await onUpdateNamespaceInfo(namespaceName, {
           namespace_info: {
             clusters,
           },
         });
       } else if (block === "egress") {
-        const egress_nameid = (draftEgressNameId || "").trim();
+        const egress_nameid = (draftEgress?.egressNameId || "").trim();
         await onUpdateNamespaceInfo(namespaceName, {
           namespace_info: {
             egress_nameid: egress_nameid ? egress_nameid : null,
-            enable_pod_based_egress_ip: Boolean(draftEnablePodBasedEgressIp),
+            enable_pod_based_egress_ip: Boolean(draftEgress?.enablePodBasedEgressIp),
           },
         });
       } else if (block === "rolebindings") {
@@ -127,32 +134,35 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           },
         });
       } else if (block === "resourcequota") {
+        const nextRequests = {
+          cpu: String(draftResources?.requests?.cpu || "").trim(),
+          memory: String(draftResources?.requests?.memory || "").trim(),
+          "ephemeral-storage": String(draftResources?.requests?.["ephemeral-storage"] || "").trim(),
+        };
+        const nextQuotaLimits = {
+          memory: String(draftResources?.quota_limits?.memory || "").trim(),
+          "ephemeral-storage": String(draftResources?.quota_limits?.["ephemeral-storage"] || "").trim(),
+        };
         await onUpdateNamespaceInfo(namespaceName, {
           resources: {
-            requests: {
-              cpu: (draftReqCpu || "").trim(),
-              memory: (draftReqMemory || "").trim(),
-              "ephemeral-storage": (draftReqEphemeralStorage || "").trim(),
-            },
-            quota_limits: {
-              memory: (draftQuotaLimMemory || "").trim(),
-              "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim(),
-            },
+            requests: nextRequests,
+            quota_limits: nextQuotaLimits,
           },
         });
       } else if (block === "limitrange") {
+        const nextLimits = {
+          cpu: String(draftResources?.limits?.cpu || "").trim(),
+          memory: String(draftResources?.limits?.memory || "").trim(),
+          "ephemeral-storage": String(draftResources?.limits?.["ephemeral-storage"] || "").trim(),
+          default: {
+            cpu: String(draftResources?.limits?.default?.cpu || "").trim(),
+            memory: String(draftResources?.limits?.default?.memory || "").trim(),
+            "ephemeral-storage": String(draftResources?.limits?.default?.["ephemeral-storage"] || "").trim(),
+          },
+        };
         await onUpdateNamespaceInfo(namespaceName, {
           resources: {
-            limits: {
-              cpu: (draftLimCpu || "").trim(),
-              memory: (draftLimMemory || "").trim(),
-              "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
-              default: {
-                cpu: (draftLimDefaultCpu || "").trim(),
-                memory: (draftLimDefaultMemory || "").trim(),
-                "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim(),
-              },
-            },
+            limits: nextLimits,
           },
         });
       }
@@ -165,27 +175,50 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   }
 
   function resetDraftFromNamespace() {
-    const initialClusters = Array.isArray(namespace?.clusters) ? namespace.clusters.map(String).join(",") : "";
-    setDraftClusters(initialClusters);
-    setDraftClustersList(Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : []);
     setClusterQuery("");
     setClusterPickerOpen(false);
-    setDraftManagedByArgo(Boolean(namespace?.need_argo || namespace?.generate_argo_app));
-    setDraftNsArgoSyncStrategy(String(namespace?.argocd_sync_strategy || "auto") || "auto");
-    setDraftNsArgoGitRepoUrl(String(namespace?.gitrepourl || ""));
-    setDraftEgressNameId(namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid));
-    setDraftEnablePodBasedEgressIp(Boolean(namespace?.enable_pod_based_egress_ip));
-    setDraftReqCpu(namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu));
-    setDraftReqMemory(namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory));
-    setDraftReqEphemeralStorage(namespace?.resources?.requests?.["ephemeral-storage"] == null ? "" : String(namespace.resources.requests["ephemeral-storage"]));
-    setDraftQuotaLimMemory(namespace?.resources?.quota_limits?.memory == null ? "" : String(namespace.resources.quota_limits.memory));
-    setDraftQuotaLimEphemeralStorage(namespace?.resources?.quota_limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.quota_limits["ephemeral-storage"]));
-    setDraftLimCpu(namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu));
-    setDraftLimMemory(namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory));
-    setDraftLimEphemeralStorage(namespace?.resources?.limits?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits["ephemeral-storage"]));
-    setDraftLimDefaultCpu(namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu));
-    setDraftLimDefaultMemory(namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory));
-    setDraftLimDefaultEphemeralStorage(namespace?.resources?.limits?.default?.["ephemeral-storage"] == null ? "" : String(namespace.resources.limits.default["ephemeral-storage"]));
+
+    setDraftBasic({
+      clustersList: Array.isArray(namespace?.clusters) ? namespace.clusters.map(String) : [],
+      managedByArgo: Boolean(namespace?.need_argo || namespace?.generate_argo_app),
+      nsArgoSyncStrategy: String(namespace?.argocd_sync_strategy || "auto") || "auto",
+      nsArgoGitRepoUrl: String(namespace?.gitrepourl || ""),
+    });
+
+    setDraftEgress({
+      egressNameId: namespace?.egress_nameid == null ? "" : String(namespace.egress_nameid),
+      enablePodBasedEgressIp: Boolean(namespace?.enable_pod_based_egress_ip),
+    });
+
+    setDraftResources({
+      requests: {
+        cpu: namespace?.resources?.requests?.cpu == null ? "" : String(namespace.resources.requests.cpu),
+        memory: namespace?.resources?.requests?.memory == null ? "" : String(namespace.resources.requests.memory),
+        "ephemeral-storage": namespace?.resources?.requests?.["ephemeral-storage"] == null
+          ? ""
+          : String(namespace.resources.requests["ephemeral-storage"]),
+      },
+      quota_limits: {
+        memory: namespace?.resources?.quota_limits?.memory == null ? "" : String(namespace.resources.quota_limits.memory),
+        "ephemeral-storage": namespace?.resources?.quota_limits?.["ephemeral-storage"] == null
+          ? ""
+          : String(namespace.resources.quota_limits["ephemeral-storage"]),
+      },
+      limits: {
+        cpu: namespace?.resources?.limits?.cpu == null ? "" : String(namespace.resources.limits.cpu),
+        memory: namespace?.resources?.limits?.memory == null ? "" : String(namespace.resources.limits.memory),
+        "ephemeral-storage": namespace?.resources?.limits?.["ephemeral-storage"] == null
+          ? ""
+          : String(namespace.resources.limits["ephemeral-storage"]),
+        default: {
+          cpu: namespace?.resources?.limits?.default?.cpu == null ? "" : String(namespace.resources.limits.default.cpu),
+          memory: namespace?.resources?.limits?.default?.memory == null ? "" : String(namespace.resources.limits.default.memory),
+          "ephemeral-storage": namespace?.resources?.limits?.default?.["ephemeral-storage"] == null
+            ? ""
+            : String(namespace.resources.limits.default["ephemeral-storage"]),
+        },
+      },
+    });
 
     let rolebindingsEntries = [];
     if (Array.isArray(namespace?.rolebindings)) {
@@ -517,31 +550,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     }
   }
 
-  function addCluster(name) {
-    const v = String(name || "").trim();
-    if (!v) return;
-    setDraftClustersList((prev) => {
-      const exists = (prev || []).some((x) => String(x).toLowerCase() === v.toLowerCase());
-      const next = exists ? (prev || []) : [...(prev || []), v];
-      setDraftClusters(next.join(","));
-      return next;
-    });
-    setClusterQuery("");
-    setClusterPickerOpen(true);
-  }
-
-  function removeCluster(name) {
-    const v = String(name || "").trim();
-    if (!v) return;
-    setDraftClustersList((prev) => {
-      const next = (prev || []).filter((x) => String(x).toLowerCase() !== v.toLowerCase());
-      setDraftClusters(next.join(","));
-      return next;
-    });
-  }
-
   const filteredClusterOptions = (clusterOptions || [])
-    .filter((c) => !draftClustersList.some((x) => String(x).toLowerCase() === String(c).toLowerCase()))
+    .filter((c) => !(draftBasic?.clustersList || []).some((x) => String(x).toLowerCase() === String(c).toLowerCase()))
     .filter((c) => {
       const q = String(clusterQuery || "").trim().toLowerCase();
       if (!q) return true;
@@ -565,7 +575,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
   }
 
   const effectiveClusters = isEditingBasic
-    ? (draftClustersList || [])
+    ? (draftBasic?.clustersList || [])
         .map((s) => String(s).trim())
         .filter(Boolean)
     : Array.isArray(namespace?.clusters)
@@ -577,17 +587,17 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     effectiveNamespace = {
       ...namespace,
       clusters: effectiveClusters,
-      need_argo: Boolean(draftManagedByArgo),
-      argocd_sync_strategy: String(draftNsArgoSyncStrategy || "auto") || "auto",
-      gitrepourl: String(draftNsArgoGitRepoUrl || ""),
+      need_argo: Boolean(draftBasic?.managedByArgo),
+      argocd_sync_strategy: String(draftBasic?.nsArgoSyncStrategy || "auto") || "auto",
+      gitrepourl: String(draftBasic?.nsArgoGitRepoUrl || ""),
       generate_argo_app: false,
-      status: Boolean(draftManagedByArgo) ? "Argo used" : "Argo not used",
+      status: Boolean(draftBasic?.managedByArgo) ? "Argo used" : "Argo not used",
     };
   } else if (isEditingEgress) {
     effectiveNamespace = {
       ...namespace,
-      egress_nameid: draftEgressNameId ? draftEgressNameId : null,
-      enable_pod_based_egress_ip: Boolean(draftEnablePodBasedEgressIp),
+      egress_nameid: draftEgress?.egressNameId ? draftEgress.egressNameId : null,
+      enable_pod_based_egress_ip: Boolean(draftEgress?.enablePodBasedEgressIp),
     };
   } else if (isEditingResourceQuota || isEditingLimitRange) {
     effectiveNamespace = {
@@ -596,23 +606,23 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         ...(namespace?.resources || {}),
         requests: {
           ...(namespace?.resources?.requests || {}),
-          cpu: (draftReqCpu || "").trim(),
-          memory: (draftReqMemory || "").trim(),
-          "ephemeral-storage": (draftReqEphemeralStorage || "").trim(),
+          cpu: String(draftResources?.requests?.cpu || "").trim(),
+          memory: String(draftResources?.requests?.memory || "").trim(),
+          "ephemeral-storage": String(draftResources?.requests?.["ephemeral-storage"] || "").trim(),
         },
         quota_limits: {
-          memory: (draftQuotaLimMemory || "").trim(),
-          "ephemeral-storage": (draftQuotaLimEphemeralStorage || "").trim(),
+          memory: String(draftResources?.quota_limits?.memory || "").trim(),
+          "ephemeral-storage": String(draftResources?.quota_limits?.["ephemeral-storage"] || "").trim(),
         },
         limits: {
           ...(namespace?.resources?.limits || {}),
-          cpu: (draftLimCpu || "").trim(),
-          memory: (draftLimMemory || "").trim(),
-          "ephemeral-storage": (draftLimEphemeralStorage || "").trim(),
+          cpu: String(draftResources?.limits?.cpu || "").trim(),
+          memory: String(draftResources?.limits?.memory || "").trim(),
+          "ephemeral-storage": String(draftResources?.limits?.["ephemeral-storage"] || "").trim(),
           default: {
-            cpu: (draftLimDefaultCpu || "").trim(),
-            memory: (draftLimDefaultMemory || "").trim(),
-            "ephemeral-storage": (draftLimDefaultEphemeralStorage || "").trim(),
+            cpu: String(draftResources?.limits?.default?.cpu || "").trim(),
+            memory: String(draftResources?.limits?.default?.memory || "").trim(),
+            "ephemeral-storage": String(draftResources?.limits?.default?.["ephemeral-storage"] || "").trim(),
           },
         },
       },
@@ -646,6 +656,18 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     };
   }, [readonly, renderHeaderButtons]);
 
+  function getHeaderProps(blockKey, isEditing) {
+    return {
+      readonly,
+      isEditing,
+      blockKey,
+      canStartEditing,
+      onEnableBlockEdit,
+      onDiscardBlockEdits,
+      onSaveBlock,
+    };
+  }
+
   return (
     <div>
       {/* Overview Cards Grid - Two Column Layout: 3/4 and 1/4 */}
@@ -655,54 +677,30 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           {/* Top Row: Basic Information and Egress Configuration side-by-side */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <NamespaceBasicInfoCard
-              readonly={readonly}
-              isEditingBasic={isEditingBasic}
-              canStartEditing={canStartEditing}
-              onEnableBlockEdit={onEnableBlockEdit}
-              onDiscardBlockEdits={onDiscardBlockEdits}
-              onSaveBlock={onSaveBlock}
+              header={getHeaderProps("basic", isEditingBasic)}
               clusters={clusters}
               managedByArgo={managedByArgo}
               effectiveNamespace={effectiveNamespace}
-              draftClustersList={draftClustersList}
-              removeCluster={removeCluster}
               clusterQuery={clusterQuery}
               setClusterQuery={setClusterQuery}
               clusterPickerOpen={clusterPickerOpen}
               setClusterPickerOpen={setClusterPickerOpen}
               filteredClusterOptions={filteredClusterOptions}
-              addCluster={addCluster}
-              draftManagedByArgo={draftManagedByArgo}
-              setDraftManagedByArgo={setDraftManagedByArgo}
-              draftNsArgoSyncStrategy={draftNsArgoSyncStrategy}
-              setDraftNsArgoSyncStrategy={setDraftNsArgoSyncStrategy}
-              draftNsArgoGitRepoUrl={draftNsArgoGitRepoUrl}
-              setDraftNsArgoGitRepoUrl={setDraftNsArgoGitRepoUrl}
+              draft={draftBasic}
+              setDraft={setDraftBasic}
               formatValue={formatValue}
             />
 
             <NamespaceEgressConfigCard
-              readonly={readonly}
-              isEditingEgress={isEditingEgress}
-              canStartEditing={canStartEditing}
-              onEnableBlockEdit={onEnableBlockEdit}
-              onDiscardBlockEdits={onDiscardBlockEdits}
-              onSaveBlock={onSaveBlock}
-              draftEgressNameId={draftEgressNameId}
-              setDraftEgressNameId={setDraftEgressNameId}
+              header={getHeaderProps("egress", isEditingEgress)}
               egressNameId={egressNameId}
-              draftEnablePodBasedEgressIp={draftEnablePodBasedEgressIp}
-              setDraftEnablePodBasedEgressIp={setDraftEnablePodBasedEgressIp}
               podBasedEgress={podBasedEgress}
+              draft={draftEgress}
+              setDraft={setDraftEgress}
             />
           </div>
           <NamespaceRoleBindingsCard
-            readonly={readonly}
-            isEditingRoleBindings={isEditingRoleBindings}
-            canStartEditing={canStartEditing}
-            onEnableBlockEdit={onEnableBlockEdit}
-            onDiscardBlockEdits={onDiscardBlockEdits}
-            onSaveBlock={onSaveBlock}
+            header={getHeaderProps("rolebindings", isEditingRoleBindings)}
             draftRoleBindingsEntries={draftRoleBindingsEntries}
             setDraftRoleBindingsEntries={setDraftRoleBindingsEntries}
             roleCatalogByKind={roleCatalogByKind}
@@ -711,12 +709,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           />
 
           <NamespaceEgressFirewallCard
-            readonly={readonly}
-            isEditingEgressFirewall={isEditingEgressFirewall}
-            canStartEditing={canStartEditing}
-            onEnableBlockEdit={onEnableBlockEdit}
-            onDiscardBlockEdits={onDiscardBlockEdits}
-            onSaveBlock={onSaveBlock}
+            header={getHeaderProps("egressfirewall", isEditingEgressFirewall)}
             draftEgressFirewallEntries={draftEgressFirewallEntries}
             setDraftEgressFirewallEntries={setDraftEgressFirewallEntries}
             previewEgressFirewallWithDraft={previewEgressFirewallWithDraft}
@@ -729,6 +722,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         {/* Right Column - Resources (1/3 width) */}
         <div>
           <NamespaceResourcesCard
+            header={getHeaderProps("resources", isEditingResourceQuota || isEditingLimitRange)}
             readonly={readonly}
             isEditingResourceQuota={isEditingResourceQuota}
             isEditingLimitRange={isEditingLimitRange}
@@ -738,28 +732,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             onSaveBlock={onSaveBlock}
             resources={resources}
             formatValue={formatValue}
-            draftQuotaLimEphemeralStorage={draftQuotaLimEphemeralStorage}
-            setDraftQuotaLimEphemeralStorage={setDraftQuotaLimEphemeralStorage}
-            draftQuotaLimMemory={draftQuotaLimMemory}
-            setDraftQuotaLimMemory={setDraftQuotaLimMemory}
-            draftReqCpu={draftReqCpu}
-            setDraftReqCpu={setDraftReqCpu}
-            draftReqMemory={draftReqMemory}
-            setDraftReqMemory={setDraftReqMemory}
-            draftReqEphemeralStorage={draftReqEphemeralStorage}
-            setDraftReqEphemeralStorage={setDraftReqEphemeralStorage}
-            draftLimCpu={draftLimCpu}
-            setDraftLimCpu={setDraftLimCpu}
-            draftLimMemory={draftLimMemory}
-            setDraftLimMemory={setDraftLimMemory}
-            draftLimEphemeralStorage={draftLimEphemeralStorage}
-            setDraftLimEphemeralStorage={setDraftLimEphemeralStorage}
-            draftLimDefaultCpu={draftLimDefaultCpu}
-            setDraftLimDefaultCpu={setDraftLimDefaultCpu}
-            draftLimDefaultMemory={draftLimDefaultMemory}
-            setDraftLimDefaultMemory={setDraftLimDefaultMemory}
-            draftLimDefaultEphemeralStorage={draftLimDefaultEphemeralStorage}
-            setDraftLimDefaultEphemeralStorage={setDraftLimDefaultEphemeralStorage}
+            draft={draftResources}
+            setDraft={setDraftResources}
             fetchResourceQuotaYaml={fetchResourceQuotaYaml}
             fetchLimitRangeYaml={fetchLimitRangeYaml}
           />
