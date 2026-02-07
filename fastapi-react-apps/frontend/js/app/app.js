@@ -497,6 +497,50 @@ function App() {
     }
   }
 
+  async function copyNamespace(fromNamespace, payload) {
+    const appname = detailAppName;
+    if (!appname) throw new Error("No application selected.");
+
+    const from_env = String(payload?.from_env || "").trim();
+    const to_env = String(payload?.to_env || "").trim();
+    const to_namespace = String(payload?.to_namespace || "").trim();
+
+    if (!fromNamespace) throw new Error("No source namespace selected.");
+    if (!from_env) throw new Error("from_env is required.");
+    if (!to_env) throw new Error("to_env is required.");
+    if (!to_namespace) throw new Error("to_namespace is required.");
+    if (from_env !== String(activeEnv || "").trim()) {
+      throw new Error("from_env must match the active environment.");
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      await postJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(fromNamespace)}/copy?env=${encodeURIComponent(activeEnv)}`,
+        { from_env, to_env, to_namespace },
+      );
+
+      const resp = await fetchJson(
+        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+      );
+      setNamespaces(resp || {});
+
+      const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+      setApps(appsResp);
+
+      const nextClusters = {};
+      for (const [k, app] of Object.entries(appsResp || {})) {
+        nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
+      }
+      setClustersByApp(nextClusters);
+
+      await refreshRequestsChanges();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function openL4Ingress(appname, push = true) {
     if (!appname) return;
     try {
@@ -1225,6 +1269,7 @@ function App() {
       toggleNamespace={toggleNamespace}
       onSelectAllNamespaces={onSelectAllNamespaces}
       deleteNamespace={deleteNamespace}
+      onCopyNamespace={copyNamespace}
       viewNamespaceDetails={viewNamespaceDetails}
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
       onCreateApp={createApp}

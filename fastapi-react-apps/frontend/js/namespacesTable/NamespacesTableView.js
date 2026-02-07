@@ -9,10 +9,12 @@ function NamespacesTableView({
   selectedNamespaces,
   onViewDetails,
   onDeleteNamespace,
+  onCopyNamespace,
   onCreateNamespace,
   argocdEnabled,
   requestsChanges,
   env,
+  envKeys,
   appname,
   showCreate,
   onOpenCreate,
@@ -26,6 +28,13 @@ function NamespacesTableView({
   const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
   const [newManagedByArgo, setNewManagedByArgo] = React.useState(false);
   const [newEgressNameId, setNewEgressNameId] = React.useState("");
+
+  const [showCopy, setShowCopy] = React.useState(false);
+  const [copyFromNamespace, setCopyFromNamespace] = React.useState("");
+  const [copyToEnv, setCopyToEnv] = React.useState("");
+  const [copyToNamespace, setCopyToNamespace] = React.useState("");
+  const [copyBusy, setCopyBusy] = React.useState(false);
+  const [copyError, setCopyError] = React.useState("");
 
   const canEnableArgoForNewNamespace = Boolean(argocdEnabled);
 
@@ -89,10 +98,150 @@ function NamespacesTableView({
     (newNamespace || "").trim() && Array.isArray(newClustersList) && newClustersList.length > 0,
   );
 
+  const canSubmitCopy = Boolean(
+    !copyBusy &&
+      (copyFromNamespace || "").trim() &&
+      (copyToEnv || "").trim() &&
+      (copyToNamespace || "").trim() &&
+      !(String(copyToEnv || "").trim() === String(env || "").trim() &&
+        String(copyToNamespace || "").trim() === String(copyFromNamespace || "").trim()),
+  );
+
+  function openCopyModal(fromNamespace) {
+    setCopyError("");
+    setCopyFromNamespace(String(fromNamespace || "").trim());
+    const initialToEnv = String(env || "").trim() || (Array.isArray(envKeys) ? String(envKeys[0] || "").trim() : "");
+    setCopyToEnv(initialToEnv);
+    setCopyToNamespace("");
+    setShowCopy(true);
+  }
+
+  function closeCopyModal() {
+    if (copyBusy) return;
+    setShowCopy(false);
+  }
+
   return (
     <div>
 
       <div className="card">
+
+      {showCopy ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeCopyModal();
+          }}
+          data-testid="copy-namespace-modal"
+        >
+          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16 }}>
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd" }}>
+                {appname}
+              </h2>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>
+                Copy Namespace {String(copyFromNamespace || "").trim() ? `(${String(copyFromNamespace || "").trim()})` : ""}
+              </div>
+              <button className="btn" type="button" onClick={closeCopyModal} disabled={copyBusy} data-testid="close-copy-namespace-modal-btn">
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="pill">{String(env || "").trim() || "-"}</span>
+                  <span className="pill">{String(copyFromNamespace || "").trim() || "-"}</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Target Environment</div>
+                <select
+                  className="filterInput"
+                  value={copyToEnv}
+                  onChange={(e) => setCopyToEnv(e.target.value)}
+                  disabled={copyBusy}
+                  data-testid="copy-namespace-to-env"
+                >
+                  <option value="" disabled>
+                    Select environment
+                  </option>
+                  {(Array.isArray(envKeys) ? envKeys : []).map((k) => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">New Namespace Name</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Destination folder name</div>
+                </div>
+                <input
+                  className="filterInput"
+                  value={copyToNamespace}
+                  onChange={(e) => setCopyToNamespace(e.target.value)}
+                  placeholder="e.g., app1-dev-ns2"
+                  disabled={copyBusy}
+                  data-testid="copy-namespace-to-namespace"
+                />
+              </div>
+
+              {copyError ? (
+                <div style={{ color: "#b00020" }} data-testid="copy-namespace-error">
+                  {copyError}
+                </div>
+              ) : null}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={closeCopyModal}
+                  disabled={copyBusy}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={!canSubmitCopy}
+                  onClick={async () => {
+                    try {
+                      setCopyBusy(true);
+                      setCopyError("");
+                      await onCopyNamespace(copyFromNamespace, {
+                        from_env: String(env || "").trim(),
+                        to_env: String(copyToEnv || "").trim(),
+                        to_namespace: String(copyToNamespace || "").trim(),
+                      });
+                      setShowCopy(false);
+                    } catch (e) {
+                      setCopyError(e?.message || String(e));
+                    } finally {
+                      setCopyBusy(false);
+                    }
+                  }}
+                  data-testid="copy-namespace-submit"
+                >
+                  {copyBusy ? "Copying..." : "Copy"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showCreate ? (
         <div
@@ -483,6 +632,20 @@ function NamespacesTableView({
                         <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                       </svg>
                     </button>
+                    {!readonly && (
+                      <button
+                        className="iconBtn"
+                        onClick={() => openCopyModal(r.name)}
+                        aria-label={`Copy ${r.name}`}
+                        title="Copy namespace"
+                        data-testid={`copy-namespace-${r.name}`}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M10 1H2a1 1 0 0 0-1 1v9h1V2h8V1z" />
+                          <path d="M14 4H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zm0 10H5V5h9v9z" />
+                        </svg>
+                      </button>
+                    )}
                     {!readonly && (
                       <button
                         className="iconBtn iconBtn-danger"

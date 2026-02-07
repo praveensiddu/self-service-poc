@@ -3,6 +3,11 @@ function AppView({
   bannerTitle,
   deploymentEnv,
   currentUser,
+  envKeys,
+  activeEnv,
+  loading,
+  view,
+  error,
   topTab,
   configComplete,
   readonly,
@@ -26,11 +31,6 @@ function AppView({
   setControlRepo,
   onSaveConfig,
   onUseDefaults,
-  envKeys,
-  activeEnv,
-  loading,
-  view,
-  error,
   onEnvClick,
   onViewL4Ingress,
   onViewEgressIps,
@@ -58,6 +58,7 @@ function AppView({
   toggleNamespace,
   onSelectAllNamespaces,
   deleteNamespace,
+  onCopyNamespace,
   viewNamespaceDetails,
   onUpdateNamespaceInfo,
   onCreateNamespace,
@@ -388,9 +389,11 @@ function AppView({
                 onToggleNamespace={toggleNamespace}
                 onSelectAll={onSelectAllNamespaces}
                 onDeleteNamespace={deleteNamespace}
+                onCopyNamespace={onCopyNamespace}
                 onViewDetails={viewNamespaceDetails}
                 onCreateNamespace={onCreateNamespace}
                 env={activeEnv}
+                envKeys={envKeys}
                 appname={detailAppName}
                 showCreate={showCreateNamespace}
                 onOpenCreate={onOpenCreateNamespace}

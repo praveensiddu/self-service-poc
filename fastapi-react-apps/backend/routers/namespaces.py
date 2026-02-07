@@ -3,6 +3,7 @@ from typing import List, Optional
 import shutil
 import re
 import logging
+from pathlib import Path
 
 import yaml
 
@@ -14,6 +15,47 @@ from backend.routers import pull_requests
 router = APIRouter(tags=["namespaces"])
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def _rewrite_default_namespace_in_yaml_files(root: Path, to_namespace: str) -> None:
+    to_ns = str(to_namespace or "").strip()
+    if not to_ns:
+        return
+
+    patterns = ("*.yaml", "*.yml")
+    for pattern in patterns:
+        for path in root.rglob(pattern):
+            if not path.is_file():
+                continue
+            try:
+                raw = path.read_text()
+            except Exception:
+                continue
+
+            try:
+                docs = list(yaml.safe_load_all(raw))
+            except Exception:
+                continue
+
+            changed = False
+            next_docs = []
+            for doc in docs:
+                if isinstance(doc, dict):
+                    md = doc.get("metadata")
+                    if isinstance(md, dict) and "namespace" in md:
+                        if md.get("namespace") != to_ns:
+                            md["namespace"] = to_ns
+                            changed = True
+                next_docs.append(doc)
+
+            if not changed:
+                continue
+
+            try:
+                out = yaml.safe_dump_all(next_docs, sort_keys=False)
+                path.write_text(out)
+            except Exception as e:
+                logger.error("Failed to rewrite metadata.namespace in %s: %s", str(path), str(e))
 
 
 class NamespaceCreate(BaseModel):
@@ -95,6 +137,12 @@ class NamespaceUpdate(BaseModel):
 
 class NamespaceResourcesYamlRequest(BaseModel):
     resources: NamespaceResourcesUpdate
+
+
+class NamespaceCopyRequest(BaseModel):
+    from_env: str
+    to_env: str
+    to_namespace: str
 
 
 def _parse_bool(v) -> bool:
@@ -569,6 +617,79 @@ def delete_namespaces(appname: str, env: Optional[str] = None, namespaces: Optio
         deleted_data["app_entry_removed"] = True
 
     return deleted_data
+
+
+@router.post("/apps/{appname}/namespaces/{namespace}/copy")
+def copy_namespace(appname: str, namespace: str, payload: NamespaceCopyRequest, env: Optional[str] = None):
+    env = _require_env(env)
+
+    from_env = _require_env(payload.from_env)
+    to_env = _require_env(payload.to_env)
+    to_namespace = str(payload.to_namespace or "").strip()
+    if not to_namespace:
+        raise HTTPException(status_code=400, detail="to_namespace is required")
+
+    if from_env != env:
+        raise HTTPException(status_code=400, detail="from_env must match query parameter env")
+
+    if from_env == to_env and to_namespace == namespace:
+        raise HTTPException(status_code=400, detail="When copying within the same env, to_namespace must be different")
+
+    if not re.match(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", to_namespace):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid namespace name. Must be lowercase alphanumeric with hyphens."
+        )
+
+    requests_root = _require_initialized_workspace()
+    src_dir = requests_root / from_env / appname / namespace
+    if not src_dir.exists() or not src_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Source namespace folder not found: {src_dir}")
+
+    dst_dir = requests_root / to_env / appname / to_namespace
+    if dst_dir.exists():
+        raise HTTPException(status_code=409, detail=f"Destination namespace already exists: {dst_dir}")
+
+    # Ensure app folder exists in destination env
+    dst_app_dir = requests_root / to_env / appname
+    if not dst_app_dir.exists() or not dst_app_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Destination app folder not found: {dst_app_dir}")
+
+    try:
+        shutil.copytree(src_dir, dst_dir)
+    except Exception as e:
+        # best effort cleanup if partially copied
+        try:
+            if dst_dir.exists():
+                shutil.rmtree(dst_dir)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Failed to copy namespace: {e}")
+
+    try:
+        _rewrite_default_namespace_in_yaml_files(dst_dir, to_namespace)
+    except Exception as e:
+        logger.error(
+            "Failed to rewrite copied YAML metadata namespaces for %s/%s -> %s/%s: %s",
+            str(from_env),
+            str(namespace),
+            str(to_env),
+            str(to_namespace),
+            str(e),
+        )
+
+    try:
+        pull_requests.ensure_pull_request(appname=appname, env=to_env)
+    except Exception as e:
+        logger.error("Failed to ensure PR for %s/%s: %s", str(to_env), str(appname), str(e))
+
+    return {
+        "from_env": from_env,
+        "from_namespace": namespace,
+        "to_env": to_env,
+        "to_namespace": to_namespace,
+        "copied": True,
+    }
 
 
 @router.put("/apps/{appname}/namespaces/{namespace}/namespace_info")
