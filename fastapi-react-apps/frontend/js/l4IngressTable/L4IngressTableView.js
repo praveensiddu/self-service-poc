@@ -1,4 +1,4 @@
-function L4IngressTableView({ filters, setFilters, rows, filteredRows, onCopyIps, onCopyRowJson }) {
+function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow }) {
   return (
     <div className="card">
       <table>
@@ -63,17 +63,23 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onCopyIps
             filteredRows.map((r) => (
               <tr key={r.key}>
                 <td>{r.clusterNo}</td>
-                <td>{r.allocationId}</td>
+                <td>{r.purpose}</td>
                 <td>{r.requested}</td>
                 <td>{r.allocated}</td>
                 <td>{r.allocatedIps}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn btn-sm" onClick={() => onCopyIps(r)}>
-                      Copy IPs
-                    </button>
-                    <button type="button" className="btn btn-sm" onClick={() => onCopyRowJson(r)}>
-                      Copy JSON
+                    <button
+                      type="button"
+                      className="iconBtn iconBtn-plain"
+                      onClick={() => onEditRow(r)}
+                      aria-label="Edit"
+                      title="Edit"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
+                        <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z" />
+                      </svg>
                     </button>
                   </div>
                 </td>

@@ -150,6 +150,40 @@ def _ensure_appinfo_exists(requests_root: Path, env_key: str, appname: str) -> N
     appinfo_path.write_text(yaml.safe_dump(payload, sort_keys=False))
 
 
+def get_allocated_clusters_for_app(
+    *,
+    env: str,
+    app: str,
+    clusters_root: Optional[Path] = None,
+) -> List[str]:
+    clusters_root = clusters_root or _require_control_clusters_root()
+    if clusters_root is None:
+        return []
+
+    env_key = str(env or "").strip().lower()
+    app_key = str(app or "").strip()
+    if not env_key:
+        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
+    if not app_key:
+        raise HTTPException(status_code=400, detail="Missing required query parameter: app")
+
+    file_path = _clusters_file_for_env(clusters_root, env_key)
+    items = _load_clusters_from_file(file_path)
+
+    out_clusters: List[str] = []
+    for item in items:
+        normalized = _normalize_cluster_item(item)
+        if not normalized:
+            continue
+        apps = _as_string_list(normalized.get("applications"))
+        if any(str(a).strip().lower() == app_key.lower() for a in apps):
+            cname = str(normalized.get("clustername") or "").strip()
+            if cname:
+                out_clusters.append(cname)
+
+    return sorted(set(out_clusters), key=lambda s: s.lower())
+
+
 @router.get("/clusters")
 def get_clusters(env: Optional[str] = None, app: Optional[str] = None):
     clusters_root = _require_control_clusters_root()
@@ -162,27 +196,7 @@ def get_clusters(env: Optional[str] = None, app: Optional[str] = None):
         requests_root = None
 
     if app is not None:
-        env_key = str(env or "").strip().lower()
-        app_key = str(app or "").strip()
-        if not env_key:
-            raise HTTPException(status_code=400, detail="Missing required query parameter: env")
-        if not app_key:
-            raise HTTPException(status_code=400, detail="Missing required query parameter: app")
-
-        file_path = _clusters_file_for_env(clusters_root, env_key)
-        items = _load_clusters_from_file(file_path)
-        out_clusters: List[str] = []
-        for item in items:
-            normalized = _normalize_cluster_item(item)
-            if not normalized:
-                continue
-            apps = _as_string_list(normalized.get("applications"))
-            if any(str(a).strip().lower() == app_key.lower() for a in apps):
-                cname = str(normalized.get("clustername") or "").strip()
-                if cname:
-                    out_clusters.append(cname)
-
-        return sorted(set(out_clusters), key=lambda s: s.lower())
+        return get_allocated_clusters_for_app(env=str(env or ""), app=str(app or ""), clusters_root=clusters_root)
 
     if env is not None and not str(env or "").strip():
         raise HTTPException(status_code=400, detail="Missing required query parameter: env")

@@ -493,7 +493,7 @@ function AppView({
                 <div style={{ marginTop: 8, marginBottom: 10, fontWeight: 600 }}>
                   {`L4 ingress IPs allocated in different cluster for ${detailAppName || ""}`}
                 </div>
-                <L4IngressTable items={l4IngressItems} />
+                <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} />
               </div>
             ) : (
               <div>
