@@ -1,8 +1,9 @@
 function L4IngressTable({ items }) {
   const [filters, setFilters] = React.useState({
     cluster: "",
-    allocationId: "",
-    total: "",
+    purpose: "",
+    requested: "",
+    allocated: "",
     allocatedIps: "",
   });
 
@@ -46,7 +47,9 @@ function L4IngressTable({ items }) {
 
   const rows = (items || []).map((it, idx) => {
     const allocationIds = (it?.allocations || []).map((a) => a?.name).filter(Boolean);
-    const key = `${it?.cluster_no || ""}::${allocationIds.join("|") || idx}`;
+    const purpose = formatValue(it?.purpose);
+    const allocationIdText = allocationIds.length ? allocationIds.join(", ") : purpose;
+    const key = `${it?.cluster_no || ""}::${allocationIdText || idx}`;
 
     const allocatedIpsList = (it?.allocations || [])
       .flatMap((a) => (Array.isArray(a?.ips) ? a.ips : []))
@@ -56,22 +59,25 @@ function L4IngressTable({ items }) {
     return {
       key,
       clusterNo: formatValue(it?.cluster_no),
-      allocationId: allocationIds.length ? allocationIds.join(", ") : "",
-      total: `${formatValue(it?.requested_total)}/${formatValue(it?.allocated_total)}`,
+      allocationId: allocationIdText,
+      requested: formatValue(it?.requested_total),
+      allocated: formatValue(it?.allocated_total),
       allocatedIps: formatValue(allocatedIps),
     };
   });
 
   const filteredRows = rows.filter((r) => {
     const cluster = (r.clusterNo || "").toLowerCase();
-    const allocationId = (r.allocationId || "").toLowerCase();
-    const total = (r.total || "").toLowerCase();
+    const purpose = (r.allocationId || "").toLowerCase();
+    const requested = (r.requested || "").toLowerCase();
+    const allocated = (r.allocated || "").toLowerCase();
     const allocatedIps = (r.allocatedIps || "").toLowerCase();
 
     return (
       cluster.includes((filters.cluster || "").toLowerCase()) &&
-      allocationId.includes((filters.allocationId || "").toLowerCase()) &&
-      total.includes((filters.total || "").toLowerCase()) &&
+      purpose.includes((filters.purpose || "").toLowerCase()) &&
+      requested.includes((filters.requested || "").toLowerCase()) &&
+      allocated.includes((filters.allocated || "").toLowerCase()) &&
       allocatedIps.includes((filters.allocatedIps || "").toLowerCase())
     );
   });
