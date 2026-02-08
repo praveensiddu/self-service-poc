@@ -17,7 +17,7 @@ function NamespaceBasicInfoCard({
 
   const draftClustersList = Array.isArray(draft?.clustersList) ? draft.clustersList : [];
   const draftManagedByArgo = Boolean(draft?.managedByArgo);
-  const draftNsArgoSyncStrategy = String(draft?.nsArgoSyncStrategy || "auto");
+  const draftNsArgoSyncStrategy = String(draft?.nsArgoSyncStrategy ? draft.nsArgoSyncStrategy : "same_as_app");
   const draftNsArgoGitRepoUrl = String(draft?.nsArgoGitRepoUrl || "");
 
   function addCluster(name) {
@@ -201,7 +201,17 @@ function NamespaceBasicInfoCard({
             <select
               className="filterInput"
               value={draftManagedByArgo ? "Yes" : "No"}
-              onChange={(e) => setDraft((prev) => ({ ...prev, managedByArgo: e.target.value === "Yes" }))}
+              onChange={(e) => {
+                const nextManagedByArgo = e.target.value === "Yes";
+                setDraft((prev) => {
+                  const wasManagedByArgo = Boolean(prev?.managedByArgo);
+                  const next = { ...prev, managedByArgo: nextManagedByArgo };
+                  if (!wasManagedByArgo && nextManagedByArgo) {
+                    next.nsArgoSyncStrategy = "same_as_app";
+                  }
+                  return next;
+                });
+              }}
             >
               <option value="Yes">Yes</option>
               <option value="No">No</option>
@@ -213,30 +223,39 @@ function NamespaceBasicInfoCard({
           )}
         </div>
 
-        <div className="detailRow">
-          <span className="detailLabel">Argo Sync Strategy:</span>
-          {isEditingBasic ? (
-            <input
-              className="filterInput"
-              value={draftNsArgoSyncStrategy}
-              onChange={(e) => setDraft((prev) => ({ ...prev, nsArgoSyncStrategy: e.target.value }))}
-            />
-          ) : (
-            <span className="detailValue">{formatValue(effectiveNamespace?.argocd_sync_strategy)}</span>
-          )}
-        </div>
-        <div className="detailRow">
-          <span className="detailLabel">Argo Git Repo URL:</span>
-          {isEditingBasic ? (
-            <input
-              className="filterInput"
-              value={draftNsArgoGitRepoUrl}
-              onChange={(e) => setDraft((prev) => ({ ...prev, nsArgoGitRepoUrl: e.target.value }))}
-            />
-          ) : (
-            <span className="detailValue">{formatValue(effectiveNamespace?.gitrepourl)}</span>
-          )}
-        </div>
+        {(isEditingBasic ? draftManagedByArgo : managedByArgo === 'Yes') ? (
+          <>
+            <div className="detailRow">
+              <span className="detailLabel">Argo Sync Strategy Override:</span>
+              {isEditingBasic ? (
+                <select
+                  className="filterInput"
+                  value={draftNsArgoSyncStrategy}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, nsArgoSyncStrategy: e.target.value }))}
+                >
+                  <option value="auto">auto</option>
+                  <option value="manual">manual</option>
+                  <option value="same_as_app">same_as_app</option>
+                </select>
+              ) : (
+                <span className="detailValue">{formatValue(effectiveNamespace?.argocd_sync_strategy)}</span>
+              )}
+            </div>
+            <div className="detailRow">
+              <span className="detailLabel">Argo Git Repo URL Override:</span>
+              {isEditingBasic ? (
+                <input
+                  className="filterInput"
+                  value={draftNsArgoGitRepoUrl}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, nsArgoGitRepoUrl: e.target.value }))}
+                  placeholder="override gitrepo if different from app"
+                />
+              ) : (
+                <span className="detailValue">{formatValue(effectiveNamespace?.gitrepourl)}</span>
+              )}
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );
