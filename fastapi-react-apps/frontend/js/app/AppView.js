@@ -31,6 +31,12 @@ function AppView({
   setControlRepo,
   onSaveConfig,
   onUseDefaults,
+  enforcementSettings,
+  draftEnforcementSettings,
+  setDraftEnforcementSettings,
+  enforcementSettingsError,
+  enforcementSettingsLoading,
+  onSaveEnforcementSettings,
   onEnvClick,
   onViewL4Ingress,
   onViewEgressIps,
@@ -82,6 +88,12 @@ function AppView({
       (requestsRepo || "").trim() &&
       (renderedManifestsRepo || "").trim() &&
       (controlRepo || "").trim(),
+  );
+
+  const hasUnsavedEnforcementSettings = Boolean(
+    String(draftEnforcementSettings?.enforce_egress_firewall || "") !==
+      String(enforcementSettings?.enforce_egress_firewall || "") ||
+      String(draftEnforcementSettings?.enforce_egress_ip || "") !== String(enforcementSettings?.enforce_egress_ip || ""),
   );
 
   return (
@@ -221,7 +233,81 @@ function AppView({
           </div>
         ) : topTab === "Settings" ? (
           <div className="card" style={{ padding: 16 }}>
-            <div className="muted">Coming soon.</div>
+            <div style={{ display: "grid", gap: 16, maxWidth: 720 }}>
+              {enforcementSettingsError ? (
+                <div className="status">Error: {enforcementSettingsError}</div>
+              ) : null}
+
+              <div>
+                <div className="muted" style={{ fontWeight: 700, marginBottom: 6 }}>
+                  ENFORCEMENT SETTINGS
+                </div>
+                <div className="muted" style={{ marginBottom: 12 }}>
+                  These values are read from and written to <code>control/settings/settings.yaml</code>.
+                </div>
+              </div>
+
+              <div>
+                <div className="muted" style={{ fontWeight: 700, marginBottom: 4 }}>
+                  enforce_egress_firewall
+                </div>
+                <select
+                  className="filterInput"
+                  value={String(draftEnforcementSettings?.enforce_egress_firewall || "yes")}
+                  disabled={readonly || enforcementSettingsLoading}
+                  onChange={(e) =>
+                    setDraftEnforcementSettings({
+                      ...(draftEnforcementSettings || {}),
+                      enforce_egress_firewall: e.target.value,
+                    })
+                  }
+                >
+                  <option value="yes">yes</option>
+                  <option value="no">no</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="muted" style={{ fontWeight: 700, marginBottom: 4 }}>
+                  enforce_egress_ip
+                </div>
+                <select
+                  className="filterInput"
+                  value={String(draftEnforcementSettings?.enforce_egress_ip || "yes")}
+                  disabled={readonly || enforcementSettingsLoading}
+                  onChange={(e) =>
+                    setDraftEnforcementSettings({
+                      ...(draftEnforcementSettings || {}),
+                      enforce_egress_ip: e.target.value,
+                    })
+                  }
+                >
+                  <option value="yes">yes</option>
+                  <option value="no">no</option>
+                </select>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={readonly || enforcementSettingsLoading || !hasUnsavedEnforcementSettings}
+                  onClick={() => onSaveEnforcementSettings()}
+                >
+                  Save
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={enforcementSettingsLoading || !hasUnsavedEnforcementSettings}
+                  onClick={() => setDraftEnforcementSettings(enforcementSettings)}
+                >
+                  Cancel
+                </button>
+                {readonly ? <span className="muted">Read-only mode enabled.</span> : null}
+                {enforcementSettingsLoading ? <span className="muted">Loading…</span> : null}
+              </div>
+            </div>
           </div>
         ) : topTab === "PRs and Approval" ? (
           <div className="card" style={{ padding: 16 }}>

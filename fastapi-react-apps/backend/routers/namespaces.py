@@ -10,6 +10,7 @@ import yaml
 from backend.routers.ns_models import NamespaceCopyRequest, NamespaceCreate
 
 from backend.routers.apps import _require_env, _require_initialized_workspace
+from backend.routers.general import load_enforcement_settings
 from backend.routers import pull_requests
 
 router = APIRouter(tags=["namespaces"])
@@ -113,6 +114,9 @@ def _is_set(v: Optional[str]) -> bool:
 def get_namespaces(appname: str, env: Optional[str] = None):
     env = _require_env(env)
 
+    enforcement = load_enforcement_settings()
+    egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
+
     requests_root = _require_initialized_workspace()
     app_dir = requests_root / env / appname
     if not app_dir.exists() or not app_dir.is_dir():
@@ -159,7 +163,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             "description": str(ns_info.get("description", "") or ""),
             "clusters": clusters,
             "enable_pod_based_egress_ip": _parse_bool(ns_info.get("enable_pod_based_egress_ip")),
-            "allow_all_egress": _parse_bool(ns_info.get("allow_all_egress")),
+            "allow_all_egress": (not egress_firewall_enforced) or _parse_bool(ns_info.get("allow_all_egress")),
             "need_argo": need_argo,
         }
 

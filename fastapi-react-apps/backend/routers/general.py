@@ -23,6 +23,11 @@ class KSelfServeConfig(BaseModel):
     controlRepo: str = ""
 
 
+class EnforcementSettings(BaseModel):
+    enforce_egress_firewall: str = "yes"
+    enforce_egress_ip: str = "yes"
+
+
 def _config_path() -> Path:
     return Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
 
@@ -98,6 +103,48 @@ def _templates_repo_root() -> Path:
     if not root.exists() or not root.is_dir():
         raise HTTPException(status_code=400, detail="not initialized")
     return root
+
+
+def _control_settings_path() -> Path:
+    workspace_path = _require_workspace_path()
+    return (
+        workspace_path
+        / "kselfserv"
+        / "cloned-repositories"
+        / "control"
+        / "settings"
+        / "settings.yaml"
+    )
+
+
+def _normalize_yes_no(value: Any, default: str = "yes") -> str:
+    if value is None:
+        return default
+    s = str(value).strip().lower()
+    if s in ("yes", "y", "true", "1", "on"):
+        return "yes"
+    if s in ("no", "n", "false", "0", "off"):
+        return "no"
+    return default
+
+
+def load_enforcement_settings() -> EnforcementSettings:
+    path = _control_settings_path()
+    if not path.exists() or not path.is_file():
+        return EnforcementSettings()
+
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+    except Exception:
+        return EnforcementSettings()
+
+    if not isinstance(raw, dict):
+        raw = {}
+
+    return EnforcementSettings(
+        enforce_egress_firewall=_normalize_yes_no(raw.get("enforce_egress_firewall"), "yes"),
+        enforce_egress_ip=_normalize_yes_no(raw.get("enforce_egress_ip"), "yes"),
+    )
 
 
 def _run_git(repo_dir: Path, args: List[str]) -> subprocess.CompletedProcess:
@@ -463,6 +510,40 @@ def get_portal_mode():
     return {
         "readonly": is_readonly()
     }
+
+
+@router.get("/settings/enforcement", response_model=EnforcementSettings)
+def get_enforcement_settings():
+    return load_enforcement_settings()
+
+
+@router.put("/settings/enforcement", response_model=EnforcementSettings)
+def put_enforcement_settings(payload: EnforcementSettings):
+    path = _control_settings_path()
+
+    # Preserve unrelated keys, but always update our two.
+    base: Dict[str, Any] = {}
+    if path.exists() and path.is_file():
+        try:
+            raw = yaml.safe_load(path.read_text())
+            if isinstance(raw, dict):
+                base = dict(raw)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read settings: {e}")
+
+    base["enforce_egress_firewall"] = _normalize_yes_no(payload.enforce_egress_firewall, "yes")
+    base["enforce_egress_ip"] = _normalize_yes_no(payload.enforce_egress_ip, "yes")
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(base, sort_keys=False))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write settings: {e}")
+
+    return EnforcementSettings(
+        enforce_egress_firewall=_normalize_yes_no(base.get("enforce_egress_firewall"), "yes"),
+        enforce_egress_ip=_normalize_yes_no(base.get("enforce_egress_ip"), "yes"),
+    )
 
 
 @router.get("/catalog/role_refs")

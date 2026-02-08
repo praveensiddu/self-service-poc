@@ -6,9 +6,11 @@ function NamespaceEgressFirewallCard({
   egressFirewallRules,
   fetchEgressFirewallYaml,
   formatValue,
+  allowAllEgress,
 }) {
   const readonly = Boolean(header?.readonly);
   const isEditingEgressFirewall = Boolean(header?.isEditing);
+  const enforcementDisabled = Boolean(allowAllEgress);
   return (
     <div className="dashboardCard">
       <NamespaceBlockHeader
@@ -33,7 +35,13 @@ function NamespaceEgressFirewallCard({
               <button
                 className="iconBtn iconBtn-warning"
                 style={{ marginLeft: (!readonly && isEditingEgressFirewall) ? 0 : 'auto' }}
-                onClick={previewEgressFirewallWithDraft}
+                onClick={() => {
+                  if (enforcementDisabled) {
+                    alert('Egress firewall enforcement is disabled (enforce_egress_firewall is set to no in Settings).');
+                    return;
+                  }
+                  previewEgressFirewallWithDraft();
+                }}
                 aria-label="Preview YAML"
                 title="Preview EgressFirewall YAML with current draft changes"
               >
@@ -49,6 +57,10 @@ function NamespaceEgressFirewallCard({
                 style={{ marginLeft: 'auto' }}
                 onClick={async () => {
                   try {
+                    if (enforcementDisabled) {
+                      alert('Egress firewall enforcement is disabled (enforce_egress_firewall is set to no in Settings).');
+                      return;
+                    }
                     const egressYaml = await fetchEgressFirewallYaml(egressFirewallRules || []);
 
                     const modal = document.createElement('div');
@@ -104,14 +116,30 @@ function NamespaceEgressFirewallCard({
                 title="View EgressFirewall YAML definition"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
-                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
+                  <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3z" />
+                  <path d="M4 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5z" />
                 </svg>
               </button>
             )}
           </>
         }
       />
+
+      {enforcementDisabled ? (
+        <div
+          style={{
+            marginTop: 12,
+            background: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: 8,
+            padding: 12,
+            color: '#856404',
+            fontSize: 13,
+          }}
+        >
+          <strong>Egress firewall enforcement is disabled.</strong> Update <code>enforce_egress_firewall</code> in the Settings tab to enable Egress Firewall edits and YAML generation.
+        </div>
+      ) : null}
 
       <div className="dashboardCardBody">
         {isEditingEgressFirewall ? (

@@ -6,6 +6,7 @@ import yaml
 from pydantic import BaseModel
 
 from backend.routers.apps import _require_env, _require_initialized_workspace
+from backend.routers.general import load_enforcement_settings
 
 router = APIRouter(tags=["egressfirewall"])
 
@@ -174,6 +175,12 @@ def _extract_egress_entries_from_template(path: Path) -> List[Dict[str, Any]]:
 @router.get("/apps/{appname}/namespaces/{namespace}/egressfirewall")
 def get_egressfirewall(appname: str, namespace: str, env: Optional[str] = None):
     env = _require_env(env)
+
+    enforcement = load_enforcement_settings()
+    egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
+    if not egress_firewall_enforced:
+        return {"exists": False, "rules": []}
+
     requests_root = _require_initialized_workspace()
 
     ns_dir = requests_root / env / appname / namespace
@@ -204,6 +211,12 @@ def get_egressfirewall(appname: str, namespace: str, env: Optional[str] = None):
 @router.put("/apps/{appname}/namespaces/{namespace}/egressfirewall")
 def put_egressfirewall(appname: str, namespace: str, payload: EgressFirewallUpdate, env: Optional[str] = None):
     env = _require_env(env)
+
+    enforcement = load_enforcement_settings()
+    egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
+    if not egress_firewall_enforced:
+        raise HTTPException(status_code=400, detail="Egress firewall enforcement is disabled")
+
     requests_root = _require_initialized_workspace()
 
     ns_dir = requests_root / env / appname / namespace
@@ -270,6 +283,12 @@ def put_egressfirewall(appname: str, namespace: str, payload: EgressFirewallUpda
 @router.delete("/apps/{appname}/namespaces/{namespace}/egressfirewall")
 def delete_egressfirewall(appname: str, namespace: str, env: Optional[str] = None):
     env = _require_env(env)
+
+    enforcement = load_enforcement_settings()
+    egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
+    if not egress_firewall_enforced:
+        raise HTTPException(status_code=400, detail="Egress firewall enforcement is disabled")
+
     requests_root = _require_initialized_workspace()
 
     ns_dir = requests_root / env / appname / namespace
@@ -299,6 +318,11 @@ def get_egressfirewall_yaml(appname: str, namespace: str, payload: EgressFirewal
     This endpoint creates a Kubernetes EgressFirewall resource in the k8s.ovn.org/v1 format.
     """
     env = _require_env(env)
+
+    enforcement = load_enforcement_settings()
+    egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
+    if not egress_firewall_enforced:
+        return Response(content="", media_type="text/yaml")
 
     rules_in = payload.rules or []
     egress_entries = []

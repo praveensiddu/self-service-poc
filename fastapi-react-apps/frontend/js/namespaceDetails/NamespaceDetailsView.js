@@ -53,6 +53,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
 
   function canStartEditing(block) {
     if (readonly) return false;
+    if (block === "egressfirewall" && Boolean(namespace?.allow_all_egress)) return false;
     if (!editBlock) return true;
     return editBlock === block;
   }
@@ -672,6 +673,10 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
       onEnableBlockEdit,
       onDiscardBlockEdits,
       onSaveBlock,
+      editDisabledReason:
+        blockKey === "egressfirewall" && Boolean(namespace?.allow_all_egress)
+          ? "Egress firewall enforcement is disabled (enforce_egress_firewall is set to no in Settings)."
+          : "",
     };
   }
 
@@ -723,6 +728,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
             egressFirewallRules={egressFirewallRules}
             fetchEgressFirewallYaml={fetchEgressFirewallYaml}
             formatValue={formatValue}
+            allowAllEgress={Boolean(namespace?.allow_all_egress)}
           />
         </div>
 

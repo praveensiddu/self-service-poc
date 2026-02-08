@@ -1,4 +1,4 @@
-function L4IngressTableView({ filters, setFilters, rows, filteredRows }) {
+function L4IngressTableView({ filters, setFilters, rows, filteredRows, onCopyIps, onCopyRowJson }) {
   return (
     <div className="card">
       <table>
@@ -8,7 +8,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows }) {
             <th>AllocationId</th>
             <th>Count(Req/Alloc)</th>
             <th>Allocated IPs</th>
-            <th>Links</th>
+            <th>Actions</th>
           </tr>
           <tr>
             <th>
@@ -39,13 +39,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows }) {
                 onChange={(e) => setFilters((p) => ({ ...p, allocatedIps: e.target.value }))}
               />
             </th>
-            <th>
-              <input
-                className="filterInput"
-                value={filters.links}
-                onChange={(e) => setFilters((p) => ({ ...p, links: e.target.value }))}
-              />
-            </th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -65,17 +59,14 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows }) {
                 <td>{r.total}</td>
                 <td>{r.allocatedIps}</td>
                 <td>
-                  {r.links.length === 0 ? (
-                    <span className="muted"></span>
-                  ) : (
-                    r.links.map((l) => (
-                      <div key={l.label}>
-                        <a href={l.href} target="_blank" rel="noreferrer">
-                          {l.label}
-                        </a>
-                      </div>
-                    ))
-                  )}
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-sm" onClick={() => onCopyIps(r)}>
+                      Copy IPs
+                    </button>
+                    <button type="button" className="btn btn-sm" onClick={() => onCopyRowJson(r)}>
+                      Copy JSON
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))

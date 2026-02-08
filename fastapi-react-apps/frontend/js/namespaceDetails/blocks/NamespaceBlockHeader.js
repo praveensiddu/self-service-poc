@@ -8,10 +8,13 @@ function NamespaceBlockHeader({
   onEnableBlockEdit,
   onDiscardBlockEdits,
   onSaveBlock,
+  editDisabledReason,
   helpDocPath,
   helpTitle,
   right,
 }) {
+  const editingDisabled = !canStartEditing(blockKey);
+  const enableEditTitle = editingDisabled && editDisabledReason ? editDisabledReason : "Enable edit";
   return (
     <div className="dashboardCardHeader">
       {icon}
@@ -24,9 +27,9 @@ function NamespaceBlockHeader({
               className="iconBtn iconBtn-plain"
               type="button"
               onClick={() => onEnableBlockEdit(blockKey)}
-              disabled={!canStartEditing(blockKey)}
+              disabled={editingDisabled}
               aria-label="Enable edit"
-              title="Enable edit"
+              title={enableEditTitle}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />

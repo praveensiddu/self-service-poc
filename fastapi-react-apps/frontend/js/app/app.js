@@ -161,6 +161,17 @@ function App() {
 
   const [requestsChanges, setRequestsChanges] = React.useState({ apps: new Set(), namespaces: new Set() });
 
+  const [enforcementSettings, setEnforcementSettings] = React.useState({
+    enforce_egress_firewall: "yes",
+    enforce_egress_ip: "yes",
+  });
+  const [draftEnforcementSettings, setDraftEnforcementSettings] = React.useState({
+    enforce_egress_firewall: "yes",
+    enforce_egress_ip: "yes",
+  });
+  const [enforcementSettingsError, setEnforcementSettingsError] = React.useState("");
+  const [enforcementSettingsLoading, setEnforcementSettingsLoading] = React.useState(false);
+
   const availableClusters = ((clustersByEnv || {})[String(activeEnv || "").toUpperCase()] || [])
     .map((r) => String(r?.clustername || "").trim())
     .filter(Boolean);
@@ -284,7 +295,7 @@ function App() {
 
         setEnvKeys(keys);
         setActiveEnv(initialEnv);
-        if (isComplete && initialEnv && !isHomePath() && !isPrsPath() && !isClustersPath()) {
+        if (isComplete && initialEnv && !isHomePath() && !isSettingsPath() && !isPrsPath() && !isClustersPath()) {
           pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname, ns: initial.ns }, true);
         }
 
@@ -333,6 +344,58 @@ function App() {
       setTopTab("Home");
     }
   }, [configComplete, topTab]);
+
+  React.useEffect(() => {
+    if (!configComplete) return;
+    if (topTab !== "Settings") return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setEnforcementSettingsLoading(true);
+        setEnforcementSettingsError("");
+        const data = await fetchJson("/api/v1/settings/enforcement");
+        if (cancelled) return;
+        const next = {
+          enforce_egress_firewall: String(data?.enforce_egress_firewall || "yes"),
+          enforce_egress_ip: String(data?.enforce_egress_ip || "yes"),
+        };
+        setEnforcementSettings(next);
+        setDraftEnforcementSettings(next);
+      } catch (e) {
+        if (!cancelled) setEnforcementSettingsError(e?.message || String(e));
+      } finally {
+        if (!cancelled) setEnforcementSettingsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [configComplete, topTab]);
+
+  async function onSaveEnforcementSettings() {
+    try {
+      setEnforcementSettingsLoading(true);
+      setEnforcementSettingsError("");
+      const saved = await putJson("/api/v1/settings/enforcement", {
+        enforce_egress_firewall: String(draftEnforcementSettings?.enforce_egress_firewall || "yes"),
+        enforce_egress_ip: String(draftEnforcementSettings?.enforce_egress_ip || "yes"),
+      });
+      const next = {
+        enforce_egress_firewall: String(saved?.enforce_egress_firewall || "yes"),
+        enforce_egress_ip: String(saved?.enforce_egress_ip || "yes"),
+      };
+      setEnforcementSettings(next);
+      setDraftEnforcementSettings(next);
+    } catch (e) {
+      setEnforcementSettingsError(e?.message || String(e));
+      throw e;
+    } finally {
+      setEnforcementSettingsLoading(false);
+    }
+  }
 
   React.useEffect(() => {
     if (!activeEnv) return;
@@ -1413,6 +1476,12 @@ function App() {
       setControlRepo={setControlRepo}
       onSaveConfig={onSaveConfig}
       onUseDefaults={onUseDefaults}
+      enforcementSettings={enforcementSettings}
+      draftEnforcementSettings={draftEnforcementSettings}
+      setDraftEnforcementSettings={setDraftEnforcementSettings}
+      enforcementSettingsError={enforcementSettingsError}
+      enforcementSettingsLoading={enforcementSettingsLoading}
+      onSaveEnforcementSettings={onSaveEnforcementSettings}
       onEnvClick={(env) => {
         setActiveEnv(env);
         pushUiUrl({ view: "apps", env, appname: "" }, false);

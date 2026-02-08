@@ -4,8 +4,32 @@ function L4IngressTable({ items }) {
     allocationId: "",
     total: "",
     allocatedIps: "",
-    links: "",
   });
+
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+  }
+
+  function onCopyIps(row) {
+    const ips = (row?.allocatedIps || "").trim();
+    copyToClipboard(ips);
+  }
+
+  function onCopyRowJson(row) {
+    copyToClipboard(JSON.stringify(row || {}, null, 2));
+  }
 
   function formatValue(val) {
     if (val === null || val === undefined) return "";
@@ -24,18 +48,17 @@ function L4IngressTable({ items }) {
     const allocationIds = (it?.allocations || []).map((a) => a?.name).filter(Boolean);
     const key = `${it?.cluster_no || ""}::${allocationIds.join("|") || idx}`;
 
-    const links = it?.links || {};
-    const linkEntries = Object.entries(links)
-      .filter(([, v]) => Boolean(v))
-      .map(([k, v]) => ({ label: k, href: String(v) }));
+    const allocatedIpsList = (it?.allocations || [])
+      .flatMap((a) => (Array.isArray(a?.ips) ? a.ips : []))
+      .filter(Boolean);
+    const allocatedIps = Array.from(new Set(allocatedIpsList));
 
     return {
       key,
       clusterNo: formatValue(it?.cluster_no),
       allocationId: allocationIds.length ? allocationIds.join(", ") : "",
       total: `${formatValue(it?.requested_total)}/${formatValue(it?.allocated_total)}`,
-      allocatedIps: formatValue(it?.allocated_ips),
-      links: linkEntries,
+      allocatedIps: formatValue(allocatedIps),
     };
   });
 
@@ -44,14 +67,12 @@ function L4IngressTable({ items }) {
     const allocationId = (r.allocationId || "").toLowerCase();
     const total = (r.total || "").toLowerCase();
     const allocatedIps = (r.allocatedIps || "").toLowerCase();
-    const linksText = r.links.map((l) => `${l.label} ${l.href}`).join(" ").toLowerCase();
 
     return (
       cluster.includes((filters.cluster || "").toLowerCase()) &&
       allocationId.includes((filters.allocationId || "").toLowerCase()) &&
       total.includes((filters.total || "").toLowerCase()) &&
-      allocatedIps.includes((filters.allocatedIps || "").toLowerCase()) &&
-      linksText.includes((filters.links || "").toLowerCase())
+      allocatedIps.includes((filters.allocatedIps || "").toLowerCase())
     );
   });
 
@@ -61,6 +82,8 @@ function L4IngressTable({ items }) {
       setFilters={setFilters}
       rows={rows}
       filteredRows={filteredRows}
+      onCopyIps={onCopyIps}
+      onCopyRowJson={onCopyRowJson}
     />
   );
 }

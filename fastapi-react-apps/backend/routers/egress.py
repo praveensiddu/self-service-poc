@@ -5,6 +5,7 @@ import logging
 import yaml
 
 from backend.routers.apps import _require_env
+from backend.routers.general import load_enforcement_settings
 from backend.routers import pull_requests
 from backend.routers.ns_models import NamespaceInfoEgressRequest
 from backend.routers.namespaces import _parse_bool, _require_namespace_dir
@@ -56,6 +57,9 @@ def get_namespace_info_egress(appname: str, namespace: str, env: Optional[str] =
     env = _require_env(env)
     ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
 
+    enforcement = load_enforcement_settings()
+    egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
+
     ns_info_path = ns_dir / "namespace_info.yaml"
     ns_info = {}
     if ns_info_path.exists() and ns_info_path.is_file():
@@ -72,5 +76,5 @@ def get_namespace_info_egress(appname: str, namespace: str, env: Optional[str] =
     return {
         "egress_nameid": egress_nameid,
         "enable_pod_based_egress_ip": _parse_bool(ns_info.get("enable_pod_based_egress_ip")),
-        "allow_all_egress": _parse_bool(ns_info.get("allow_all_egress")),
+        "allow_all_egress": (not egress_firewall_enforced) or _parse_bool(ns_info.get("allow_all_egress")),
     }
