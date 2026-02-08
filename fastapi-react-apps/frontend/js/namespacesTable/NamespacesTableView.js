@@ -44,6 +44,13 @@ function NamespacesTableView({
   }, [showCreate, canEnableArgoForNewNamespace]);
 
   React.useEffect(() => {
+    if (!showCreate) return;
+    const appKey = String(appname || "").trim();
+    if (!appKey) return;
+    setNewEgressNameId((prev) => (String(prev || "").trim() ? prev : appKey));
+  }, [showCreate, appname]);
+
+  React.useEffect(() => {
     let cancelled = false;
     if (!showCreate) return;
 
@@ -439,7 +446,10 @@ function NamespacesTableView({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Egress Name ID</div>
+                  <div className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span>Egress Name ID</span>
+                    <HelpIconButton docPath="/static/help/namespacesTable/egressNameId.html" title="Egress Name ID" />
+                  </div>
                   <div className="muted" style={{ fontSize: 12 }}>If set then all outbound traffic will be routed through this egress IP.</div>
                 </div>
                 <input

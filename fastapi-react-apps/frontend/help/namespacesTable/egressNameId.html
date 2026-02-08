@@ -1,0 +1,17 @@
+<h2>Egress Name ID</h2>
+
+<p>
+  <strong>Egress Name ID</strong> is an optional identifier that links this namespace to an existing egress IP configuration.
+  If set, outbound traffic for this namespace will be routed through the corresponding egress IP.
+</p>
+
+<h3>When to use</h3>
+<ul>
+  <li>Use this when you need the namespace’s egress traffic to come from a specific IP.</li>
+  <li>Leave it empty if the namespace does not require dedicated egress routing.</li>
+</ul>
+
+<h3>Recommended default</h3>
+<p>
+  By default, this field is prefilled with the application name to make it easy to align egress routing with the app.
+</p>

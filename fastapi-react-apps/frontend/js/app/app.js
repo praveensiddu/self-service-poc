@@ -869,11 +869,18 @@ function App() {
     }
   }
 
-  function onBackFromNamespaceDetails() {
+  async function onBackFromNamespaceDetails() {
     setDetailNamespace(null);
     setDetailNamespaceName("");
-    setView("namespaces");
-    pushUiUrl({ view: "namespaces", env: activeEnv, appname: detailAppName }, false);
+
+    const appname = detailAppName;
+    if (!appname) {
+      setView("namespaces");
+      pushUiUrl({ view: "namespaces", env: activeEnv, appname: detailAppName }, false);
+      return;
+    }
+
+    await openNamespaces(appname, true);
   }
 
   async function onUpdateNamespaceInfo(namespaceName, updates) {
