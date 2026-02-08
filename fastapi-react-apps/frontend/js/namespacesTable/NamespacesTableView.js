@@ -64,7 +64,7 @@ function NamespacesTableView({
     (async () => {
       try {
         const resp = await fetch(
-          `/api/clusters?env=${encodeURIComponent(envKey)}&app=${encodeURIComponent(appKey)}`,
+          `/api/v1/clusters?env=${encodeURIComponent(envKey)}&app=${encodeURIComponent(appKey)}`,
         );
         if (!resp.ok) throw new Error("Failed to load clusters");
         const data = await resp.json();

@@ -14,7 +14,7 @@ class ReadOnlyMiddleware(BaseHTTPMiddleware):
                 # Allow specific endpoints even in readonly mode
                 # These are read-only operations that happen to use POST for technical reasons
                 allowed_readonly_paths = [
-                    "/api/apps/",  # Will check more specifically below
+                    "/api/v1/apps/",  # Will check more specifically below
                 ]
 
                 # Allow YAML preview/generation endpoints (they don't modify data)

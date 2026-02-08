@@ -67,7 +67,7 @@ function AppsTableView({
     try {
       if (!env) throw new Error("Missing env");
       const resp = await fetch(
-        `/api/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
+        `/api/v1/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
         { headers: { Accept: "application/json" } }
       );
       if (resp.ok) {
@@ -102,7 +102,7 @@ function AppsTableView({
       };
 
       const resp = await fetch(
-        `/api/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
+        `/api/v1/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
         {
           method: "PUT",
           headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -130,7 +130,7 @@ function AppsTableView({
       if (!env) throw new Error("Environment is required.");
 
       const resp = await fetch(
-        `/api/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
+        `/api/v1/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
         { method: "DELETE", headers: { Accept: "application/json" } }
       );
       if (!resp.ok) {

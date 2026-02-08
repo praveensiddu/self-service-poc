@@ -12,7 +12,7 @@ class TestClustersE2E:
 
     async def test_get_clusters_returns_valid_structure(self, async_client: httpx.AsyncClient):
         """Test that GET /api/clusters returns valid cluster data."""
-        response = await async_client.get("/api/clusters")
+        response = await async_client.get("/api/v1/clusters")
         assert response.status_code == 200
 
         data = response.json()
@@ -30,7 +30,7 @@ class TestClustersE2E:
 
     async def test_get_clusters_for_app_returns_list(self, async_client: httpx.AsyncClient):
         """Test that GET /api/clusters?env=...&app=... returns a list of cluster names."""
-        response = await async_client.get("/api/clusters", params={"env": "test", "app": "someapp"})
+        response = await async_client.get("/api/v1/clusters", params={"env": "test", "app": "someapp"})
         # Server may return 400 if not initialized in test environment; accept both.
         assert response.status_code in (200, 400)
         if response.status_code == 200:
@@ -39,7 +39,7 @@ class TestClustersE2E:
 
     async def test_get_envlist_returns_environments(self, async_client: httpx.AsyncClient):
         """Test that GET /api/envlist returns environment keys."""
-        response = await async_client.get("/api/envlist")
+        response = await async_client.get("/api/v1/envlist")
         assert response.status_code == 200
 
         data = response.json()
@@ -48,7 +48,7 @@ class TestClustersE2E:
 
     async def test_config_endpoint(self, async_client: httpx.AsyncClient):
         """Test GET /api/config endpoint."""
-        response = await async_client.get("/api/config")
+        response = await async_client.get("/api/v1/config")
         assert response.status_code == 200
 
         data = response.json()
@@ -57,7 +57,7 @@ class TestClustersE2E:
 
     async def test_deployment_type_endpoint(self, async_client: httpx.AsyncClient):
         """Test GET /api/deployment_type endpoint."""
-        response = await async_client.get("/api/deployment_type")
+        response = await async_client.get("/api/v1/deployment_type")
         assert response.status_code == 200
 
         data = response.json()
@@ -66,7 +66,7 @@ class TestClustersE2E:
 
     async def test_current_user_endpoint(self, async_client: httpx.AsyncClient):
         """Test GET /api/current-user endpoint."""
-        response = await async_client.get("/api/current-user")
+        response = await async_client.get("/api/v1/current-user")
         assert response.status_code == 200
 
         data = response.json()

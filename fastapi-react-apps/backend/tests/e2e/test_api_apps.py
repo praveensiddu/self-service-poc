@@ -12,7 +12,7 @@ class TestAppsE2E:
 
     async def test_get_apps_returns_valid_structure(self, async_client: httpx.AsyncClient):
         """Test that GET /api/apps returns valid app data."""
-        response = await async_client.get("/api/apps")
+        response = await async_client.get("/api/v1/apps")
         assert response.status_code in [200, 400]  # 400 if not initialized
 
         if response.status_code == 200:
@@ -36,11 +36,11 @@ class TestAppsE2E:
         }
 
         # Create app
-        create_response = await async_client.post("/api/apps", json=test_app)
+        create_response = await async_client.post("/api/v1/apps", json=test_app)
 
         if create_response.status_code in [201, 200]:
             # Verify app exists
-            apps_response = await async_client.get("/api/apps")
+            apps_response = await async_client.get("/api/v1/apps")
             assert apps_response.status_code == 200
 
             apps_data = apps_response.json()
@@ -52,7 +52,7 @@ class TestAppsE2E:
             if app_found:
                 # Delete app
                 delete_response = await async_client.delete(
-                    f"/api/apps/{test_app['appname']}"
+                    f"/api/v1/apps/{test_app['appname']}"
                 )
                 assert delete_response.status_code in [200, 204]
         else:
@@ -62,7 +62,7 @@ class TestAppsE2E:
     async def test_app_namespaces_workflow(self, async_client: httpx.AsyncClient):
         """Test getting namespaces for an app."""
         # First get list of apps
-        apps_response = await async_client.get("/api/apps")
+        apps_response = await async_client.get("/api/v1/apps")
         assert apps_response.status_code in [200, 400]  # 400 if not initialized
 
         if apps_response.status_code == 200:
@@ -71,7 +71,7 @@ class TestAppsE2E:
             if apps:
                 # Get namespaces for first app
                 first_app = apps[0]["appname"]
-                ns_response = await async_client.get(f"/api/apps/{first_app}/namespaces")
+                ns_response = await async_client.get(f"/api/v1/apps/{first_app}/namespaces")
 
                 # Should return 200 even if empty
                 assert ns_response.status_code in [200, 400, 404]
@@ -84,7 +84,7 @@ class TestAppsE2E:
 
     async def test_app_pull_requests_endpoint(self, async_client: httpx.AsyncClient):
         """Test getting pull requests for an app."""
-        apps_response = await async_client.get("/api/apps")
+        apps_response = await async_client.get("/api/v1/apps")
         assert apps_response.status_code in [200, 400]  # 400 if not initialized
 
         if apps_response.status_code == 200:
@@ -92,7 +92,7 @@ class TestAppsE2E:
 
             if apps:
                 first_app = apps[0]["appname"]
-                pr_response = await async_client.get(f"/api/apps/{first_app}/pull_requests")
+                pr_response = await async_client.get(f"/api/v1/apps/{first_app}/pull_requests")
 
                 # Should return 200 even if empty
                 assert pr_response.status_code in [200, 400, 404]
@@ -105,7 +105,7 @@ class TestAppsE2E:
 
     async def test_app_egress_ips_endpoint(self, async_client: httpx.AsyncClient):
         """Test getting egress IPs for an app."""
-        apps_response = await async_client.get("/api/apps")
+        apps_response = await async_client.get("/api/v1/apps")
         assert apps_response.status_code in [200, 400]  # 400 if not initialized
 
         if apps_response.status_code == 200:
@@ -113,7 +113,7 @@ class TestAppsE2E:
 
             if apps:
                 first_app = apps[0]["appname"]
-                egress_response = await async_client.get(f"/api/apps/{first_app}/egress_ips")
+                egress_response = await async_client.get(f"/api/v1/apps/{first_app}/egress_ips")
 
                 # Should return 200 even if empty
                 assert egress_response.status_code in [200, 400, 404]
@@ -126,7 +126,7 @@ class TestAppsE2E:
 
     async def test_app_l4_ingress_endpoint(self, async_client: httpx.AsyncClient):
         """Test getting L4 ingress for an app."""
-        apps_response = await async_client.get("/api/apps")
+        apps_response = await async_client.get("/api/v1/apps")
         assert apps_response.status_code in [200, 400]  # 400 if not initialized
 
         if apps_response.status_code == 200:
@@ -134,7 +134,7 @@ class TestAppsE2E:
 
             if apps and len(apps) > 0:
                 first_app = apps[0]["appname"]
-                l4_response = await async_client.get(f"/api/apps/{first_app}/l4_ingress")
+                l4_response = await async_client.get(f"/api/v1/apps/{first_app}/l4_ingress")
 
                 # Should return 200, 400, or 404
                 assert l4_response.status_code in [200, 400, 404]

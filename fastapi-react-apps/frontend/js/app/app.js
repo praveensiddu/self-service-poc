@@ -232,10 +232,10 @@ function App() {
         setError("");
 
         const [deploymentType, user, cfg, portalMode] = await Promise.all([
-          fetchJson("/api/deployment_type"),
-          fetchJson("/api/current-user"),
-          fetchJson("/api/config"),
-          fetchJson("/api/portal-mode"),
+          fetchJson("/api/v1/deployment_type"),
+          fetchJson("/api/v1/current-user"),
+          fetchJson("/api/v1/config"),
+          fetchJson("/api/v1/portal-mode"),
         ]);
 
         if (cancelled) return;
@@ -266,7 +266,7 @@ function App() {
         if (isComplete) {
           let envList;
           try {
-            envList = await fetchJson("/api/envlist");
+            envList = await fetchJson("/api/v1/envlist");
           } catch {
             if (cancelled) return;
             setPersistedConfigComplete(false);
@@ -345,7 +345,7 @@ function App() {
         setLoading(true);
         setError("");
 
-        const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+        const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
         if (cancelled) return;
 
         setApps(appsResp);
@@ -367,7 +367,7 @@ function App() {
         const l4Pairs = await Promise.all(
           appNames.map(async (appname) => {
             const items = await fetchJson(
-              `/api/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
+              `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
             );
             const ips = uniqStrings((items || []).flatMap((i) => i.allocated_ips || []));
             return [appname, ips];
@@ -383,7 +383,7 @@ function App() {
         const egressPairs = await Promise.all(
           appNames.map(async (appname) => {
             const items = await fetchJson(
-              `/api/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
+              `/api/v1/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
             );
             const ips = uniqStrings((items || []).flatMap((i) => i.allocated_ips || []));
             return [appname, ips];
@@ -436,7 +436,7 @@ function App() {
 
     (async () => {
       try {
-        const data = await fetchJson(`/api/requests/changes?env=${encodeURIComponent(activeEnv)}`);
+        const data = await fetchJson(`/api/v1/requests/changes?env=${encodeURIComponent(activeEnv)}`);
         if (cancelled) return;
         const appsList = Array.isArray(data?.apps) ? data.apps.map(String) : [];
         const namespacesList = Array.isArray(data?.namespaces) ? data.namespaces.map(String) : [];
@@ -463,7 +463,7 @@ function App() {
   async function refreshRequestsChanges() {
     if (!activeEnv) return;
     try {
-      const data = await fetchJson(`/api/requests/changes?env=${encodeURIComponent(activeEnv)}`);
+      const data = await fetchJson(`/api/v1/requests/changes?env=${encodeURIComponent(activeEnv)}`);
       const appsList = Array.isArray(data?.apps) ? data.apps.map(String) : [];
       const namespacesList = Array.isArray(data?.namespaces) ? data.namespaces.map(String) : [];
       setRequestsChanges({ apps: new Set(appsList), namespaces: new Set(namespacesList) });
@@ -479,7 +479,7 @@ function App() {
       setLoading(true);
       setError("");
       const resp = await fetchJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
       );
       setDetailAppName(appname);
       setNamespaces(resp || {});
@@ -516,16 +516,16 @@ function App() {
     setError("");
     try {
       await postJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(fromNamespace)}/copy?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(fromNamespace)}/copy?env=${encodeURIComponent(activeEnv)}`,
         { from_env, to_env, to_namespace },
       );
 
       const resp = await fetchJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
       );
       setNamespaces(resp || {});
 
-      const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+      const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
       setApps(appsResp);
 
       const nextClusters = {};
@@ -546,7 +546,7 @@ function App() {
       setLoading(true);
       setError("");
       const items = await fetchJson(
-        `/api/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
       );
       setDetailAppName(appname);
       setL4IngressItems(items || []);
@@ -566,7 +566,7 @@ function App() {
       setLoading(true);
       setError("");
       const items = await fetchJson(
-        `/api/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
       );
       setDetailAppName(appname);
       setEgressIpItems(items || []);
@@ -651,7 +651,7 @@ function App() {
   async function refreshClusters(env) {
     const effectiveEnv = env || activeEnv || (envKeys[0] || "");
     const q = effectiveEnv ? `?env=${encodeURIComponent(effectiveEnv)}` : "";
-    const data = await fetchJson(`/api/clusters${q}`);
+    const data = await fetchJson(`/api/v1/clusters${q}`);
     setClustersByEnv(data || {});
   }
 
@@ -695,7 +695,7 @@ function App() {
     try {
       setLoading(true);
       setError("");
-      await postJson(`/api/clusters?env=${encodeURIComponent(env)}`, {
+      await postJson(`/api/v1/clusters?env=${encodeURIComponent(env)}`, {
         clustername,
         purpose,
         datacenter,
@@ -723,7 +723,7 @@ function App() {
     try {
       setLoading(true);
       setError("");
-      await deleteJson(`/api/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
+      await deleteJson(`/api/v1/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
       await refreshClusters(env);
       await refreshApps();
     } catch (e) {
@@ -819,7 +819,7 @@ function App() {
       setError("");
 
       const envParam = `env=${encodeURIComponent(activeEnv)}`;
-      const base = `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}`;
+      const base = `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}`;
 
       const [
         basic,
@@ -923,7 +923,7 @@ function App() {
 
       if (hasClusters) {
         const basicResp = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/basic?${envParam}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/basic?${envParam}`,
           { namespace_info: { clusters: nsInfo.clusters } },
         );
         updated = { ...(updated || {}), ...(basicResp || {}) };
@@ -931,7 +931,7 @@ function App() {
 
       if (hasEgressNameId || hasPodBased) {
         const egressResp = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/egress?${envParam}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/egress?${envParam}`,
           {
             namespace_info: {
               ...(hasEgressNameId ? { egress_nameid: nsInfo.egress_nameid } : {}),
@@ -951,7 +951,7 @@ function App() {
       const hasResourceQuota = Boolean(resources && (resources.requests || resources.quota_limits));
       if (hasResourceQuota) {
         const rqResp = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/resourcequota?${envParam}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/resourcequota?${envParam}`,
           {
             requests: resources.requests || null,
             quota_limits: resources.quota_limits || null,
@@ -976,7 +976,7 @@ function App() {
       const hasLimitRange = Boolean(resources && resources.limits);
       if (hasLimitRange) {
         const lrResp = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/limitrange?${envParam}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/limitrange?${envParam}`,
           { limits: resources.limits || null },
         );
 
@@ -1001,7 +1001,7 @@ function App() {
       const bindings = nextUpdates?.rolebindings?.bindings;
       if (bindings !== undefined) {
         updated = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/rolebinding_requests?${envParam}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/rolebinding_requests?${envParam}`,
           { bindings: Array.isArray(bindings) ? bindings : [] },
         );
       }
@@ -1022,7 +1022,7 @@ function App() {
 
       if (payload.need_argo === false) {
         await fetch(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
           { method: "DELETE", headers: { Accept: "application/json" } },
         );
         sideEffectPatch = {
@@ -1033,7 +1033,7 @@ function App() {
         };
       } else {
         const nsArgoResp = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
           payload,
         );
         sideEffectPatch = { ...(sideEffectPatch || {}), ...(nsArgoResp || {}) };
@@ -1045,13 +1045,13 @@ function App() {
       const rules = Array.isArray(egressFirewallUpdates.rules) ? egressFirewallUpdates.rules : [];
       if (rules.length === 0) {
         await fetch(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
           { method: "DELETE", headers: { Accept: "application/json" } },
         );
         sideEffectPatch = { ...(sideEffectPatch || {}), egress_firewall_rules: [] };
       } else {
         const efResp = await putJson(
-          `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
+          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
           { rules },
         );
         const nextRules = Array.isArray(efResp?.rules) ? efResp.rules : rules;
@@ -1259,7 +1259,7 @@ function App() {
     if (!namespace) throw new Error("Namespace name is required.");
 
     await postJson(
-      `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+      `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
       {
         namespace,
         clusters,
@@ -1269,19 +1269,19 @@ function App() {
 
     if (need_argo) {
       await putJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespace)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespace)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
         { need_argo },
       );
     }
 
     // Refresh the namespaces list
     const resp = await fetchJson(
-      `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`
+      `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`
     );
     setNamespaces(resp || {});
 
     // Refresh the apps list to update totalns count
-    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
     setApps(appsResp);
 
     const nextClusters = {};
@@ -1298,7 +1298,7 @@ function App() {
       setLoading(true);
       setError("");
 
-      const saved = await postJson("/api/config", {
+      const saved = await postJson("/api/v1/config", {
         workspace,
         requestsRepo,
         templatesRepo,
@@ -1320,7 +1320,7 @@ function App() {
       );
       setPersistedConfigComplete(isComplete);
       if (isComplete) {
-        const envList = await fetchJson("/api/envlist");
+        const envList = await fetchJson("/api/v1/envlist");
         const keys = Object.keys(envList);
         setEnvKeys(keys);
         const initialEnv = keys[0] || "";
@@ -1341,7 +1341,7 @@ function App() {
       setLoading(true);
       setError("");
 
-      const saved = await postJson("/api/config", {
+      const saved = await postJson("/api/v1/config", {
         workspace: "~/workspace",
         requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
         templatesRepo: "https://github.com/praveensiddu/kselfservice-templates",
@@ -1363,7 +1363,7 @@ function App() {
       );
       setPersistedConfigComplete(isComplete);
       if (isComplete) {
-        const envList = await fetchJson("/api/envlist");
+        const envList = await fetchJson("/api/v1/envlist");
         const keys = Object.keys(envList);
         setEnvKeys(keys);
         const initialEnv = keys[0] || "";

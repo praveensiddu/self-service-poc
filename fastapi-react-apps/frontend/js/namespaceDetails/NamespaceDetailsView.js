@@ -286,7 +286,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         if (editBlock !== "basic") return;
         if (!env || !appname) return;
         const res = await fetch(
-          `/api/clusters?env=${encodeURIComponent(env)}&app=${encodeURIComponent(appname)}`,
+          `/api/v1/clusters?env=${encodeURIComponent(env)}&app=${encodeURIComponent(appname)}`,
           { headers: { Accept: "application/json" } },
         );
         if (!res.ok) {
@@ -320,8 +320,8 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
         const envParam = envKey ? `&env=${encodeURIComponent(envKey)}` : "";
 
         const [rolesRes, clusterRolesRes] = await Promise.all([
-          fetch(`/api/catalog/role_refs?kind=Role${envParam}`, { headers: { Accept: "application/json" } }),
-          fetch(`/api/catalog/role_refs?kind=ClusterRole${envParam}`, { headers: { Accept: "application/json" } }),
+          fetch(`/api/v1/catalog/role_refs?kind=Role${envParam}`, { headers: { Accept: "application/json" } }),
+          fetch(`/api/v1/catalog/role_refs?kind=ClusterRole${envParam}`, { headers: { Accept: "application/json" } }),
         ]);
 
         const parseList = async (res) => {
@@ -353,7 +353,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
 
     const resp = await fetch(
-      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/rolebindings/rolebinding_yaml?env=${encodeURIComponent(envKey)}`,
+      `/api/v1/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/rolebindings/rolebinding_yaml?env=${encodeURIComponent(envKey)}`,
       {
         method: "POST",
         headers: { Accept: "text/yaml", "Content-Type": "application/json" },
@@ -388,7 +388,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
 
     const resp = await fetch(
-      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/resources/resourcequota_yaml?env=${encodeURIComponent(envKey)}`,
+      `/api/v1/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/resources/resourcequota_yaml?env=${encodeURIComponent(envKey)}`,
       {
         method: "POST",
         headers: { Accept: "text/yaml", "Content-Type": "application/json" },
@@ -411,7 +411,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
 
     const resp = await fetch(
-      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/resources/limitrange_yaml?env=${encodeURIComponent(envKey)}`,
+      `/api/v1/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/resources/limitrange_yaml?env=${encodeURIComponent(envKey)}`,
       {
         method: "POST",
         headers: { Accept: "text/yaml", "Content-Type": "application/json" },
@@ -434,7 +434,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
 
     const resp = await fetch(
-      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/egressfirewall/egressfirewall_yaml?env=${encodeURIComponent(envKey)}`,
+      `/api/v1/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/egressfirewall/egressfirewall_yaml?env=${encodeURIComponent(envKey)}`,
       {
         method: "POST",
         headers: { Accept: "text/yaml", "Content-Type": "application/json" },
@@ -457,7 +457,7 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
     if (!envKey || !appKey || !nsKey) throw new Error("Missing env/app/namespace");
 
     const resp = await fetch(
-      `/api/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/egressfirewall?env=${encodeURIComponent(envKey)}`,
+      `/api/v1/apps/${encodeURIComponent(appKey)}/namespaces/${encodeURIComponent(nsKey)}/egressfirewall?env=${encodeURIComponent(envKey)}`,
       {
         method: "GET",
         headers: { Accept: "application/json" },

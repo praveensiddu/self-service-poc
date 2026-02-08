@@ -20,21 +20,21 @@ app.add_middleware(ReadOnlyMiddleware)
 
 # execute the following command to run
 # uvicorn backend.main:app --reload
-app.include_router(general.router, prefix="/api")
-app.include_router(clusters.router, prefix="/api")
-app.include_router(apps.router, prefix="/api")
-app.include_router(app_argocd.router, prefix="/api")
-app.include_router(nsargocd.router, prefix="/api")
-app.include_router(namespaces.router, prefix="/api")
-app.include_router(ns_basic.router, prefix="/api")
-app.include_router(egress.router, prefix="/api")
-app.include_router(resourcequota.router, prefix="/api")
-app.include_router(limitrange.router, prefix="/api")
-app.include_router(rolebindings.router, prefix="/api")
-app.include_router(egressfirewall.router, prefix="/api")
-app.include_router(l4_ingress.router, prefix="/api")
-app.include_router(pull_requests.router, prefix="/api")
-app.include_router(egress_ip.router, prefix="/api")
+app.include_router(general.router, prefix="/api/v1")
+app.include_router(clusters.router, prefix="/api/v1")
+app.include_router(apps.router, prefix="/api/v1")
+app.include_router(app_argocd.router, prefix="/api/v1")
+app.include_router(nsargocd.router, prefix="/api/v1")
+app.include_router(namespaces.router, prefix="/api/v1")
+app.include_router(ns_basic.router, prefix="/api/v1")
+app.include_router(egress.router, prefix="/api/v1")
+app.include_router(resourcequota.router, prefix="/api/v1")
+app.include_router(limitrange.router, prefix="/api/v1")
+app.include_router(rolebindings.router, prefix="/api/v1")
+app.include_router(egressfirewall.router, prefix="/api/v1")
+app.include_router(l4_ingress.router, prefix="/api/v1")
+app.include_router(pull_requests.router, prefix="/api/v1")
+app.include_router(egress_ip.router, prefix="/api/v1")
 
 _BACKEND_DIR = Path(__file__).resolve().parent
 _FRONTEND_DIR = _BACKEND_DIR.parent / "frontend"
@@ -50,6 +50,8 @@ def serve_ui():
 @app.get("/{full_path:path}")
 def serve_ui_routes(full_path: str):
     if full_path.startswith("api/") or full_path == "api":
+        raise HTTPException(status_code=404)
+    if full_path.startswith("api/v1/") or full_path == "api/v1":
         raise HTTPException(status_code=404)
     if full_path.startswith("static/") or full_path == "static":
         raise HTTPException(status_code=404)
