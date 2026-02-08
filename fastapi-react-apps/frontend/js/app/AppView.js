@@ -303,7 +303,7 @@ function AppView({
                 <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <div style={{ display: "flex", gap: "8px", zIndex: 1 }}>
                     <button className="btn" type="button" onClick={onBackToApps}>
-                      Back to App
+                      ← Back to App
                     </button>
                     <button className="btn" type="button" onClick={onViewL4Ingress}>
                       View L4 ingress IPs
@@ -328,7 +328,7 @@ function AppView({
               ) : view === "l4ingress" ? (
                 <>
                   <button className="btn" type="button" onClick={onBackToApps}>
-                    Back to App
+                    ← Back to App
                   </button>
                   <button className="btn" type="button" onClick={onViewEgressIps}>
                     View Egress IPs
@@ -337,7 +337,7 @@ function AppView({
               ) : view === "egressips" ? (
                 <>
                   <button className="btn" type="button" onClick={onBackToApps}>
-                    Back to App
+                    ← Back to App
                   </button>
                   <button className="btn" type="button" onClick={onViewL4Ingress}>
                     View L4 ingress IPs
@@ -345,7 +345,7 @@ function AppView({
                 </>
               ) : (
                 <button className="btn" type="button" onClick={onBackToApps}>
-                  Back to App
+                  ← Back to App
                 </button>
               )}
             </div>
