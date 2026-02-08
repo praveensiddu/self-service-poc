@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Response
 from typing import Any, Dict, List, Optional
 
+from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
@@ -69,6 +70,107 @@ def _normalize_rule(rule: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _egress_entry_to_rule(entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Convert an OVN EgressFirewall spec.egress entry to UI rule shape."""
+    if not isinstance(entry, dict):
+        return None
+
+    entry_type = str(entry.get("type", "") or "").strip()
+    if entry_type != "Allow":
+        return None
+
+    to = entry.get("to")
+    if not isinstance(to, dict):
+        return None
+
+    if "dnsName" in to:
+        egress_type = "dnsName"
+        egress_value = str(to.get("dnsName", "") or "").strip()
+    elif "cidrSelector" in to:
+        egress_type = "cidrSelector"
+        egress_value = str(to.get("cidrSelector", "") or "").strip()
+    else:
+        return None
+
+    if not egress_value:
+        return None
+
+    out: Dict[str, Any] = {"egressType": egress_type, "egressValue": egress_value}
+
+    ports = entry.get("ports")
+    if egress_type == "cidrSelector" and isinstance(ports, list):
+        normalized_ports: List[Dict[str, Any]] = []
+        for p in ports:
+            if not isinstance(p, dict):
+                continue
+            protocol = str(p.get("protocol", "") or "").strip()
+            port = p.get("port")
+            try:
+                port_int = int(port) if port not in (None, "") else None
+            except Exception:
+                port_int = None
+            if protocol and port_int is not None:
+                normalized_ports.append({"protocol": protocol, "port": port_int})
+        if normalized_ports:
+            out["ports"] = normalized_ports
+
+    return out
+
+
+def _rule_to_egress_entry(rule: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert UI rule shape to an OVN EgressFirewall spec.egress entry."""
+    egress_type = str(rule.get("egressType", "") or "").strip()
+    egress_value = str(rule.get("egressValue", "") or "").strip()
+
+    entry: Dict[str, Any] = {"type": "Allow", "to": {}}
+    if egress_type == "dnsName":
+        entry["to"]["dnsName"] = egress_value
+    elif egress_type == "cidrSelector":
+        entry["to"]["cidrSelector"] = egress_value
+
+        ports = rule.get("ports")
+        if isinstance(ports, list) and ports:
+            ports_out: List[Dict[str, Any]] = []
+            for p in ports:
+                if not isinstance(p, dict):
+                    continue
+                protocol = str(p.get("protocol", "") or "").strip()
+                port = p.get("port")
+                try:
+                    port_int = int(port) if port not in (None, "") else None
+                except Exception:
+                    port_int = None
+                if protocol and port_int is not None:
+                    ports_out.append({"protocol": protocol, "port": port_int})
+            if ports_out:
+                entry["ports"] = ports_out
+
+    return entry
+
+
+def _extract_egress_entries_from_template(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists() or not path.is_file():
+        return []
+
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except Exception:
+        return []
+
+    if isinstance(raw, list):
+        return [x for x in raw if isinstance(x, dict)]
+
+    if isinstance(raw, dict):
+        # Allow either a full EgressFirewall object or a shorthand object
+        spec = raw.get("spec") if isinstance(raw.get("spec"), dict) else None
+        if isinstance(spec, dict) and isinstance(spec.get("egress"), list):
+            return [x for x in spec.get("egress") if isinstance(x, dict)]
+        if isinstance(raw.get("egress"), list):
+            return [x for x in raw.get("egress") if isinstance(x, dict)]
+
+    return []
+
+
 @router.get("/apps/{appname}/namespaces/{namespace}/egressfirewall")
 def get_egressfirewall(appname: str, namespace: str, env: Optional[str] = None):
     env = _require_env(env)
@@ -80,7 +182,22 @@ def get_egressfirewall(appname: str, namespace: str, env: Optional[str] = None):
 
     path = _egress_firewall_path(ns_dir)
     rules = _read_yaml_list(path)
-    normalized = [_normalize_rule(r) for r in rules if isinstance(r, dict)]
+
+    normalized: List[Dict[str, Any]] = []
+    for r in rules:
+        if not isinstance(r, dict):
+            continue
+
+        # Backward-compat: older stored format was UI rules.
+        if "egressType" in r or "egressValue" in r:
+            normalized.append(_normalize_rule(r))
+            continue
+
+        # New stored format: OVN spec.egress entries.
+        converted = _egress_entry_to_rule(r)
+        if converted is not None:
+            normalized.append(converted)
+
     return {"exists": path.exists() and path.is_file(), "rules": normalized}
 
 
@@ -95,6 +212,7 @@ def put_egressfirewall(appname: str, namespace: str, payload: EgressFirewallUpda
 
     rules_in = payload.rules or []
     out_rules: List[Dict[str, Any]] = []
+    out_egress_entries: List[Dict[str, Any]] = []
 
     for idx, r in enumerate(rules_in):
         egress_type = str(r.egressType or "").strip()
@@ -125,6 +243,7 @@ def put_egressfirewall(appname: str, namespace: str, payload: EgressFirewallUpda
                 rule_out["ports"] = ports_out
 
         out_rules.append(rule_out)
+        out_egress_entries.append(_rule_to_egress_entry(rule_out))
 
     path = _egress_firewall_path(ns_dir)
     if len(out_rules) == 0:
@@ -141,7 +260,7 @@ def put_egressfirewall(appname: str, namespace: str, payload: EgressFirewallUpda
         return {"rules": []}
 
     try:
-        path.write_text(yaml.safe_dump(out_rules, sort_keys=False))
+        path.write_text(yaml.safe_dump(out_egress_entries, sort_keys=False, default_flow_style=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write egress_firewall_requests.yaml: {e}")
 
@@ -182,9 +301,6 @@ def get_egressfirewall_yaml(appname: str, namespace: str, payload: EgressFirewal
     env = _require_env(env)
 
     rules_in = payload.rules or []
-    if not rules_in:
-        raise HTTPException(status_code=400, detail="No egress firewall rules provided")
-
     egress_entries = []
 
     for idx, r in enumerate(rules_in):
@@ -230,6 +346,22 @@ def get_egressfirewall_yaml(appname: str, namespace: str, payload: EgressFirewal
                     egress_entry["ports"] = ports_list
 
         egress_entries.append(egress_entry)
+
+    # Append allowlist/common template rules if present (before deny-all)
+    try:
+        requests_root = _require_initialized_workspace()
+        cloned_repos_root = requests_root.parents[1]
+        templates_root = cloned_repos_root / "templates"
+        env_key = str(env or "").strip()
+
+        ns_allowlist_path = templates_root / "egress_firewall" / env_key / "namespace_allowlist" / f"{namespace}.yaml"
+        common_path = templates_root / "egress_firewall" / env_key / "egress_firewall_common.yaml"
+
+        egress_entries.extend(_extract_egress_entries_from_template(ns_allowlist_path))
+        egress_entries.extend(_extract_egress_entries_from_template(common_path))
+    except Exception:
+        # Best-effort only; ignore template loading errors
+        pass
 
     # Add a Deny All rule at the end to explicitly deny all other traffic
     egress_entries.append({
