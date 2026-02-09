@@ -130,6 +130,33 @@ body {
   display: block; /* remove inline svg descenders */
 }
 
+/* Make allocate icon lines more visible inside primary icon buttons */
+.iconBtn.iconBtn-primary .allocateIcon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.iconBtn.iconBtn-primary .allocateIcon path {
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  fill: none; /* use stroke-only for clearer lines */
+  vector-effect: non-scaling-stroke;
+}
+
+/* Slightly bolder on hover to improve contrast */
+.iconBtn.iconBtn-primary:hover .allocateIcon path {
+  stroke-width: 1.4;
+}
+
+/* Keep disabled look consistent */
+.iconBtn:disabled .allocateIcon path {
+  stroke: currentColor;
+  opacity: 0.55;
+}
+
 /* Focus styles for accessibility */
 .iconBtn:focus {
   outline: none;
@@ -571,4 +598,9 @@ details[open] summary {
 
 .iconBtn-help svg {
   color: inherit;
+}
+
+/* Ensure disabled iconBtn doesn't show pointer cursor and tooltip still appears */
+.iconBtn:disabled {
+  cursor: not-allowed;
 }

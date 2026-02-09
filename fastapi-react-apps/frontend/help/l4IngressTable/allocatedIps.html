@@ -1,0 +1,18 @@
+<h2>Allocated IPs</h2>
+
+<p>
+  <strong>Allocated IPs</strong> displays the list of actual IP addresses that have been provisioned for L4 ingress for this purpose.
+</p>
+
+<h3>What you'll see</h3>
+<ul>
+  <li>A comma-separated list of IPv4 addresses (e.g., 192.168.1.10, 192.168.1.11).</li>
+  <li>These are the specific IPs that your load balancers or ingress controllers can use.</li>
+  <li>The count should match the "Allocated" column.</li>
+</ul>
+
+<h3>Using these IPs</h3>
+<p>
+  These IP addresses are configured in your cluster's L4 ingress resources and are used to route external traffic to your services.
+  Reference these IPs when configuring DNS records or external load balancers.
+</p>

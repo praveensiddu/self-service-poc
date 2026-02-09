@@ -239,8 +239,15 @@ function App() {
       const r = parseUiRouteFromLocation();
       const nextEnv = r.env || activeEnv || (envKeys[0] || "");
       if (nextEnv) setActiveEnv(nextEnv);
-      setPendingRoute({ env: nextEnv, view: r.view || "apps", appname: r.appname || "", ns: r.ns || "" });
-      pushUiUrl({ view: r.view || "apps", env: nextEnv, appname: r.appname || "", ns: r.ns || "" }, false);
+      // Always reset to apps view when clicking "Request provisioning"
+      setView("apps");
+      setDetailAppName("");
+      setNamespaces({});
+      setL4IngressItems([]);
+      setSelectedNamespaces(new Set());
+      setEgressIpItems([]);
+      setPendingRoute({ env: nextEnv, view: "apps", appname: "", ns: "" });
+      pushUiUrl({ view: "apps", env: nextEnv, appname: "", ns: "" }, false);
       return;
     }
   }
@@ -637,6 +644,12 @@ function App() {
     await openEgressIps(appname, true);
   }
 
+  async function onViewNamespaces() {
+    const appname = getDetailOrSelectedApp();
+    if (!appname) return;
+    await openNamespaces(appname, true);
+  }
+
   React.useEffect(() => {
     function onPopState() {
       if (isHomePath()) {
@@ -1028,10 +1041,18 @@ function App() {
     if (hasRoleBindings) {
       const bindings = nextUpdates?.rolebindings?.bindings;
       if (bindings !== undefined) {
-        updated = await putJson(
+        console.log('[App] Updating rolebindings with:', JSON.stringify(bindings, null, 2));
+        const rbResp = await putJson(
           `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/rolebinding_requests?${envParam}`,
           { bindings: Array.isArray(bindings) ? bindings : [] },
         );
+        console.log('[App] Rolebindings update response:', JSON.stringify(rbResp, null, 2));
+        // Backend returns {"bindings": [...]}, but namespace structure expects {"rolebindings": [...]}
+        updated = {
+          ...(updated || {}),
+          rolebindings: Array.isArray(rbResp?.bindings) ? rbResp.bindings : [],
+        };
+        console.log('[App] Updated namespace object with rolebindings:', JSON.stringify(updated, null, 2));
       }
       delete nextUpdates.rolebindings;
     }
@@ -1093,6 +1114,7 @@ function App() {
       ...(updated || {}),
       ...(sideEffectPatch || {}),
     };
+    console.log('[App] Final merged namespace:', JSON.stringify(merged, null, 2));
     setDetailNamespace(merged);
     setNamespaces((prev) => ({ ...(prev || {}), [namespaceName]: merged }));
     return merged;
@@ -1437,6 +1459,7 @@ function App() {
       }}
       onViewL4Ingress={onViewL4Ingress}
       onViewEgressIps={onViewEgressIps}
+      onViewNamespaces={onViewNamespaces}
       onBackToApps={onBackToApps}
       onBackFromNamespaceDetails={onBackFromNamespaceDetails}
       appRows={appRows}

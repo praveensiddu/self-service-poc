@@ -55,7 +55,7 @@ function NamespaceRoleBindingsCard({
                 <th>Role Reference</th>
                 <th>Subject Kind</th>
                 <th>Subject Name</th>
-                <th style={{ width: '12%', textAlign: 'right' }}>Actions</th>
+                <th style={{ width: isEditingRoleBindings ? '12%' : '60px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -273,7 +273,7 @@ function NamespaceRoleBindingsCard({
                               </select>
                             </div>
                           </td>
-                          <td>
+                          <td style={{ borderRight: '1px solid rgba(0, 0, 0, 0.08)' }}>
                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <input
                                 className="filterInput"
@@ -430,71 +430,69 @@ function NamespaceRoleBindingsCard({
                           No subjects defined
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                            <button
-                              className="iconBtn iconBtn-plain"
-                              onClick={async () => {
-                                const roleYaml = await fetchRoleBindingYaml({
-                                  subjects: subjects,
-                                  roleRef: binding.roleRef,
-                                  bindingIndex: idx,
-                                });
+                          <button
+                            className="iconBtn iconBtn-plain"
+                            onClick={async () => {
+                              const roleYaml = await fetchRoleBindingYaml({
+                                subjects: subjects,
+                                roleRef: binding.roleRef,
+                                bindingIndex: idx,
+                              });
 
-                                const modal = document.createElement('div');
-                                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                              const modal = document.createElement('div');
+                              modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                                const modalContent = document.createElement('div');
-                                modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                              const modalContent = document.createElement('div');
+                              modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
-                                const header = document.createElement('div');
-                                header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+                              const header = document.createElement('div');
+                              header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                              header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
 
-                                const closeBtn = document.createElement('button');
-                                closeBtn.innerHTML = '&times;';
-                                closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                closeBtn.onclick = () => modal.remove();
-                                header.appendChild(closeBtn);
+                              const closeBtn = document.createElement('button');
+                              closeBtn.innerHTML = '&times;';
+                              closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                              closeBtn.onclick = () => modal.remove();
+                              header.appendChild(closeBtn);
 
-                                const pre = document.createElement('pre');
-                                pre.textContent = roleYaml;
-                                pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+                              const pre = document.createElement('pre');
+                              pre.textContent = roleYaml;
+                              pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                                const footer = document.createElement('div');
-                                footer.style.cssText = 'margin-top: 16px; text-align: right;';
+                              const footer = document.createElement('div');
+                              footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                                const copyBtn = document.createElement('button');
-                                copyBtn.textContent = 'Copy';
-                                copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                copyBtn.onclick = () => {
-                                  navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                };
+                              const copyBtn = document.createElement('button');
+                              copyBtn.textContent = 'Copy';
+                              copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                              copyBtn.onclick = () => {
+                                navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                              };
 
-                                const closeBtn2 = document.createElement('button');
-                                closeBtn2.textContent = 'Close';
-                                closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                closeBtn2.onclick = () => modal.remove();
+                              const closeBtn2 = document.createElement('button');
+                              closeBtn2.textContent = 'Close';
+                              closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                              closeBtn2.onclick = () => modal.remove();
 
-                                footer.appendChild(copyBtn);
-                                footer.appendChild(closeBtn2);
+                              footer.appendChild(copyBtn);
+                              footer.appendChild(closeBtn2);
 
-                                modalContent.appendChild(header);
-                                modalContent.appendChild(pre);
-                                modalContent.appendChild(footer);
-                                modal.appendChild(modalContent);
+                              modalContent.appendChild(header);
+                              modalContent.appendChild(pre);
+                              modalContent.appendChild(footer);
+                              modal.appendChild(modalContent);
 
-                                document.body.appendChild(modal);
-                                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                              }}
-                              aria-label="View YAML"
-                              title="View YAML description"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
-                                <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
-                              </svg>
-                            </button>
-                          </div>
+                              document.body.appendChild(modal);
+                              modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                            }}
+                            aria-label="View YAML"
+                            title="View YAML description"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
+                              <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
+                            </svg>
+                          </button>
                         </td>
                       </tr>
                     ) : (
@@ -510,85 +508,69 @@ function NamespaceRoleBindingsCard({
                           <td>{subject?.name || "N/A"}</td>
                           {subIdx === 0 && (
                             <td rowSpan={rowSpan} style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                <button
-                                  className="iconBtn iconBtn-plain"
-                                  onClick={async () => {
-                                    const roleYaml = await fetchRoleBindingYaml({
-                                      subjects: subjects,
-                                      roleRef: binding.roleRef,
-                                      bindingIndex: idx,
-                                    });
+                              <button
+                                className="iconBtn iconBtn-plain"
+                                onClick={async () => {
+                                  const roleYaml = await fetchRoleBindingYaml({
+                                    subjects: subjects,
+                                    roleRef: binding.roleRef,
+                                    bindingIndex: idx,
+                                  });
 
-                                    const modal = document.createElement('div');
-                                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                                  const modal = document.createElement('div');
+                                  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
 
-                                    const modalContent = document.createElement('div');
-                                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                                  const modalContent = document.createElement('div');
+                                  modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
 
-                                    const header = document.createElement('div');
-                                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
+                                  const header = document.createElement('div');
+                                  header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
+                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
 
-                                    const closeBtn = document.createElement('button');
-                                    closeBtn.innerHTML = '&times;';
-                                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                    closeBtn.onclick = () => modal.remove();
-                                    header.appendChild(closeBtn);
+                                  const closeBtn = document.createElement('button');
+                                  closeBtn.innerHTML = '&times;';
+                                  closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
+                                  closeBtn.onclick = () => modal.remove();
+                                  header.appendChild(closeBtn);
 
-                                    const pre = document.createElement('pre');
-                                    pre.textContent = roleYaml;
-                                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
+                                  const pre = document.createElement('pre');
+                                  pre.textContent = roleYaml;
+                                  pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
 
-                                    const footer = document.createElement('div');
-                                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
+                                  const footer = document.createElement('div');
+                                  footer.style.cssText = 'margin-top: 16px; text-align: right;';
 
-                                    const copyBtn = document.createElement('button');
-                                    copyBtn.textContent = 'Copy';
-                                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                    copyBtn.onclick = () => {
-                                      navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                    };
+                                  const copyBtn = document.createElement('button');
+                                  copyBtn.textContent = 'Copy';
+                                  copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
+                                  copyBtn.onclick = () => {
+                                    navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
+                                  };
 
-                                    const closeBtn2 = document.createElement('button');
-                                    closeBtn2.textContent = 'Close';
-                                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                    closeBtn2.onclick = () => modal.remove();
+                                  const closeBtn2 = document.createElement('button');
+                                  closeBtn2.textContent = 'Close';
+                                  closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
+                                  closeBtn2.onclick = () => modal.remove();
 
-                                    footer.appendChild(copyBtn);
-                                    footer.appendChild(closeBtn2);
+                                  footer.appendChild(copyBtn);
+                                  footer.appendChild(closeBtn2);
 
-                                    modalContent.appendChild(header);
-                                    modalContent.appendChild(pre);
-                                    modalContent.appendChild(footer);
-                                    modal.appendChild(modalContent);
+                                  modalContent.appendChild(header);
+                                  modalContent.appendChild(pre);
+                                  modalContent.appendChild(footer);
+                                  modal.appendChild(modalContent);
 
-                                    document.body.appendChild(modal);
-                                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-                                  }}
-                                  aria-label="View YAML"
-                                  title="View YAML description"
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
-                                    <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  className="iconBtn iconBtn-danger"
-                                  onClick={() => {
-                                    const updated = draftRoleBindingsEntries.filter((_, i) => i !== idx);
-                                    setDraftRoleBindingsEntries(updated);
-                                  }}
-                                  aria-label="Delete entry"
-                                  title="Delete RoleBinding entry"
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-                                    <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
-                                  </svg>
-                                </button>
-                              </div>
+                                  document.body.appendChild(modal);
+                                  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                }}
+                                aria-label="View YAML"
+                                title="View YAML description"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M5.5 7a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM5 9.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5z" />
+                                  <path d="M9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.5L9.5 0zm0 1v2A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z" />
+                                </svg>
+                              </button>
                             </td>
                           )}
                         </tr>

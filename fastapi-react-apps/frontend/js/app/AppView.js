@@ -40,6 +40,7 @@ function AppView({
   onEnvClick,
   onViewL4Ingress,
   onViewEgressIps,
+  onViewNamespaces,
   onBackToApps,
   onBackFromNamespaceDetails,
   appRows,
@@ -80,6 +81,8 @@ function AppView({
   namespaceDetailsHeaderButtons,
   onSetNamespaceDetailsHeaderButtons,
 }) {
+  const [l4IngressAddButton, setL4IngressAddButton] = React.useState(null);
+
   const showProvisioningTabs = Boolean(configComplete);
   const canSaveConfig = Boolean(
     (workspace || "").trim() &&
@@ -410,28 +413,49 @@ function AppView({
                   </div>
                 </div>
               ) : view === "l4ingress" ? (
-                <>
-                  <button className="btn" type="button" onClick={onBackToApps}>
-                    ← Back to App
-                  </button>
-                  <button className="btn" type="button" onClick={onViewEgressIps}>
-                    View Egress IPs
-                  </button>
-                </>
+                <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <div style={{ display: "flex", gap: "8px", zIndex: 1 }}>
+                    <button className="btn" type="button" onClick={onBackToApps}>
+                      ← Back to App
+                    </button>
+                    <button className="btn" type="button" onClick={onViewNamespaces}>
+                      View Namespaces
+                    </button>
+                    <button className="btn" type="button" onClick={onViewEgressIps}>
+                      View Egress IPs
+                    </button>
+                  </div>
+                  <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd", whiteSpace: "nowrap" }}>
+                      {`${detailAppName} - L4 Ingress IPs`}
+                    </h2>
+                  </div>
+                  <div style={{ zIndex: 1 }}>
+                    {!readonly && l4IngressAddButton}
+                  </div>
+                </div>
               ) : view === "egressips" ? (
-                <>
-                  <button className="btn" type="button" onClick={onBackToApps}>
-                    ← Back to App
-                  </button>
-                  <button className="btn" type="button" onClick={onViewL4Ingress}>
-                    View L4 ingress IPs
-                  </button>
-                </>
-              ) : (
-                <button className="btn" type="button" onClick={onBackToApps}>
-                  ← Back to App
-                </button>
-              )}
+                <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <div style={{ display: "flex", gap: "8px", zIndex: 1 }}>
+                    <button className="btn" type="button" onClick={onBackToApps}>
+                      ← Back to App
+                    </button>
+                    <button className="btn" type="button" onClick={onViewNamespaces}>
+                      View Namespaces
+                    </button>
+                    <button className="btn" type="button" onClick={onViewL4Ingress}>
+                      View L4 Ingress IPs
+                    </button>
+                  </div>
+                  <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd", whiteSpace: "nowrap" }}>
+                      {`${detailAppName} - Egress IPs`}
+                    </h2>
+                  </div>
+                  <div style={{ zIndex: 1 }}>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {view === "apps" ? (
@@ -485,21 +509,11 @@ function AppView({
                 readonly={readonly}
               />
             ) : view === "l4ingress" ? (
-              <div>
-                <div style={{ marginTop: 8, marginBottom: 10, fontWeight: 600 }}>
-                  {`L4 ingress IPs allocated in different cluster for ${detailAppName || ""}`}
-                </div>
-                <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} />
-              </div>
+              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={setL4IngressAddButton} />
             ) : (
-              <div>
-                <div style={{ marginTop: 8, marginBottom: 10, fontWeight: 600 }}>
-                  {`Egress IPs allocated in different cluster for ${detailAppName || ""}`}
-                </div>
-                <EgressIpTable
-                  items={egressIpItems}
-                />
-              </div>
+              <EgressIpTable
+                items={egressIpItems}
+              />
             )}
           </>
         )}
