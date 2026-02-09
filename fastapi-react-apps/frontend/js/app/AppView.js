@@ -498,9 +498,6 @@ function AppView({
                 </div>
                 <EgressIpTable
                   items={egressIpItems}
-                  selectedItems={selectedEgressIps}
-                  onToggleRow={toggleEgressIp}
-                  onSelectAll={onSelectAllEgressIps}
                 />
               </div>
             )}

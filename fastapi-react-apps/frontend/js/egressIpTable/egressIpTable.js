@@ -1,4 +1,4 @@
-function EgressIpTable({ items, selectedItems, onToggleRow, onSelectAll }) {
+function EgressIpTable({ items }) {
   const [filters, setFilters] = React.useState({
     cluster: "",
     allocation_id: "",
@@ -30,17 +30,11 @@ function EgressIpTable({ items, selectedItems, onToggleRow, onSelectAll }) {
     );
   });
 
-  const allSelected = filteredItems.length > 0 && filteredItems.every((item, index) => selectedItems.has(index));
-
   return (
     <EgressIpTableView
       filteredItems={filteredItems}
-      allSelected={allSelected}
       filters={filters}
       setFilters={setFilters}
-      selectedItems={selectedItems}
-      onToggleRow={onToggleRow}
-      onSelectAll={onSelectAll}
     />
   );
 }

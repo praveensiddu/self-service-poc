@@ -166,7 +166,6 @@ function App() {
   const [namespaces, setNamespaces] = React.useState({});
   const [l4IngressItems, setL4IngressItems] = React.useState([]);
   const [egressIpItems, setEgressIpItems] = React.useState([]);
-  const [selectedEgressIps, setSelectedEgressIps] = React.useState(new Set());
   const [namespaceDetailsHeaderButtons, setNamespaceDetailsHeaderButtons] = React.useState(null);
 
   const [clustersByEnv, setClustersByEnv] = React.useState({});
@@ -435,7 +434,6 @@ function App() {
         setNamespaces({});
         setL4IngressItems([]);
         setEgressIpItems([]);
-        setSelectedEgressIps(new Set());
 
         const pr = pendingRoute;
         if (pr && (pr.env || "").toUpperCase() === (activeEnv || "").toUpperCase()) {
@@ -628,7 +626,6 @@ function App() {
     setL4IngressItems([]);
     setSelectedNamespaces(new Set());
     setEgressIpItems([]);
-    setSelectedEgressIps(new Set());
     setError("");
     pushUiUrl({ view: "apps", env: activeEnv, appname: "" }, false);
   }
@@ -681,7 +678,6 @@ function App() {
         setNamespaces({});
         setL4IngressItems([]);
         setEgressIpItems([]);
-        setSelectedEgressIps(new Set());
       }
     }
 
@@ -785,20 +781,6 @@ function App() {
     } else {
       setSelectedApps(new Set());
     }
-  }
-
-  function onSelectAllEgressIps(checked, indices) {
-    if (checked) setSelectedEgressIps(new Set(indices));
-    else setSelectedEgressIps(new Set());
-  }
-
-  function toggleEgressIp(index, checked) {
-    setSelectedEgressIps((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(index);
-      else next.delete(index);
-      return next;
-    });
   }
 
   function toggleRow(appname, checked) {
@@ -1496,9 +1478,6 @@ function App() {
       requestsChanges={requestsChanges}
       l4IngressItems={l4IngressItems}
       egressIpItems={egressIpItems}
-      selectedEgressIps={selectedEgressIps}
-      toggleEgressIp={toggleEgressIp}
-      onSelectAllEgressIps={onSelectAllEgressIps}
       namespaceDetailsHeaderButtons={namespaceDetailsHeaderButtons}
       onSetNamespaceDetailsHeaderButtons={setNamespaceDetailsHeaderButtons}
     />
