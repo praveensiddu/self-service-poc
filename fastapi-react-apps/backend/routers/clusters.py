@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from pathlib import Path
 import logging
 import os
+import ipaddress
 
 import yaml
 
@@ -85,8 +86,9 @@ def _as_string_list(value: Any) -> List[str]:
             if v is None:
                 continue
             s = str(v).strip()
-            if s:
-                out.append(s)
+            if not s:
+                continue
+            out.append(s)
         return out
     if isinstance(value, str):
         s = value.strip()
@@ -94,6 +96,17 @@ def _as_string_list(value: Any) -> List[str]:
             return []
         return [p.strip() for p in s.split(",") if p.strip()]
     return []
+
+
+def _is_valid_ip(value: str) -> bool:
+    s = str(value or "").strip()
+    if not s:
+        return True
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except Exception:
+        return False
 
 
 def _clusters_file_for_env(clusters_root: Path, env: str) -> Path:
@@ -125,11 +138,29 @@ def _normalize_cluster_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     purpose = str(item.get("purpose", "") or "")
     datacenter = str(item.get("datacenter", "") or "")
     applications = _as_string_list(item.get("applications"))
+
+    ranges_raw = item.get(
+        "l4_ingress_ip_ranges",
+        item.get("l4IngressIpRanges", item.get("l4_ingress_ipranges", item.get("l4IngressIpRanges"))),
+    )
+    ranges_out: List[Dict[str, str]] = []
+    if isinstance(ranges_raw, list):
+        for r in ranges_raw:
+            if not isinstance(r, dict):
+                continue
+            start_ip = str(r.get("start_ip", r.get("startIp", r.get("startip", ""))) or "").strip()
+            end_ip = str(r.get("end_ip", r.get("endIp", r.get("endip", ""))) or "").strip()
+            if not start_ip and not end_ip:
+                continue
+            if not _is_valid_ip(start_ip) or not _is_valid_ip(end_ip):
+                continue
+            ranges_out.append({"start_ip": start_ip, "end_ip": end_ip})
     return {
         "clustername": clustername,
         "purpose": purpose,
         "datacenter": datacenter,
         "applications": sorted(set(applications), key=lambda s: s.lower()),
+        "l4_ingress_ip_ranges": ranges_out,
     }
 
 
@@ -261,6 +292,7 @@ class ClusterUpsert(BaseModel):
     purpose: str = ""
     datacenter: str = ""
     applications: Optional[List[str]] = None
+    l4_ingress_ip_ranges: Optional[List[Dict[str, str]]] = None
 
 
 @router.post("/clusters")
@@ -293,7 +325,29 @@ def add_cluster(payload: ClusterUpsert, env: Optional[str] = None):
         "purpose": str(payload.purpose or ""),
         "datacenter": str(payload.datacenter or ""),
         "applications": sorted(set(_as_string_list(payload.applications)), key=lambda s: s.lower()),
+        "l4_ingress_ip_ranges": [],
     }
+
+    try:
+        ranges_out: List[Dict[str, str]] = []
+        if isinstance(payload.l4_ingress_ip_ranges, list):
+            for r in payload.l4_ingress_ip_ranges:
+                if not isinstance(r, dict):
+                    continue
+                start_ip = str(r.get("start_ip", r.get("startIp", r.get("startip", ""))) or "").strip()
+                end_ip = str(r.get("end_ip", r.get("endIp", r.get("endip", ""))) or "").strip()
+                if not start_ip and not end_ip:
+                    continue
+                if start_ip and not _is_valid_ip(start_ip):
+                    raise HTTPException(status_code=400, detail=f"Invalid start_ip: {start_ip}")
+                if end_ip and not _is_valid_ip(end_ip):
+                    raise HTTPException(status_code=400, detail=f"Invalid end_ip: {end_ip}")
+                ranges_out.append({"start_ip": start_ip, "end_ip": end_ip})
+        normalized["l4_ingress_ip_ranges"] = ranges_out
+    except HTTPException:
+        raise
+    except Exception:
+        normalized["l4_ingress_ip_ranges"] = []
 
     try:
         requests_root = _require_initialized_workspace()

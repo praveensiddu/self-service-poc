@@ -39,6 +39,19 @@ function L4IngressTable({ items, appname, env }) {
     return await res.json();
   }
 
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return await res.json();
+  }
+
   async function fetchClustersForApp() {
     if (!env) throw new Error("No env selected.");
     if (!appname) throw new Error("No app selected.");
@@ -216,6 +229,9 @@ function L4IngressTable({ items, appname, env }) {
       .filter(Boolean);
     const allocatedIps = Array.from(new Set(allocatedIpsList));
 
+    const requestedRaw = Number(it?.requested_total ?? 0);
+    const allocatedRaw = Number(it?.allocated_total ?? 0);
+
     return {
       key,
       clusterNoRaw: String(it?.cluster_no || ""),
@@ -223,6 +239,8 @@ function L4IngressTable({ items, appname, env }) {
       purpose,
       requested: formatValue(it?.requested_total),
       allocated: formatValue(it?.allocated_total),
+      requestedRaw,
+      allocatedRaw,
       allocatedIps: formatValue(allocatedIps),
     };
   }).sort((a, b) => {
@@ -273,6 +291,42 @@ function L4IngressTable({ items, appname, env }) {
         rows={rows}
         filteredRows={filteredRows}
         onEditRow={onEditRow}
+        onAllocateRow={async (row) => {
+          try {
+            if (!env) throw new Error("No env selected.");
+            if (!appname) throw new Error("No app selected.");
+            if (!row) return;
+            const cluster_no = String(row.clusterNoRaw || row.clusterNo || "").trim();
+            const purpose = String(row.purpose || "").trim();
+            if (!cluster_no) throw new Error("Missing cluster.");
+            if (!purpose) throw new Error("Missing purpose.");
+
+            const resp = await postJson(
+              `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress/allocate?env=${encodeURIComponent(env)}`,
+              { cluster_no, purpose },
+            );
+
+            const allocated_total = Number(resp?.allocated_total ?? row.allocatedRaw ?? 0);
+            const ips = Array.isArray(resp?.allocated_ips) ? resp.allocated_ips : [];
+
+            setLocalItems((prev) =>
+              (Array.isArray(prev) ? prev : []).map((it) => {
+                if (String(it?.cluster_no || "") === cluster_no && String(it?.purpose || "") === purpose) {
+                  return {
+                    ...it,
+                    allocated_total,
+                    allocations: ips.length
+                      ? [{ name: String(resp?.key || ""), purpose, ips }]
+                      : (Array.isArray(it?.allocations) ? it.allocations : []),
+                  };
+                }
+                return it;
+              }),
+            );
+          } catch (e) {
+            alert(e?.message || String(e));
+          }
+        }}
       />
       {addOpen ? (
         <div

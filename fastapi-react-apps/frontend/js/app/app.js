@@ -754,6 +754,7 @@ function App() {
     const purpose = String(payload?.purpose || "");
     const datacenter = String(payload?.datacenter || "");
     const applications = Array.isArray(payload?.applications) ? payload.applications : [];
+    const l4IngressIpRanges = Array.isArray(payload?.l4_ingress_ip_ranges) ? payload.l4_ingress_ip_ranges : [];
 
     try {
       setLoading(true);
@@ -763,6 +764,7 @@ function App() {
         purpose,
         datacenter,
         applications,
+        l4_ingress_ip_ranges: l4IngressIpRanges,
       });
       await refreshClusters(env);
       await refreshApps();

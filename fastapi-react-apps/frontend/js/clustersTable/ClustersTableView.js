@@ -26,6 +26,8 @@ function ClustersTableView({
     applications: "",
   });
 
+  const [draftRanges, setDraftRanges] = React.useState([{ startIp: "", endIp: "" }]);
+
   function normalizeApplicationsInput(v) {
     return String(v || "")
       .toLowerCase()
@@ -40,6 +42,8 @@ function ClustersTableView({
     applications: "",
   });
 
+  const [editRanges, setEditRanges] = React.useState([{ startIp: "", endIp: "" }]);
+
   const canSubmitCreate = Boolean(
     (draft.clustername || "").trim() &&
       (draft.purpose || "").trim() &&
@@ -49,6 +53,15 @@ function ClustersTableView({
 
   const envKey = String(activeEnv || "").toUpperCase();
 
+  function isValidIp(s) {
+    const v = String(s || "").trim();
+    if (!v) return true;
+    const ipv4 = /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+    if (ipv4.test(v)) return true;
+    const ipv6 = /^(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}$|^(?:[A-Fa-f0-9]{1,4}:){1,7}:$|^(?:[A-Fa-f0-9]{1,4}:){1,6}:[A-Fa-f0-9]{1,4}$|^(?:[A-Fa-f0-9]{1,4}:){1,5}(?::[A-Fa-f0-9]{1,4}){1,2}$|^(?:[A-Fa-f0-9]{1,4}:){1,4}(?::[A-Fa-f0-9]{1,4}){1,3}$|^(?:[A-Fa-f0-9]{1,4}:){1,3}(?::[A-Fa-f0-9]{1,4}){1,4}$|^(?:[A-Fa-f0-9]{1,4}:){1,2}(?::[A-Fa-f0-9]{1,4}){1,5}$|^[A-Fa-f0-9]{1,4}:(?:(?::[A-Fa-f0-9]{1,4}){1,6})$|^:(?:(?::[A-Fa-f0-9]{1,4}){1,7}|:)$|^(?:[A-Fa-f0-9]{1,4}:){1,4}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+    return ipv6.test(v);
+  }
+
   async function onSubmitAdd() {
     try {
       const applications = String(draft.applications || "")
@@ -56,14 +69,37 @@ function ClustersTableView({
         .map((s) => s.trim())
         .filter(Boolean);
 
+      for (let i = 0; i < (draftRanges || []).length; i += 1) {
+        const r = draftRanges[i] || {};
+        const startIp = String(r?.startIp || "").trim();
+        const endIp = String(r?.endIp || "").trim();
+        if (startIp && !isValidIp(startIp)) {
+          alert(`Invalid Start IP in range ${i + 1}: ${startIp}`);
+          return;
+        }
+        if (endIp && !isValidIp(endIp)) {
+          alert(`Invalid End IP in range ${i + 1}: ${endIp}`);
+          return;
+        }
+      }
+
+      const l4_ingress_ip_ranges = (draftRanges || [])
+        .map((r) => ({
+          start_ip: String(r?.startIp || "").trim(),
+          end_ip: String(r?.endIp || "").trim(),
+        }))
+        .filter((r) => r.start_ip || r.end_ip);
+
       await onAddCluster({
         clustername: String(draft.clustername || ""),
         purpose: String(draft.purpose || ""),
         datacenter: String(draft.datacenter || ""),
         applications,
+        l4_ingress_ip_ranges,
       });
       onCloseCreate();
       setDraft({ clustername: "", purpose: "", datacenter: "", applications: "" });
+      setDraftRanges([{ startIp: "", endIp: "" }]);
     } catch (e) {
       alert(e?.message || String(e));
     }
@@ -72,12 +108,18 @@ function ClustersTableView({
   function openEditCluster(row) {
     const r = row || {};
     const apps = Array.isArray(r?.applications) ? r.applications.map(String) : [];
+    const ranges = Array.isArray(r?.l4_ingress_ip_ranges) ? r.l4_ingress_ip_ranges : [];
     setEditDraft({
       clustername: String(r?.clustername || ""),
       purpose: String(r?.purpose || ""),
       datacenter: String(r?.datacenter || ""),
       applications: apps.join(","),
     });
+    setEditRanges(
+      ranges.length
+        ? ranges.map((x) => ({ startIp: String(x?.start_ip || ""), endIp: String(x?.end_ip || "") }))
+        : [{ startIp: "", endIp: "" }],
+    );
     setShowEdit(true);
   }
 
@@ -88,11 +130,33 @@ function ClustersTableView({
         .map((s) => s.trim())
         .filter(Boolean);
 
+      for (let i = 0; i < (editRanges || []).length; i += 1) {
+        const r = editRanges[i] || {};
+        const startIp = String(r?.startIp || "").trim();
+        const endIp = String(r?.endIp || "").trim();
+        if (startIp && !isValidIp(startIp)) {
+          alert(`Invalid Start IP in range ${i + 1}: ${startIp}`);
+          return;
+        }
+        if (endIp && !isValidIp(endIp)) {
+          alert(`Invalid End IP in range ${i + 1}: ${endIp}`);
+          return;
+        }
+      }
+
+      const l4_ingress_ip_ranges = (editRanges || [])
+        .map((r) => ({
+          start_ip: String(r?.startIp || "").trim(),
+          end_ip: String(r?.endIp || "").trim(),
+        }))
+        .filter((r) => r.start_ip || r.end_ip);
+
       await onAddCluster({
         clustername: String(editDraft.clustername || ""),
         purpose: String(editDraft.purpose || ""),
         datacenter: String(editDraft.datacenter || ""),
         applications,
+        l4_ingress_ip_ranges,
       });
 
       setShowEdit(false);
@@ -181,6 +245,64 @@ function ClustersTableView({
                   onChange={(e) => setDraft((p) => ({ ...p, applications: normalizeApplicationsInput(e.target.value) }))}
                   data-testid="input-applications"
                 />
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">L4 Ingress IP Ranges</div>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setDraftRanges((prev) => [...(Array.isArray(prev) ? prev : []), { startIp: "", endIp: "" }])}
+                  >
+                    + Add Range
+                  </button>
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {(draftRanges || []).map((r, idx) => (
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
+                      <input
+                        className="filterInput"
+                        placeholder="Start IP"
+                        value={String(r?.startIp || "")}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDraftRanges((prev) => {
+                            const next = Array.isArray(prev) ? [...prev] : [];
+                            next[idx] = { ...(next[idx] || {}), startIp: v };
+                            return next;
+                          });
+                        }}
+                      />
+                      <input
+                        className="filterInput"
+                        placeholder="End IP"
+                        value={String(r?.endIp || "")}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDraftRanges((prev) => {
+                            const next = Array.isArray(prev) ? [...prev] : [];
+                            next[idx] = { ...(next[idx] || {}), endIp: v };
+                            return next;
+                          });
+                        }}
+                      />
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => {
+                          setDraftRanges((prev) => {
+                            const next = (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx);
+                            return next.length ? next : [{ startIp: "", endIp: "" }];
+                          });
+                        }}
+                        disabled={(draftRanges || []).length <= 1}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
@@ -280,6 +402,64 @@ function ClustersTableView({
                 />
               </div>
 
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">L4 Ingress IP Ranges</div>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setEditRanges((prev) => [...(Array.isArray(prev) ? prev : []), { startIp: "", endIp: "" }])}
+                  >
+                    + Add Range
+                  </button>
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {(editRanges || []).map((r, idx) => (
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
+                      <input
+                        className="filterInput"
+                        placeholder="Start IP"
+                        value={String(r?.startIp || "")}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEditRanges((prev) => {
+                            const next = Array.isArray(prev) ? [...prev] : [];
+                            next[idx] = { ...(next[idx] || {}), startIp: v };
+                            return next;
+                          });
+                        }}
+                      />
+                      <input
+                        className="filterInput"
+                        placeholder="End IP"
+                        value={String(r?.endIp || "")}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEditRanges((prev) => {
+                            const next = Array.isArray(prev) ? [...prev] : [];
+                            next[idx] = { ...(next[idx] || {}), endIp: v };
+                            return next;
+                          });
+                        }}
+                      />
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => {
+                          setEditRanges((prev) => {
+                            const next = (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx);
+                            return next.length ? next : [{ startIp: "", endIp: "" }];
+                          });
+                        }}
+                        disabled={(editRanges || []).length <= 1}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
                 <button
                   className="btn btn-primary"
@@ -341,6 +521,7 @@ function ClustersTableView({
               <th>Purpose</th>
               <th>Datacenter</th>
               <th>Applications</th>
+              <th>L4 Ingress IP Ranges</th>
               <th>Actions</th>
             </tr>
             <tr>
@@ -377,6 +558,14 @@ function ClustersTableView({
                   data-testid="filter-applications"
                 />
               </th>
+              <th>
+                <input
+                  className="filterInput"
+                  value={filters.l4IngressIpRanges}
+                  onChange={(e) => setFilters((p) => ({ ...p, l4IngressIpRanges: e.target.value }))}
+                  data-testid="filter-l4-ingress-ip-ranges"
+                />
+              </th>
               <th></th>
             </tr>
           </thead>
@@ -396,6 +585,14 @@ function ClustersTableView({
                 <td>{r?.purpose || ""}</td>
                 <td>{r?.datacenter || ""}</td>
                 <td>{Array.isArray(r?.applications) ? r.applications.join(", ") : ""}</td>
+                <td>
+                  {Array.isArray(r?.l4_ingress_ip_ranges)
+                    ? r.l4_ingress_ip_ranges
+                      .map((x) => `${String(x?.start_ip || "").trim()}-${String(x?.end_ip || "").trim()}`)
+                      .filter((s) => s !== "-")
+                      .join(", ")
+                    : ""}
+                </td>
                 <td>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                     {!readonly && (
@@ -439,7 +636,7 @@ function ClustersTableView({
             ))}
             {(filteredRows || []).length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted" data-testid="no-clusters-message">
+                <td colSpan={7} className="muted" data-testid="no-clusters-message">
                   No clusters found.
                 </td>
               </tr>

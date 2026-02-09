@@ -1,12 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from typing import Any, Dict, List, Optional
 import logging
+from pathlib import Path
 
 import yaml
 
 from pydantic import BaseModel
 
 from backend.routers.apps import _require_env, _require_initialized_workspace
+from backend.routers.apps import _require_workspace_path
 from backend.routers.clusters import get_allocated_clusters_for_app
 
 router = APIRouter(tags=["l4_ingress"])
@@ -38,6 +40,34 @@ def _sanitize_allocations(allocations: Any) -> List[Dict[str, Any]]:
     return sanitized
 
 
+def _allocated_file_for_cluster(*, workspace_path: Path, cluster_no: str) -> Path:
+    return (
+        workspace_path
+        / "kselfserv"
+        / "cloned-repositories"
+        / "rendered"
+        / "ip_provisioning"
+        / str(cluster_no).strip()
+        / "l4ingressip-allocated.yaml"
+    )
+
+
+def _key_for_app_purpose(*, appname: str, purpose: str) -> str:
+    a = str(appname or "").strip()
+    p = str(purpose or "").strip()
+    return f"l4ingress_{a}_{p}"
+
+
+def _load_allocated_yaml(path: Path) -> Dict[str, Any]:
+    if not path.exists() or not path.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(path.read_text()) or {}
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
 def _sanitize_l4_ingress_items(items: Any) -> List[Dict[str, Any]]:
     if not isinstance(items, list):
         return []
@@ -60,6 +90,7 @@ def _sanitize_l4_ingress_items(items: Any) -> List[Dict[str, Any]]:
 def get_l4_ingress(appname: str, env: Optional[str] = None):
     env = _require_env(env)
     requests_root = _require_initialized_workspace()
+    workspace_path = _require_workspace_path()
 
     allocated_clusters: List[str] = []
     try:
@@ -93,13 +124,21 @@ def get_l4_ingress(appname: str, env: Optional[str] = None):
                 req_total_int = int(requested_total)
             except Exception:
                 req_total_int = 0
+            cluster_no_s = str(cluster_no)
+            purpose_s = str(purpose)
+            allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no_s)
+            allocated_yaml = _load_allocated_yaml(allocated_path)
+            key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose_s)
+            ips = allocated_yaml.get(key)
+            ips_list = [str(x).strip() for x in ips] if isinstance(ips, list) else []
+            ips_list = [x for x in ips_list if x]
             out.append(
                 {
-                    "cluster_no": str(cluster_no),
-                    "purpose": str(purpose),
+                    "cluster_no": cluster_no_s,
+                    "purpose": purpose_s,
                     "requested_total": req_total_int,
-                    "allocated_total": 0,
-                    "allocations": [],
+                    "allocated_total": len(ips_list),
+                    "allocations": ([{"name": key, "purpose": purpose_s, "ips": ips_list}] if ips_list else []),
                 }
             )
 
@@ -107,13 +146,21 @@ def get_l4_ingress(appname: str, env: Optional[str] = None):
     for c in allocated_clusters:
         if str(c) in seen_clusters:
             continue
+        cluster_no_s = str(c)
+        purpose_s = str(appname or "")
+        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no_s)
+        allocated_yaml = _load_allocated_yaml(allocated_path)
+        key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose_s)
+        ips = allocated_yaml.get(key)
+        ips_list = [str(x).strip() for x in ips] if isinstance(ips, list) else []
+        ips_list = [x for x in ips_list if x]
         out.append(
             {
-                "cluster_no": str(c),
-                "purpose": str(appname or ""),
+                "cluster_no": cluster_no_s,
+                "purpose": purpose_s,
                 "requested_total": 0,
-                "allocated_total": 0,
-                "allocations": [],
+                "allocated_total": len(ips_list),
+                "allocations": ([{"name": key, "purpose": purpose_s, "ips": ips_list}] if ips_list else []),
             }
         )
 

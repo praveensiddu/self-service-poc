@@ -10,7 +10,7 @@ try:
 except Exception:
     pass
 
-from backend.routers import apps, general, clusters, namespaces, resourcequota, limitrange, l4_ingress, pull_requests, egress_ip, rolebindings, app_argocd, nsargocd, egressfirewall, ns_basic, egress
+from backend.routers import apps, general, clusters, namespaces, resourcequota, limitrange, l4_ingress, allocate_l4_ingress, pull_requests, egress_ip, rolebindings, app_argocd, nsargocd, egressfirewall, ns_basic, egress
 from backend.middleware.readonly import ReadOnlyMiddleware
 
 app = FastAPI(title="Application Management API")
@@ -33,6 +33,7 @@ app.include_router(limitrange.router, prefix="/api/v1")
 app.include_router(rolebindings.router, prefix="/api/v1")
 app.include_router(egressfirewall.router, prefix="/api/v1")
 app.include_router(l4_ingress.router, prefix="/api/v1")
+app.include_router(allocate_l4_ingress.router, prefix="/api/v1")
 app.include_router(pull_requests.router, prefix="/api/v1")
 app.include_router(egress_ip.router, prefix="/api/v1")
 
