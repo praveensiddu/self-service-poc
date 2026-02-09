@@ -112,11 +112,13 @@ function NamespaceDetailsView({ namespace, namespaceName, appname, env, onUpdate
           }))
           .filter((b) => Array.isArray(b.subjects) && b.subjects.length > 0);
 
+        console.log('[RoleBindings] Saving bindings:', JSON.stringify(bindings, null, 2));
         await onUpdateNamespaceInfo(namespaceName, {
           rolebindings: {
             bindings,
           },
         });
+        console.log('[RoleBindings] Save completed successfully');
       } else if (block === "egressfirewall") {
         const rules = (draftEgressFirewallEntries || [])
           .map((r) => ({

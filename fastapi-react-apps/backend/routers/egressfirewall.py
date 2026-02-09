@@ -188,7 +188,15 @@ def get_egressfirewall(appname: str, namespace: str, env: Optional[str] = None):
         raise HTTPException(status_code=404, detail=f"Namespace folder not found: {ns_dir}")
 
     path = _egress_firewall_path(ns_dir)
-    rules = _read_yaml_list(path)
+
+    # Try to extract from full EgressFirewall object structure first
+    egress_entries = _extract_egress_entries_from_template(path)
+
+    # Fallback to reading as a list (backward compatibility)
+    if not egress_entries:
+        rules = _read_yaml_list(path)
+    else:
+        rules = egress_entries
 
     normalized: List[Dict[str, Any]] = []
     for r in rules:

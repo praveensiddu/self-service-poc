@@ -22,6 +22,7 @@ function NamespaceBlockHeader({
       <HelpIconButton docPath={helpDocPath} title={helpTitle || `Help: ${title}`} />
       {!isEditing ? (
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+          {right || null}
           {!readonly ? (
             <button
               className="iconBtn iconBtn-plain"
@@ -37,7 +38,6 @@ function NamespaceBlockHeader({
               </svg>
             </button>
           ) : null}
-          {right || null}
         </div>
       ) : null}
       {!readonly && isEditing ? (

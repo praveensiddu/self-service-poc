@@ -80,9 +80,13 @@ def put_namespace_rolebinding_requests(appname: str, namespace: str, payload: Na
     env = _require_env(env)
     ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
 
+    logger.info(f"PUT rolebinding_requests for {env}/{appname}/{namespace}")
+    logger.info(f"Received payload: {payload.model_dump() if hasattr(payload, 'model_dump') else payload.dict()}")
+
     rolebinding_path = ns_dir / "rolebinding_requests.yaml"
 
     bindings_in = payload.bindings or []
+    logger.info(f"Processing {len(bindings_in)} role binding(s)")
     rolebindings_data = []
     for idx, binding in enumerate(bindings_in):
         roleref_kind = str(binding.roleRef.kind).strip() if binding.roleRef.kind is not None else ""
@@ -121,7 +125,9 @@ def put_namespace_rolebinding_requests(appname: str, namespace: str, payload: Na
 
     try:
         rolebinding_path.write_text(yaml.safe_dump(rolebindings_data, sort_keys=False))
+        logger.info(f"Successfully wrote {len(rolebindings_data)} role binding(s) to {rolebinding_path}")
     except Exception as e:
+        logger.error(f"Failed to write RoleBinding to {rolebinding_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to write RoleBinding: {e}")
 
     try:
@@ -129,6 +135,7 @@ def put_namespace_rolebinding_requests(appname: str, namespace: str, payload: Na
     except Exception as e:
         logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
+    logger.info(f"Returning {len(rolebindings_data)} role binding(s)")
     return {"bindings": rolebindings_data}
 
 
