@@ -106,18 +106,12 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
     return an.localeCompare(bn);
   });
 
-  const allSelected = sortedRows.length > 0 && sortedRows.every((r) => selectedNamespaces?.has(r.name));
-
   return (
     <NamespacesTableView
       keysLength={keys.length}
       filteredRows={sortedRows}
-      allSelected={allSelected}
       filters={filters}
       setFilters={setFilters}
-      onSelectAll={onSelectAll}
-      onToggleNamespace={onToggleNamespace}
-      selectedNamespaces={selectedNamespaces}
       onViewDetails={onViewDetails}
       onDeleteNamespace={onDeleteNamespace}
       onCopyNamespace={onCopyNamespace}

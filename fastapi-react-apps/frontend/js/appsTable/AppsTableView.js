@@ -6,8 +6,6 @@ function AppsTableView({
   env,
   onRefreshApps,
   clustersByApp,
-  l4IpsByApp,
-  egressIpsByApp,
   availableClusters,
   selectedApps,
   onToggleRow,
@@ -508,8 +506,6 @@ function AppsTableView({
             <th>Clusters</th>
             <th>Namespaces</th>
             <th>ArgoCD</th>
-            <th>L4 IPs</th>
-            <th>Egress IPs</th>
             <th>Actions</th>
           </tr>
           <tr>
@@ -562,29 +558,13 @@ function AppsTableView({
                 data-testid="filter-argocd"
               />
             </th>
-            <th>
-              <input
-                className="filterInput"
-                value={filters.l4ips}
-                onChange={(e) => setFilters((p) => ({ ...p, l4ips: e.target.value }))}
-                data-testid="filter-l4ips"
-              />
-            </th>
-            <th>
-              <input
-                className="filterInput"
-                value={filters.egressips}
-                onChange={(e) => setFilters((p) => ({ ...p, egressips: e.target.value }))}
-                data-testid="filter-egressips"
-              />
-            </th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={10} className="muted" data-testid="no-apps-message">No apps found.</td>
+              <td colSpan={8} className="muted" data-testid="no-apps-message">No apps found.</td>
             </tr>
           ) : (
             filteredRows.map((a) => (
@@ -614,8 +594,6 @@ function AppsTableView({
                 <td>{(clustersByApp?.[a.appname] || []).join(", ")}</td>
                 <td>{a.totalns ?? ""}</td>
                 <td>{String(Boolean(a?.argocd))}</td>
-                <td>{(l4IpsByApp?.[a.appname] || []).join(", ")}</td>
-                <td>{(egressIpsByApp?.[a.appname] || []).join(", ")}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button

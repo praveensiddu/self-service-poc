@@ -1,4 +1,4 @@
-function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egressIpsByApp, availableClusters, selectedApps, onToggleRow, onSelectAll, onDeleteApp, onViewDetails, onCreateApp, onUpdateApp, showCreate, onOpenCreate, onCloseCreate, requestsChanges, readonly }) {
+function AppsTable({ rows, env, onRefreshApps, clustersByApp, availableClusters, selectedApps, onToggleRow, onSelectAll, onDeleteApp, onViewDetails, onCreateApp, onUpdateApp, showCreate, onOpenCreate, onCloseCreate, requestsChanges, readonly }) {
   const [filters, setFilters] = React.useState({
     appname: "",
     description: "",
@@ -6,8 +6,6 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
     clusters: "",
     namespaces: "",
     argocd: "",
-    l4ips: "",
-    egressips: "",
   });
 
   function formatValue(val) {
@@ -30,8 +28,6 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
     const clusters = formatValue((clustersByApp?.[a?.appname] || []).join(", ")).toLowerCase();
     const namespacesCount = formatValue(a?.totalns).toLowerCase();
     const argocd = String(Boolean(a?.argocd)).toLowerCase();
-    const l4ips = formatValue((l4IpsByApp?.[a?.appname] || []).join(", ")).toLowerCase();
-    const egressips = formatValue((egressIpsByApp?.[a?.appname] || []).join(", ")).toLowerCase();
 
     return (
       appname.includes((filters.appname || "").toLowerCase()) &&
@@ -39,9 +35,7 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
       managedby.includes((filters.managedby || "").toLowerCase()) &&
       clusters.includes((filters.clusters || "").toLowerCase()) &&
       namespacesCount.includes((filters.namespaces || "").toLowerCase()) &&
-      argocd.includes((filters.argocd || "").toLowerCase()) &&
-      l4ips.includes((filters.l4ips || "").toLowerCase()) &&
-      egressips.includes((filters.egressips || "").toLowerCase())
+      argocd.includes((filters.argocd || "").toLowerCase())
     );
   });
 
@@ -62,8 +56,6 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, l4IpsByApp, egress
       env={env}
       onRefreshApps={onRefreshApps}
       clustersByApp={clustersByApp}
-      l4IpsByApp={l4IpsByApp}
-      egressIpsByApp={egressIpsByApp}
       availableClusters={availableClusters}
       selectedApps={selectedApps}
       onToggleRow={onToggleRow}

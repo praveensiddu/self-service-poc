@@ -44,8 +44,6 @@ function AppView({
   onBackFromNamespaceDetails,
   appRows,
   clustersByApp,
-  l4IpsByApp,
-  egressIpsByApp,
   selectedApps,
   toggleRow,
   onSelectAllFromFiltered,
@@ -442,8 +440,6 @@ function AppView({
                 env={activeEnv}
                 onRefreshApps={onRefreshApps}
                 clustersByApp={clustersByApp}
-                l4IpsByApp={l4IpsByApp}
-                egressIpsByApp={egressIpsByApp}
                 availableClusters={availableClusters}
                 selectedApps={selectedApps}
                 onToggleRow={toggleRow}

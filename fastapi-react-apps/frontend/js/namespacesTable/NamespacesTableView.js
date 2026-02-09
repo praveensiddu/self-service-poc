@@ -1,12 +1,8 @@
 function NamespacesTableView({
   keysLength,
   filteredRows,
-  allSelected,
   filters,
   setFilters,
-  onSelectAll,
-  onToggleNamespace,
-  selectedNamespaces,
   onViewDetails,
   onDeleteNamespace,
   onCopyNamespace,
@@ -499,18 +495,6 @@ function NamespacesTableView({
       <table data-testid="namespaces-table">
         <thead>
           <tr>
-            <th>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={(e) => {
-                  const names = filteredRows.map((r) => r.name);
-                  onSelectAll(e.target.checked, names);
-                }}
-                aria-label="Select all namespaces"
-                data-testid="select-all-namespaces-checkbox"
-              />
-            </th>
             <th>Name</th>
             <th>
               <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
@@ -539,7 +523,6 @@ function NamespacesTableView({
             <th>Actions</th>
           </tr>
           <tr>
-            <th></th>
             <th>
               <input
                 className="filterInput"
@@ -586,24 +569,15 @@ function NamespacesTableView({
         <tbody>
           {keysLength === 0 ? (
             <tr>
-              <td colSpan={7} className="muted" data-testid="no-namespaces-message">No namespaces found.</td>
+              <td colSpan={6} className="muted" data-testid="no-namespaces-message">No namespaces found.</td>
             </tr>
           ) : filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={7} className="muted" data-testid="no-matches-message">No matches.</td>
+              <td colSpan={6} className="muted" data-testid="no-matches-message">No matches.</td>
             </tr>
           ) : (
             filteredRows.map((r) => (
               <tr key={r.name} data-testid={`namespace-row-${r.name}`}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedNamespaces?.has(r.name) || false}
-                    onChange={(e) => onToggleNamespace(r.name, e.target.checked)}
-                    aria-label={`Select ${r.name}`}
-                    data-testid={`namespace-checkbox-${r.name}`}
-                  />
-                </td>
                 <td
                   style={
                     requestsChanges?.namespaces?.has

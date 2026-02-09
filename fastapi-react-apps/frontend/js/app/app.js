@@ -141,8 +141,6 @@ function App() {
   const [apps, setApps] = React.useState({});
   const [clustersByApp, setClustersByApp] = React.useState({});
   const [selectedNamespaces, setSelectedNamespaces] = React.useState(() => new Set());
-  const [l4IpsByApp, setL4IpsByApp] = React.useState({});
-  const [egressIpsByApp, setEgressIpsByApp] = React.useState({});
   const [selectedApps, setSelectedApps] = React.useState(new Set());
   const [showCreateApp, setShowCreateApp] = React.useState(false);
   const [showCreateNamespace, setShowCreateNamespace] = React.useState(false);
@@ -424,40 +422,6 @@ function App() {
         setL4IngressItems([]);
         setEgressIpItems([]);
         setSelectedEgressIps(new Set());
-
-        const appNames = Object.keys(appsResp);
-
-        const l4Pairs = await Promise.all(
-          appNames.map(async (appname) => {
-            const items = await fetchJson(
-              `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
-            );
-            const ips = uniqStrings((items || []).flatMap((i) => i.allocated_ips || []));
-            return [appname, ips];
-          }),
-        );
-
-        if (cancelled) return;
-
-        const next = {};
-        for (const [appname, ips] of l4Pairs) next[appname] = ips;
-        setL4IpsByApp(next);
-
-        const egressPairs = await Promise.all(
-          appNames.map(async (appname) => {
-            const items = await fetchJson(
-              `/api/v1/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
-            );
-            const ips = uniqStrings((items || []).flatMap((i) => i.allocated_ips || []));
-            return [appname, ips];
-          }),
-        );
-
-        if (cancelled) return;
-
-        const nextEgress = {};
-        for (const [appname, ips] of egressPairs) nextEgress[appname] = ips;
-        setEgressIpsByApp(nextEgress);
 
         const pr = pendingRoute;
         if (pr && (pr.env || "").toUpperCase() === (activeEnv || "").toUpperCase()) {
@@ -1217,22 +1181,6 @@ function App() {
       }
       setClustersByApp(nextClusters);
 
-      // Refresh L4 IPs
-      const appNames = Object.keys(appsResp);
-      const l4Pairs = await Promise.all(
-        appNames.map(async (appname) => {
-          const items = await fetchJson(
-            `/api/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
-          );
-          const ips = uniqStrings((items || []).flatMap((i) => i.allocated_ips || []));
-          return [appname, ips];
-        }),
-      );
-
-      const next = {};
-      for (const [appname, ips] of l4Pairs) next[appname] = ips;
-      setL4IpsByApp(next);
-
       setError("");
     } catch (e) {
       setError(e?.message || String(e));
@@ -1494,8 +1442,6 @@ function App() {
       onBackFromNamespaceDetails={onBackFromNamespaceDetails}
       appRows={appRows}
       clustersByApp={clustersByApp}
-      l4IpsByApp={l4IpsByApp}
-      egressIpsByApp={egressIpsByApp}
       selectedApps={selectedApps}
       toggleRow={toggleRow}
       onSelectAllFromFiltered={onSelectAllFromFiltered}
