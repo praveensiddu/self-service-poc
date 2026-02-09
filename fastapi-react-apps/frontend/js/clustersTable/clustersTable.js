@@ -17,6 +17,7 @@ function ClustersTable({
     datacenter: "",
     applications: "",
     l4IngressIpRanges: "",
+    egressIpRanges: "",
   });
   const [selectedClusters, setSelectedClusters] = React.useState(new Set());
 
@@ -50,12 +51,22 @@ function ClustersTable({
         : "",
     ).toLowerCase();
 
+    const egressIpRanges = formatValue(
+      Array.isArray(cluster?.egress_ip_ranges)
+        ? cluster.egress_ip_ranges
+          .map((x) => `${String(x?.start_ip || "").trim()}-${String(x?.end_ip || "").trim()}`)
+          .filter((s) => s !== "-")
+          .join(", ")
+        : "",
+    ).toLowerCase();
+
     return (
       clustername.includes((filters.clustername || "").toLowerCase()) &&
       purpose.includes((filters.purpose || "").toLowerCase()) &&
       datacenter.includes((filters.datacenter || "").toLowerCase()) &&
       applications.includes((filters.applications || "").toLowerCase()) &&
-      l4IngressIpRanges.includes((filters.l4IngressIpRanges || "").toLowerCase())
+      l4IngressIpRanges.includes((filters.l4IngressIpRanges || "").toLowerCase()) &&
+      egressIpRanges.includes((filters.egressIpRanges || "").toLowerCase())
     );
   });
 

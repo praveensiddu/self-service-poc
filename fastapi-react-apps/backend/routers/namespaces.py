@@ -154,6 +154,8 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             clusters = []
         clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
+        egress_nameid = _as_trimmed_str(ns_info.get("egress_nameid"))
+
         need_argo = _parse_bool(nsargocd.get("need_argo"))
         if not argocd_exists:
             need_argo = False
@@ -162,6 +164,7 @@ def get_namespaces(appname: str, env: Optional[str] = None):
             "name": ns_name,
             "description": str(ns_info.get("description", "") or ""),
             "clusters": clusters,
+            "egress_nameid": egress_nameid,
             "enable_pod_based_egress_ip": _parse_bool(ns_info.get("enable_pod_based_egress_ip")),
             "allow_all_egress": (not egress_firewall_enforced) or _parse_bool(ns_info.get("allow_all_egress")),
             "need_argo": need_argo,

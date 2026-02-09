@@ -1,8 +1,25 @@
+async function readErrorMessage(res) {
+  try {
+    const text = await res.text();
+    if (!text) return `HTTP ${res.status}`;
+
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.detail === "string") return parsed.detail;
+    } catch {
+      // ignore
+    }
+
+    return text;
+  } catch {
+    return `HTTP ${res.status}`;
+  }
+}
+
 async function fetchJson(url) {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    throw new Error(await readErrorMessage(res));
   }
   return await res.json();
 }
@@ -13,8 +30,7 @@ async function deleteJson(url) {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    throw new Error(await readErrorMessage(res));
   }
   return await res.json();
 }
@@ -26,8 +42,7 @@ async function postJson(url, body) {
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    throw new Error(await readErrorMessage(res));
   }
   return await res.json();
 }
@@ -39,8 +54,7 @@ async function putJson(url, body) {
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    throw new Error(await readErrorMessage(res));
   }
   return await res.json();
 }
@@ -719,6 +733,7 @@ function App() {
     const datacenter = String(payload?.datacenter || "");
     const applications = Array.isArray(payload?.applications) ? payload.applications : [];
     const l4IngressIpRanges = Array.isArray(payload?.l4_ingress_ip_ranges) ? payload.l4_ingress_ip_ranges : [];
+    const egressIpRanges = Array.isArray(payload?.egress_ip_ranges) ? payload.egress_ip_ranges : [];
 
     try {
       setLoading(true);
@@ -729,11 +744,13 @@ function App() {
         datacenter,
         applications,
         l4_ingress_ip_ranges: l4IngressIpRanges,
+        egress_ip_ranges: egressIpRanges,
       });
       await refreshClusters(env);
       await refreshApps();
     } catch (e) {
       setError(e?.message || String(e));
+      throw e;
     } finally {
       setLoading(false);
     }

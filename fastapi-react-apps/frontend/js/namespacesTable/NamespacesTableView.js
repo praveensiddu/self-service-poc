@@ -504,8 +504,8 @@ function NamespacesTableView({
             </th>
             <th>
               <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                <span>EgressIP</span>
-                <HelpIconButton docPath="/static/help/namespacesTable/egressIp.html" title="EgressIP" />
+                <span>Egress Name ID</span>
+                <HelpIconButton docPath="/static/help/namespacesTable/egressNameId.html" title="Egress Name ID" />
               </span>
             </th>
             <th>
@@ -542,9 +542,9 @@ function NamespacesTableView({
             <th>
               <input
                 className="filterInput"
-                value={filters.egressIp}
-                onChange={(e) => setFilters((p) => ({ ...p, egressIp: e.target.value }))}
-                data-testid="filter-egress-ip"
+                value={filters.egressNameId}
+                onChange={(e) => setFilters((p) => ({ ...p, egressNameId: e.target.value }))}
+                data-testid="filter-egress-nameid"
               />
             </th>
             <th>
@@ -590,7 +590,7 @@ function NamespacesTableView({
                   {r.name}
                 </td>
                 <td>{r.clustersText}</td>
-                <td>{r.egressIpText}</td>
+                <td>{r.egressNameIdText}</td>
                 <td>{r.egressFirewallText}</td>
                 <td>{r.managedByArgo ? "True" : "False"}</td>
                 <td>

@@ -155,12 +155,30 @@ def _normalize_cluster_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             if not _is_valid_ip(start_ip) or not _is_valid_ip(end_ip):
                 continue
             ranges_out.append({"start_ip": start_ip, "end_ip": end_ip})
+
+    egress_ranges_raw = item.get(
+        "egress_ip_ranges",
+        item.get("egressIpRanges", item.get("egress_ipranges", item.get("egressIpRanges"))),
+    )
+    egress_ranges_out: List[Dict[str, str]] = []
+    if isinstance(egress_ranges_raw, list):
+        for r in egress_ranges_raw:
+            if not isinstance(r, dict):
+                continue
+            start_ip = str(r.get("start_ip", r.get("startIp", r.get("startip", ""))) or "").strip()
+            end_ip = str(r.get("end_ip", r.get("endIp", r.get("endip", ""))) or "").strip()
+            if not start_ip and not end_ip:
+                continue
+            if not _is_valid_ip(start_ip) or not _is_valid_ip(end_ip):
+                continue
+            egress_ranges_out.append({"start_ip": start_ip, "end_ip": end_ip})
     return {
         "clustername": clustername,
         "purpose": purpose,
         "datacenter": datacenter,
         "applications": sorted(set(applications), key=lambda s: s.lower()),
         "l4_ingress_ip_ranges": ranges_out,
+        "egress_ip_ranges": egress_ranges_out,
     }
 
 
@@ -293,6 +311,7 @@ class ClusterUpsert(BaseModel):
     datacenter: str = ""
     applications: Optional[List[str]] = None
     l4_ingress_ip_ranges: Optional[List[Dict[str, str]]] = None
+    egress_ip_ranges: Optional[List[Dict[str, str]]] = None
 
 
 @router.post("/clusters")
@@ -326,6 +345,7 @@ def add_cluster(payload: ClusterUpsert, env: Optional[str] = None):
         "datacenter": str(payload.datacenter or ""),
         "applications": sorted(set(_as_string_list(payload.applications)), key=lambda s: s.lower()),
         "l4_ingress_ip_ranges": [],
+        "egress_ip_ranges": [],
     }
 
     try:
@@ -348,6 +368,27 @@ def add_cluster(payload: ClusterUpsert, env: Optional[str] = None):
         raise
     except Exception:
         normalized["l4_ingress_ip_ranges"] = []
+
+    try:
+        ranges_out: List[Dict[str, str]] = []
+        if isinstance(payload.egress_ip_ranges, list):
+            for r in payload.egress_ip_ranges:
+                if not isinstance(r, dict):
+                    continue
+                start_ip = str(r.get("start_ip", r.get("startIp", r.get("startip", ""))) or "").strip()
+                end_ip = str(r.get("end_ip", r.get("endIp", r.get("endip", ""))) or "").strip()
+                if not start_ip and not end_ip:
+                    continue
+                if start_ip and not _is_valid_ip(start_ip):
+                    raise HTTPException(status_code=400, detail=f"Invalid start_ip: {start_ip}")
+                if end_ip and not _is_valid_ip(end_ip):
+                    raise HTTPException(status_code=400, detail=f"Invalid end_ip: {end_ip}")
+                ranges_out.append({"start_ip": start_ip, "end_ip": end_ip})
+        normalized["egress_ip_ranges"] = ranges_out
+    except HTTPException:
+        raise
+    except Exception:
+        normalized["egress_ip_ranges"] = []
 
     try:
         requests_root = _require_initialized_workspace()

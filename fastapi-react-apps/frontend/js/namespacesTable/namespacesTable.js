@@ -2,7 +2,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
   const [filters, setFilters] = React.useState({
     name: "",
     clusters: "",
-    egressIp: "",
+    egressNameId: "",
     egressFirewall: "",
     managedByArgo: "",
   });
@@ -64,9 +64,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       const managedByArgo = Boolean(ns?.need_argo || ns?.generate_argo_app);
 
       const clustersText = formatValue(ns?.clusters);
-      const egressIpText = `${formatValue(ns?.egress_nameid)} ${formatValue(
-        Boolean(ns?.enable_pod_based_egress_ip),
-      )}`;
+      const egressNameIdText = formatValue(ns?.egress_nameid);
       const egressFirewallText = ns?.allow_all_egress ? "false" : "true";
       const resourceQuotaText = formatResourceQuota(ns?.resources);
       const limitRangeText = formatLimitRange(ns?.resources);
@@ -79,7 +77,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         name,
         managedByArgo,
         clustersText,
-        egressIpText,
+        egressNameIdText,
         egressFirewallText,
         resourceQuotaText,
         limitRangeText,
@@ -92,7 +90,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       return (
         (r.name || "").toLowerCase().includes((filters.name || "").toLowerCase()) &&
         (r.clustersText || "").toLowerCase().includes((filters.clusters || "").toLowerCase()) &&
-        (r.egressIpText || "").toLowerCase().includes((filters.egressIp || "").toLowerCase()) &&
+        (r.egressNameIdText || "").toLowerCase().includes((filters.egressNameId || "").toLowerCase()) &&
         (r.egressFirewallText || "").toLowerCase().includes((filters.egressFirewall || "").toLowerCase()) &&
         String(r.managedByArgo ? "true" : "false")
           .toLowerCase()
