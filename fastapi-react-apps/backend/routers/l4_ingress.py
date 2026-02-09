@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import Any, Dict, List, Optional
+import ipaddress
 import logging
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 
 from backend.routers.apps import _require_env, _require_initialized_workspace
 from backend.routers.apps import _require_workspace_path
+from backend.routers.apps import _require_control_clusters_root
+from backend.routers.allocate_l4_ingress import _load_cluster_first_range
 from backend.routers.clusters import get_allocated_clusters_for_app
 
 router = APIRouter(tags=["l4_ingress"])
@@ -183,6 +186,15 @@ def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, en
     if requested_total < 0 or requested_total > 256:
         raise HTTPException(status_code=400, detail="requested_total must be between 0 and 256")
 
+    first_range: Optional[Dict[str, str]] = None
+    # Match allocate endpoint behavior: if a cluster doesn't have any configured L4 ingress
+    # ranges, we should not allow a non-zero requested_total for that cluster.
+    if requested_total > 0:
+        clusters_root = _require_control_clusters_root()
+        first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=cluster_no)
+        if not first_range:
+            raise HTTPException(status_code=400, detail="No l4_ingress_ip_ranges configured for this cluster")
+
     req_path = requests_root / env / str(appname or "").strip() / "l4_ingress_request.yaml"
     try:
         req_path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,8 +216,61 @@ def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, en
     cluster_map = raw.get(cluster_no)
     if cluster_map is None or not isinstance(cluster_map, dict):
         cluster_map = {}
-        raw[cluster_no] = cluster_map
 
+    prev_requested_any = cluster_map.get(purpose)
+    try:
+        prev_requested_total = int(prev_requested_any)
+    except Exception:
+        prev_requested_total = 0
+
+    delta = requested_total - prev_requested_total
+
+    # Validate that the free IP pool can accommodate the increase.
+    # Free pool = (cluster range capacity) - (already allocated IPs in range across all apps/purposes).
+    if delta > 0:
+        if not first_range:
+            clusters_root = _require_control_clusters_root()
+            first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=cluster_no)
+        if not first_range:
+            raise HTTPException(status_code=400, detail="No l4_ingress_ip_ranges configured for this cluster")
+
+        try:
+            start_int = int(ipaddress.ip_address(str(first_range.get("start_ip") or "").strip()))
+            end_int = int(ipaddress.ip_address(str(first_range.get("end_ip") or "").strip()))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid l4_ingress_ip_ranges configured for this cluster")
+
+        lo = min(start_int, end_int)
+        hi = max(start_int, end_int)
+        capacity = (hi - lo) + 1
+        if capacity <= 0:
+            raise HTTPException(status_code=400, detail="Invalid l4_ingress_ip_ranges configured for this cluster")
+
+        workspace_path = _require_workspace_path()
+        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no)
+        allocated_yaml = _load_allocated_yaml(allocated_path)
+
+        allocated_in_range: set[int] = set()
+        if isinstance(allocated_yaml, dict):
+            for v in allocated_yaml.values():
+                if not isinstance(v, list):
+                    continue
+                for ip_s in v:
+                    try:
+                        ip_i = int(ipaddress.ip_address(str(ip_s).strip()))
+                    except Exception:
+                        continue
+                    if lo <= ip_i <= hi:
+                        allocated_in_range.add(ip_i)
+
+        free_remaining = capacity - len(allocated_in_range)
+        if delta > free_remaining:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough free IPs remaining in cluster range. Free IPs remaining: {max(free_remaining, 0)}",
+            )
+
+    raw[cluster_no] = cluster_map
     cluster_map[purpose] = requested_total
 
     try:

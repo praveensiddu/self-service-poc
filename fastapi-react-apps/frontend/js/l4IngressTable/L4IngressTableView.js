@@ -65,7 +65,15 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                 <td>{r.clusterNo}</td>
                 <td>{r.purpose}</td>
                 <td>{r.requested}</td>
-                <td>{r.allocated}</td>
+                <td
+                  style={
+                    Number(r?.allocatedRaw ?? 0) !== Number(r?.requestedRaw ?? 0)
+                      ? { background: "#fff3cd" }
+                      : undefined
+                  }
+                >
+                  {r.allocated}
+                </td>
                 <td>{r.allocatedIps}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>

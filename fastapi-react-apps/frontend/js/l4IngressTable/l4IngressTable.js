@@ -26,6 +26,22 @@ function L4IngressTable({ items, appname, env }) {
     setLocalItems(Array.isArray(items) ? items : []);
   }, [items]);
 
+  async function readErrorMessage(res) {
+    try {
+      const text = await res.text();
+      if (!text) return `HTTP ${res.status}`;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object" && parsed.detail) return String(parsed.detail);
+      } catch {
+        // ignore
+      }
+      return text;
+    } catch {
+      return `HTTP ${res.status}`;
+    }
+  }
+
   async function putJson(url, body) {
     const res = await fetch(url, {
       method: "PUT",
@@ -33,8 +49,7 @@ function L4IngressTable({ items, appname, env }) {
       body: JSON.stringify(body || {}),
     });
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP ${res.status}`);
+      throw new Error(await readErrorMessage(res));
     }
     return await res.json();
   }
@@ -46,8 +61,7 @@ function L4IngressTable({ items, appname, env }) {
       body: JSON.stringify(body || {}),
     });
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP ${res.status}`);
+      throw new Error(await readErrorMessage(res));
     }
     return await res.json();
   }
