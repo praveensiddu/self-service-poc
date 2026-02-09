@@ -5,10 +5,30 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
         <thead>
           <tr>
             <th>Cluster</th>
-            <th>Purpose</th>
-            <th>Requested</th>
-            <th>Allocated</th>
-            <th>Allocated IPs</th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Purpose</span>
+                <HelpIconButton docPath="/static/help/l4IngressTable/purpose.html" title="Purpose" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Requested</span>
+                <HelpIconButton docPath="/static/help/l4IngressTable/requested.html" title="Requested" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Allocated</span>
+                <HelpIconButton docPath="/static/help/l4IngressTable/allocated.html" title="Allocated" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Allocated IPs</span>
+                <HelpIconButton docPath="/static/help/l4IngressTable/allocatedIps.html" title="Allocated IPs" />
+              </span>
+            </th>
             <th>Actions</th>
           </tr>
           <tr>
@@ -79,7 +99,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     <button
                       type="button"
-                      className="iconBtn iconBtn-plain"
+                      className="iconBtn iconBtn-primary"
                       onClick={() => onEditRow(r)}
                       aria-label="Edit"
                       title="Edit"

@@ -1,4 +1,4 @@
-function L4IngressTable({ items, appname, env }) {
+function L4IngressTable({ items, appname, env, renderAddButton }) {
   const [localItems, setLocalItems] = React.useState(Array.isArray(items) ? items : []);
   const [filters, setFilters] = React.useState({
     cluster: "",
@@ -292,13 +292,30 @@ function L4IngressTable({ items, appname, env }) {
     );
   });
 
-  return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <button className="btn btn-primary" type="button" onClick={onOpenAdd}>
+  React.useEffect(() => {
+    if (typeof renderAddButton === 'function') {
+      renderAddButton(
+        <button className="btn btn-primary" type="button" onClick={onOpenAdd} data-testid="add-l4-ingress-btn">
           + Add
         </button>
-      </div>
+      );
+    }
+    return () => {
+      if (typeof renderAddButton === 'function') {
+        renderAddButton(null);
+      }
+    };
+  }, [renderAddButton, onOpenAdd]);
+
+  return (
+    <>
+      {typeof renderAddButton !== 'function' && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button className="btn btn-primary" type="button" onClick={onOpenAdd}>
+            + Add
+          </button>
+        </div>
+      )}
       <L4IngressTableView
         filters={filters}
         setFilters={setFilters}

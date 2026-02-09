@@ -637,6 +637,12 @@ function App() {
     await openEgressIps(appname, true);
   }
 
+  async function onViewNamespaces() {
+    const appname = getDetailOrSelectedApp();
+    if (!appname) return;
+    await openNamespaces(appname, true);
+  }
+
   React.useEffect(() => {
     function onPopState() {
       if (isHomePath()) {
@@ -1437,6 +1443,7 @@ function App() {
       }}
       onViewL4Ingress={onViewL4Ingress}
       onViewEgressIps={onViewEgressIps}
+      onViewNamespaces={onViewNamespaces}
       onBackToApps={onBackToApps}
       onBackFromNamespaceDetails={onBackFromNamespaceDetails}
       appRows={appRows}
