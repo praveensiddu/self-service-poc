@@ -338,6 +338,32 @@ def save_config(cfg: KSelfServeConfig):
                     detail=f"Failed to clone requestsRepo into {requests_clone_dir}: {stderr}",
                 )
 
+        # Env list is derived from the RequestsRepo clone.
+        env_info_path = requests_clone_dir / "apprequests" / "env_info.yaml"
+        if not env_info_path.exists() or not env_info_path.is_file():
+            raise HTTPException(status_code=400, detail=f" env_info.yaml file not present {env_info_path}")
+
+        try:
+            env_info = yaml.safe_load(env_info_path.read_text()) or {}
+        except Exception:
+            raise HTTPException(status_code=400, detail=f" env_info.yaml file parsing failed")
+        if not isinstance(env_info, dict):
+            raise HTTPException(status_code=400, detail=" env_info.yaml is not a dictionary")
+
+        env_order = env_info.get("env_order")
+        if not isinstance(env_order, list) or not env_order:
+            raise HTTPException(status_code=400, detail="env_order fiels is not present in env_info.yaml file")
+
+        env_keys: List[str] = []
+        for e in env_order:
+            if not isinstance(e, str):
+                continue
+            k = e.strip().lower()
+            if k:
+                env_keys.append(k)
+        if not env_keys:
+            raise HTTPException(status_code=400, detail="invalid env_info.yaml file")
+
         templates_repo_url = str(cfg.templatesRepo or "").strip()
         if templates_repo_url and not templates_clone_dir.exists():
             cloned_repos_dir.mkdir(parents=True, exist_ok=True)
@@ -373,43 +399,65 @@ def save_config(cfg: KSelfServeConfig):
 
         rendered_repo_url = str(cfg.renderedManifestsRepo or "").strip()
         if rendered_repo_url:
-            if not rendered_clone_dir.exists():
-                cloned_repos_dir.mkdir(parents=True, exist_ok=True)
-                try:
-                    subprocess.run(
-                        ["git", "clone", rendered_repo_url, str(rendered_clone_dir)],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                except subprocess.CalledProcessError as e:
-                    stderr = (e.stderr or "").strip()
+            cloned_repos_dir.mkdir(parents=True, exist_ok=True)
+            for env_key in env_keys:
+                rendered_env_dir = cloned_repos_dir / f"rendered_{env_key}"
+                if rendered_env_dir.exists() and not rendered_env_dir.is_dir():
                     raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to clone renderedManifestsRepo into {rendered_clone_dir}: {stderr}",
+                        status_code=400,
+                        detail=f"Expected rendered clone path to be a directory: {rendered_env_dir}",
                     )
-            else:
-                try:
-                    git_dir = rendered_clone_dir / ".git"
-                    if git_dir.exists() and git_dir.is_dir():
+
+                if not rendered_env_dir.exists():
+                    try:
                         subprocess.run(
-                            ["git", "-C", str(rendered_clone_dir), "fetch", "--all"],
+                            [
+                                "git",
+                                "clone",
+                                "--branch",
+                                env_key,
+                                "--single-branch",
+                                rendered_repo_url,
+                                str(rendered_env_dir),
+                            ],
                             check=True,
                             capture_output=True,
                             text=True,
                         )
-                        subprocess.run(
-                            ["git", "-C", str(rendered_clone_dir), "pull", "--ff-only"],
-                            check=True,
-                            capture_output=True,
-                            text=True,
+                    except subprocess.CalledProcessError as e:
+                        stderr = (e.stderr or "").strip()
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Failed to clone renderedManifestsRepo branch {env_key} into {rendered_env_dir}: {stderr}",
                         )
-                except subprocess.CalledProcessError as e:
-                    stderr = (e.stderr or "").strip()
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to update renderedManifestsRepo in {rendered_clone_dir}: {stderr}",
-                    )
+                else:
+                    try:
+                        git_dir = rendered_env_dir / ".git"
+                        if git_dir.exists() and git_dir.is_dir():
+                            subprocess.run(
+                                ["git", "-C", str(rendered_env_dir), "fetch", "--all"],
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                            )
+                            subprocess.run(
+                                ["git", "-C", str(rendered_env_dir), "checkout", env_key],
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                            )
+                            subprocess.run(
+                                ["git", "-C", str(rendered_env_dir), "pull", "--ff-only", "origin", env_key],
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                            )
+                    except subprocess.CalledProcessError as e:
+                        stderr = (e.stderr or "").strip()
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Failed to update renderedManifestsRepo in {rendered_env_dir}: {stderr}",
+                        )
 
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         data = {

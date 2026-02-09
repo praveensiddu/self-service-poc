@@ -314,64 +314,95 @@ def _require_env(env: Optional[str]) -> str:
 
 @router.get("/apps")
 def list_apps(env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-
-    env_dir = requests_root / env
-    if not env_dir.exists() or not env_dir.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    clusters_by_app = {}
     try:
-        clusters_by_app = _clusters_by_app_for_env(env)
-    except Exception:
+        env = _require_env(env)
+        requests_root = _require_initialized_workspace()
+
+        env_dir = requests_root / env
+        if not env_dir.exists() or not env_dir.is_dir():
+            raise HTTPException(status_code=400, detail="not initialized")
+
         clusters_by_app = {}
-
-    apps_out: Dict[str, Dict[str, Any]] = {}
-    for child in env_dir.iterdir():
-        if not child.is_dir():
-            continue
-
-        appname = child.name
-        appinfo_path = child / "appinfo.yaml"
-        description = ""
-        managedby = ""
-        clusters: List[str] = clusters_by_app.get(appname, [])
-
-        if appinfo_path.exists() and appinfo_path.is_file():
-            try:
-                appinfo = yaml.safe_load(appinfo_path.read_text()) or {}
-                if isinstance(appinfo, dict):
-                    description = str(appinfo.get("description", "") or "")
-                    managedby = str(appinfo.get("managedby", "") or "")
-            except Exception:
-                description = ""
-                managedby = ""
-                clusters = clusters_by_app.get(appname, [])
-
-        totalns = 0
         try:
-            totalns = sum(1 for p in child.iterdir() if p.is_dir())
-        except Exception:
+            clusters_by_app = _clusters_by_app_for_env(env)
+        except Exception as e:
+            logger.error("Failed to compute clusters_by_app for env=%s: %s", str(env), str(e), exc_info=True)
+            clusters_by_app = {}
+
+        apps_out: Dict[str, Dict[str, Any]] = {}
+        for child in env_dir.iterdir():
+            if not child.is_dir():
+                continue
+
+            appname = child.name
+            appinfo_path = child / "appinfo.yaml"
+            description = ""
+            managedby = ""
+            clusters: List[str] = clusters_by_app.get(appname, [])
+
+            if appinfo_path.exists() and appinfo_path.is_file():
+                try:
+                    appinfo = yaml.safe_load(appinfo_path.read_text()) or {}
+                    if isinstance(appinfo, dict):
+                        description = str(appinfo.get("description", "") or "")
+                        managedby = str(appinfo.get("managedby", "") or "")
+                except Exception as e:
+                    logger.error(
+                        "Failed to read appinfo.yaml for env=%s app=%s path=%s: %s",
+                        str(env),
+                        str(appname),
+                        str(appinfo_path),
+                        str(e),
+                        exc_info=True,
+                    )
+                    description = ""
+                    managedby = ""
+                    clusters = clusters_by_app.get(appname, [])
+
             totalns = 0
+            try:
+                totalns = sum(1 for p in child.iterdir() if p.is_dir())
+            except Exception as e:
+                logger.error(
+                    "Failed to count namespaces for env=%s app=%s dir=%s: %s",
+                    str(env),
+                    str(appname),
+                    str(child),
+                    str(e),
+                    exc_info=True,
+                )
+                totalns = 0
 
-        argocd = False
-        try:
-            argocd_path = child / "argocd.yaml"
-            argocd = argocd_path.exists() and argocd_path.is_file()
-        except Exception:
             argocd = False
+            try:
+                argocd_path = child / "argocd.yaml"
+                argocd = argocd_path.exists() and argocd_path.is_file()
+            except Exception as e:
+                logger.error(
+                    "Failed to check argocd.yaml for env=%s app=%s path=%s: %s",
+                    str(env),
+                    str(appname),
+                    str(child / 'argocd.yaml'),
+                    str(e),
+                    exc_info=True,
+                )
+                argocd = False
 
-        apps_out[appname] = {
-            "appname": appname,
-            "description": description,
-            "managedby": managedby,
-            "clusters": clusters,
-            "totalns": totalns,
-            "argocd": argocd,
-        }
+            apps_out[appname] = {
+                "appname": appname,
+                "description": description,
+                "managedby": managedby,
+                "clusters": clusters,
+                "totalns": totalns,
+                "argocd": argocd,
+            }
 
-    return apps_out
+        return apps_out
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Unhandled exception in GET /apps for env=%s: %s", str(env), str(e), exc_info=True)
+        raise
 
 
 @router.post("/apps")

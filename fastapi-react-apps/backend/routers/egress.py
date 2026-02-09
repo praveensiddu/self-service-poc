@@ -19,12 +19,12 @@ router = APIRouter(tags=["egress"])
 logger = logging.getLogger("uvicorn.error")
 
 
-def _egress_allocated_file_for_cluster(*, workspace_path: Path, cluster_no: str) -> Path:
+def _egress_allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: str) -> Path:
     return (
         workspace_path
         / "kselfserv"
         / "cloned-repositories"
-        / "rendered"
+        / f"rendered_{str(env or '').strip().lower()}"
         / "ip_provisioning"
         / str(cluster_no).strip()
         / "egressip-allocated.yaml"
@@ -174,7 +174,7 @@ def put_namespace_info_egress(appname: str, namespace: str, payload: NamespaceIn
         alloc_key = f"{str(appname or '').strip()}_{str(egress_nameid or '').strip()}"
 
         for cluster_no in clusters_list:
-            allocated_path = _egress_allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no)
+            allocated_path = _egress_allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
             allocated_yaml = _load_allocated_yaml(allocated_path)
 
             existing_ips_for_key = allocated_yaml.get(alloc_key)

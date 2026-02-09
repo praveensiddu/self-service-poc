@@ -1133,7 +1133,7 @@ function App() {
       setError("");
 
       const response = await fetch(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}&namespaces=${encodeURIComponent(namespaceName)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}&namespaces=${encodeURIComponent(namespaceName)}`,
         { method: "DELETE", headers: { Accept: "application/json" } }
       );
 
@@ -1146,12 +1146,12 @@ function App() {
 
       // Refresh the namespaces list
       const resp = await fetchJson(
-        `/api/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
       );
       setNamespaces(resp || {});
 
       // Refresh apps list to update totalns count
-      const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+      const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
       setApps(appsResp);
 
       const nextClusters = {};
@@ -1179,7 +1179,7 @@ function App() {
       setError("");
 
       const response = await fetch(
-        `/api/apps/${encodeURIComponent(appname)}?env=${encodeURIComponent(activeEnv)}`,
+        `/api/v1/apps/${encodeURIComponent(appname)}?env=${encodeURIComponent(activeEnv)}`,
         { method: "DELETE", headers: { Accept: "application/json" } }
       );
       if (!response.ok) {
@@ -1189,7 +1189,7 @@ function App() {
       await response.json();
 
       // Refresh the apps list
-      const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+      const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
       setApps(appsResp);
 
       const nextClusters = {};
@@ -1213,14 +1213,14 @@ function App() {
 
     if (!appname) throw new Error("App Name is required.");
 
-    await postJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`,
+    await postJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`,
       {
         appname,
         description,
         managedby,
       });
 
-    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
     setApps(appsResp);
 
     const nextClusters = {};
@@ -1234,7 +1234,7 @@ function App() {
 
   async function refreshApps() {
     if (!activeEnv) return;
-    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
     setApps(appsResp);
 
     const nextClusters = {};
@@ -1253,14 +1253,14 @@ function App() {
 
     if (!target) throw new Error("App Name is required.");
 
-    await putJson(`/api/apps/${encodeURIComponent(target)}?env=${encodeURIComponent(activeEnv)}`,
+    await putJson(`/api/v1/apps/${encodeURIComponent(target)}?env=${encodeURIComponent(activeEnv)}`,
       {
         appname: target,
         description,
         managedby,
       });
 
-    const appsResp = await fetchJson(`/api/apps?env=${encodeURIComponent(activeEnv)}`);
+    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
     setApps(appsResp);
 
     const nextClusters = {};

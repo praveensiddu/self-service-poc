@@ -43,12 +43,12 @@ def _sanitize_allocations(allocations: Any) -> List[Dict[str, Any]]:
     return sanitized
 
 
-def _allocated_file_for_cluster(*, workspace_path: Path, cluster_no: str) -> Path:
+def _allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: str) -> Path:
     return (
         workspace_path
         / "kselfserv"
         / "cloned-repositories"
-        / "rendered"
+        / f"rendered_{str(env or '').strip().lower()}"
         / "ip_provisioning"
         / str(cluster_no).strip()
         / "l4ingressip-allocated.yaml"
@@ -129,7 +129,7 @@ def get_l4_ingress(appname: str, env: Optional[str] = None):
                 req_total_int = 0
             cluster_no_s = str(cluster_no)
             purpose_s = str(purpose)
-            allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no_s)
+            allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no_s)
             allocated_yaml = _load_allocated_yaml(allocated_path)
             key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose_s)
             ips = allocated_yaml.get(key)
@@ -151,7 +151,7 @@ def get_l4_ingress(appname: str, env: Optional[str] = None):
             continue
         cluster_no_s = str(c)
         purpose_s = str(appname or "")
-        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no_s)
+        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no_s)
         allocated_yaml = _load_allocated_yaml(allocated_path)
         key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose_s)
         ips = allocated_yaml.get(key)
@@ -247,7 +247,7 @@ def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, en
             raise HTTPException(status_code=400, detail="Invalid l4_ingress_ip_ranges configured for this cluster")
 
         workspace_path = _require_workspace_path()
-        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no)
+        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
         allocated_yaml = _load_allocated_yaml(allocated_path)
 
         allocated_in_range: set[int] = set()

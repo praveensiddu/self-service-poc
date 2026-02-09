@@ -26,12 +26,12 @@ def _key_for_app_purpose(*, appname: str, purpose: str) -> str:
     return f"l4ingress_{a}_{p}"
 
 
-def _allocated_file_for_cluster(*, workspace_path: Path, cluster_no: str) -> Path:
+def _allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: str) -> Path:
     return (
         workspace_path
         / "kselfserv"
         / "cloned-repositories"
-        / "rendered"
+        / f"rendered_{str(env or '').strip().lower()}"
         / "ip_provisioning"
         / str(cluster_no).strip()
         / "l4ingressip-allocated.yaml"
@@ -184,7 +184,7 @@ def allocate_l4_ingress(appname: str, payload: AllocateL4IngressRequest, env: Op
     )
 
     key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose)
-    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, cluster_no=cluster_no)
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
     allocated_yaml = _load_yaml_dict(allocated_path)
 
     existing_ips_any = _collect_all_allocated_ips(allocated_yaml)
