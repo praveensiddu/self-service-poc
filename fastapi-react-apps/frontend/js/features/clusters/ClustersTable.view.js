@@ -18,6 +18,7 @@ function ClustersTableView({
   allSelected,
   onSelectAll,
   readonly,
+  apps,
 }) {
   const [draft, setDraft] = React.useState({
     clustername: "",
@@ -26,8 +27,11 @@ function ClustersTableView({
     applications: "",
   });
 
-  const [draftRanges, setDraftRanges] = React.useState([{ startIp: "", endIp: "" }]);
-  const [draftEgressRanges, setDraftEgressRanges] = React.useState([{ startIp: "", endIp: "" }]);
+  const [draftRanges, setDraftRanges] = React.useState([{ startIp: "", endIp: "", error: "" }]);
+  const [draftEgressRanges, setDraftEgressRanges] = React.useState([{ startIp: "", endIp: "", error: "" }]);
+  const [showAppConfirmModal, setShowAppConfirmModal] = React.useState(false);
+  const [nonExistentApps, setNonExistentApps] = React.useState([]);
+  const [appConfirmMode, setAppConfirmMode] = React.useState("create"); // "create" or "edit"
 
   function normalizeApplicationsInput(v) {
     return String(v || "")
@@ -43,8 +47,8 @@ function ClustersTableView({
     applications: "",
   });
 
-  const [editRanges, setEditRanges] = React.useState([{ startIp: "", endIp: "" }]);
-  const [editEgressRanges, setEditEgressRanges] = React.useState([{ startIp: "", endIp: "" }]);
+  const [editRanges, setEditRanges] = React.useState([{ startIp: "", endIp: "", error: "" }]);
+  const [editEgressRanges, setEditEgressRanges] = React.useState([{ startIp: "", endIp: "", error: "" }]);
 
   const canSubmitCreate = Boolean(
     (draft.clustername || "").trim() &&
@@ -64,6 +68,23 @@ function ClustersTableView({
     return ipv6.test(v);
   }
 
+  function validateIpRange(startIp, endIp) {
+    const start = String(startIp || "").trim();
+    const end = String(endIp || "").trim();
+
+    if (!start && !end) return null;
+    if (start && !isValidIp(start)) return "Invalid start IP address";
+    if (end && !isValidIp(end)) return "Invalid end IP address";
+    if (start && end && !isValidIp(start)) return "Invalid start IP address";
+    if (start && end && !isValidIp(end)) return "Invalid end IP address";
+
+    return null;
+  }
+
+  function formatIpInput(value) {
+    return String(value || "").replace(/[^0-9.a-fA-F:]/g, "");
+  }
+
   async function onSubmitAdd() {
     try {
       const applications = String(draft.applications || "")
@@ -71,32 +92,47 @@ function ClustersTableView({
         .map((s) => s.trim())
         .filter(Boolean);
 
-      for (let i = 0; i < (draftRanges || []).length; i += 1) {
-        const r = draftRanges[i] || {};
-        const startIp = String(r?.startIp || "").trim();
-        const endIp = String(r?.endIp || "").trim();
-        if (startIp && !isValidIp(startIp)) {
-          alert(`Invalid Start IP in range ${i + 1}: ${startIp}`);
-          return;
-        }
-        if (endIp && !isValidIp(endIp)) {
-          alert(`Invalid End IP in range ${i + 1}: ${endIp}`);
-          return;
-        }
+      // Check if all applications exist
+      const existingAppNames = Object.keys(apps || {});
+      const missingApps = applications.filter(app => !existingAppNames.includes(app));
+
+      if (missingApps.length > 0) {
+        setNonExistentApps(missingApps);
+        setAppConfirmMode("create");
+        setShowAppConfirmModal(true);
+        return;
       }
 
-      for (let i = 0; i < (draftEgressRanges || []).length; i += 1) {
-        const r = draftEgressRanges[i] || {};
-        const startIp = String(r?.startIp || "").trim();
-        const endIp = String(r?.endIp || "").trim();
-        if (startIp && !isValidIp(startIp)) {
-          alert(`Invalid Start IP in egress range ${i + 1}: ${startIp}`);
-          return;
-        }
-        if (endIp && !isValidIp(endIp)) {
-          alert(`Invalid End IP in egress range ${i + 1}: ${endIp}`);
-          return;
-        }
+      await submitCluster();
+    } catch (e) {
+      alert(e?.message || String(e));
+    }
+  }
+
+  async function submitCluster() {
+    try {
+      const applications = String(draft.applications || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      let hasErrors = false;
+      const updatedRanges = (draftRanges || []).map((r, i) => {
+        const error = validateIpRange(r?.startIp, r?.endIp);
+        if (error) hasErrors = true;
+        return { ...r, error: error || "" };
+      });
+
+      const updatedEgressRanges = (draftEgressRanges || []).map((r, i) => {
+        const error = validateIpRange(r?.startIp, r?.endIp);
+        if (error) hasErrors = true;
+        return { ...r, error: error || "" };
+      });
+
+      if (hasErrors) {
+        setDraftRanges(updatedRanges);
+        setDraftEgressRanges(updatedEgressRanges);
+        return;
       }
 
       const l4_ingress_ip_ranges = (draftRanges || [])
@@ -123,8 +159,8 @@ function ClustersTableView({
       });
       onCloseCreate();
       setDraft({ clustername: "", purpose: "", datacenter: "", applications: "" });
-      setDraftRanges([{ startIp: "", endIp: "" }]);
-      setDraftEgressRanges([{ startIp: "", endIp: "" }]);
+      setDraftRanges([{ startIp: "", endIp: "", error: "" }]);
+      setDraftEgressRanges([{ startIp: "", endIp: "", error: "" }]);
     } catch (e) {
       alert(e?.message || String(e));
     }
@@ -143,13 +179,13 @@ function ClustersTableView({
     });
     setEditRanges(
       ranges.length
-        ? ranges.map((x) => ({ startIp: String(x?.start_ip || ""), endIp: String(x?.end_ip || "") }))
-        : [{ startIp: "", endIp: "" }],
+        ? ranges.map((x) => ({ startIp: String(x?.start_ip || ""), endIp: String(x?.end_ip || ""), error: "" }))
+        : [{ startIp: "", endIp: "", error: "" }],
     );
     setEditEgressRanges(
       egressRanges.length
-        ? egressRanges.map((x) => ({ startIp: String(x?.start_ip || ""), endIp: String(x?.end_ip || "") }))
-        : [{ startIp: "", endIp: "" }],
+        ? egressRanges.map((x) => ({ startIp: String(x?.start_ip || ""), endIp: String(x?.end_ip || ""), error: "" }))
+        : [{ startIp: "", endIp: "", error: "" }],
     );
     setShowEdit(true);
   }
@@ -161,32 +197,47 @@ function ClustersTableView({
         .map((s) => s.trim())
         .filter(Boolean);
 
-      for (let i = 0; i < (editRanges || []).length; i += 1) {
-        const r = editRanges[i] || {};
-        const startIp = String(r?.startIp || "").trim();
-        const endIp = String(r?.endIp || "").trim();
-        if (startIp && !isValidIp(startIp)) {
-          alert(`Invalid Start IP in range ${i + 1}: ${startIp}`);
-          return;
-        }
-        if (endIp && !isValidIp(endIp)) {
-          alert(`Invalid End IP in range ${i + 1}: ${endIp}`);
-          return;
-        }
+      // Check if all applications exist
+      const existingAppNames = Object.keys(apps || {});
+      const missingApps = applications.filter(app => !existingAppNames.includes(app));
+
+      if (missingApps.length > 0) {
+        setNonExistentApps(missingApps);
+        setAppConfirmMode("edit");
+        setShowAppConfirmModal(true);
+        return;
       }
 
-      for (let i = 0; i < (editEgressRanges || []).length; i += 1) {
-        const r = editEgressRanges[i] || {};
-        const startIp = String(r?.startIp || "").trim();
-        const endIp = String(r?.endIp || "").trim();
-        if (startIp && !isValidIp(startIp)) {
-          alert(`Invalid Start IP in egress range ${i + 1}: ${startIp}`);
-          return;
-        }
-        if (endIp && !isValidIp(endIp)) {
-          alert(`Invalid End IP in egress range ${i + 1}: ${endIp}`);
-          return;
-        }
+      await submitEditCluster();
+    } catch (e) {
+      alert(e?.message || String(e));
+    }
+  }
+
+  async function submitEditCluster() {
+    try {
+      const applications = String(editDraft.applications || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      let hasErrors = false;
+      const updatedRanges = (editRanges || []).map((r, i) => {
+        const error = validateIpRange(r?.startIp, r?.endIp);
+        if (error) hasErrors = true;
+        return { ...r, error: error || "" };
+      });
+
+      const updatedEgressRanges = (editEgressRanges || []).map((r, i) => {
+        const error = validateIpRange(r?.startIp, r?.endIp);
+        if (error) hasErrors = true;
+        return { ...r, error: error || "" };
+      });
+
+      if (hasErrors) {
+        setEditRanges(updatedRanges);
+        setEditEgressRanges(updatedEgressRanges);
+        return;
       }
 
       const l4_ingress_ip_ranges = (editRanges || [])
@@ -252,7 +303,7 @@ function ClustersTableView({
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Clustername</div>
+                  <div className="muted">Clustername <span style={{ color: "#dc3545" }}>*</span></div>
                   <div className="muted" style={{ fontSize: 12 }}>Unique cluster identifier</div>
                 </div>
 
@@ -265,7 +316,7 @@ function ClustersTableView({
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Purpose</div>
+                  <div className="muted">Purpose <span style={{ color: "#dc3545" }}>*</span></div>
                   <div className="muted" style={{ fontSize: 12 }}>What this cluster is used for</div>
                 </div>
                 <input
@@ -277,7 +328,7 @@ function ClustersTableView({
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Datacenter</div>
+                  <div className="muted">Datacenter <span style={{ color: "#dc3545" }}>*</span></div>
                   <div className="muted" style={{ fontSize: 12 }}>Physical/region location</div>
                 </div>
                 <input
@@ -289,7 +340,7 @@ function ClustersTableView({
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Applications</div>
+                  <div className="muted">Applications <span style={{ color: "#dc3545" }}>*</span></div>
                   <div className="muted" style={{ fontSize: 12 }}>Comma-separated app names</div>
                 </div>
                 <input
@@ -302,124 +353,196 @@ function ClustersTableView({
               </div>
 
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">L4 Ingress IP Ranges</div>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => setDraftRanges((prev) => [...(Array.isArray(prev) ? prev : []), { startIp: "", endIp: "" }])}
-                  >
-                    + Add Range
-                  </button>
+                <div className="muted" style={{ marginBottom: 4 }}>L4 Ingress IP Ranges</div>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                  Enter IP address ranges (e.g., 192.168.1.1 to 192.168.1.254)
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {(draftRanges || []).map((r, idx) => (
-                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8, alignItems: "center" }}>
                       <input
                         className="filterInput"
                         placeholder="Start IP"
                         value={String(r?.startIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setDraftRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), startIp: v };
+                            next[idx] = { ...(next[idx] || {}), startIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.endIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setDraftRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
                       />
+                      <div style={{ fontSize: 16, color: "#6c757d", textAlign: "center" }}>→</div>
                       <input
                         className="filterInput"
                         placeholder="End IP"
                         value={String(r?.endIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setDraftRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), endIp: v };
+                            next[idx] = { ...(next[idx] || {}), endIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.startIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
-                      />
-                      <button
-                        className="btn"
-                        type="button"
-                        onClick={() => {
-                          setDraftRanges((prev) => {
-                            const next = (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx);
-                            return next.length ? next : [{ startIp: "", endIp: "" }];
-                          });
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setDraftRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
                         }}
-                        disabled={(draftRanges || []).length <= 1}
-                      >
-                        Remove
-                      </button>
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
+                      />
+                      {r?.error && (
+                        <div style={{
+                          gridColumn: "1 / -1",
+                          color: "#dc3545",
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                          </svg>
+                          {r.error}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Egress IP Ranges</div>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() =>
-                      setDraftEgressRanges((prev) => [
-                        ...(Array.isArray(prev) ? prev : []),
-                        { startIp: "", endIp: "" },
-                      ])
-                    }
-                  >
-                    + Add Range
-                  </button>
+                <div className="muted" style={{ marginBottom: 4 }}>Egress IP Ranges</div>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                  Enter IP address ranges (e.g., 10.0.0.1 to 10.0.0.254)
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {(draftEgressRanges || []).map((r, idx) => (
-                    <div
-                      key={idx}
-                      style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}
-                    >
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8, alignItems: "center" }}>
                       <input
                         className="filterInput"
                         placeholder="Start IP"
                         value={String(r?.startIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setDraftEgressRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), startIp: v };
+                            next[idx] = { ...(next[idx] || {}), startIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.endIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setDraftEgressRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
                       />
+                      <div style={{ fontSize: 16, color: "#6c757d", textAlign: "center" }}>→</div>
                       <input
                         className="filterInput"
                         placeholder="End IP"
                         value={String(r?.endIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setDraftEgressRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), endIp: v };
+                            next[idx] = { ...(next[idx] || {}), endIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.startIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
-                      />
-                      <button
-                        className="btn"
-                        type="button"
-                        onClick={() => {
-                          setDraftEgressRanges((prev) => {
-                            const next = (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx);
-                            return next.length ? next : [{ startIp: "", endIp: "" }];
-                          });
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setDraftEgressRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
                         }}
-                        disabled={(draftEgressRanges || []).length <= 1}
-                      >
-                        Remove
-                      </button>
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
+                      />
+                      {r?.error && (
+                        <div style={{
+                          gridColumn: "1 / -1",
+                          color: "#dc3545",
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                          </svg>
+                          {r.error}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -436,6 +559,102 @@ function ClustersTableView({
                   Create
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAppConfirmModal ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAppConfirmModal(false);
+              setNonExistentApps([]);
+            }
+          }}
+          data-testid="app-confirm-modal"
+        >
+          <div
+            className="card"
+            style={{
+              width: 500,
+              maxWidth: "92vw",
+              padding: 24,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
+              <div style={{
+                flexShrink: 0,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "rgba(255, 193, 7, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <svg width="24" height="24" viewBox="0 0 16 16" fill="#ffc107">
+                  <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600", color: "#212529" }}>
+                  Application{nonExistentApps.length > 1 ? 's' : ''} Not Found
+                </h3>
+                <p style={{ margin: "0 0 12px 0", color: "rgba(0,0,0,0.7)", lineHeight: "1.5" }}>
+                  The following application{nonExistentApps.length > 1 ? 's do' : ' does'} not exist:
+                </p>
+                <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px", color: "rgba(0,0,0,0.7)" }}>
+                  {nonExistentApps.map((app, idx) => (
+                    <li key={idx} style={{ marginBottom: "4px" }}>
+                      <strong>{app}</strong>
+                    </li>
+                  ))}
+                </ul>
+                <p style={{ margin: 0, color: "rgba(0,0,0,0.7)", lineHeight: "1.5" }}>
+                  Do you want to create {nonExistentApps.length > 1 ? 'these applications' : 'this application'} and continue?
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  setShowAppConfirmModal(false);
+                  setNonExistentApps([]);
+                }}
+                data-testid="cancel-app-creation-btn"
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={async () => {
+                  setShowAppConfirmModal(false);
+                  setNonExistentApps([]);
+                  if (appConfirmMode === "edit") {
+                    await submitEditCluster();
+                  } else {
+                    await submitCluster();
+                  }
+                }}
+                data-testid="confirm-app-creation-btn"
+                autoFocus
+              >
+                Yes, Create and Continue
+              </button>
             </div>
           </div>
         </div>
@@ -486,7 +705,7 @@ function ClustersTableView({
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Purpose</div>
+                  <div className="muted">Purpose <span style={{ color: "#dc3545" }}>*</span></div>
                   <div className="muted" style={{ fontSize: 12 }}>What this cluster is used for</div>
                 </div>
                 <input
@@ -498,7 +717,7 @@ function ClustersTableView({
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Datacenter</div>
+                  <div className="muted">Datacenter <span style={{ color: "#dc3545" }}>*</span></div>
                   <div className="muted" style={{ fontSize: 12 }}>Physical/region location</div>
                 </div>
                 <input
@@ -523,124 +742,196 @@ function ClustersTableView({
               </div>
 
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">L4 Ingress IP Ranges</div>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => setEditRanges((prev) => [...(Array.isArray(prev) ? prev : []), { startIp: "", endIp: "" }])}
-                  >
-                    + Add Range
-                  </button>
+                <div className="muted" style={{ marginBottom: 4 }}>L4 Ingress IP Ranges</div>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                  Enter IP address ranges (e.g., 192.168.1.1 to 192.168.1.254)
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {(editRanges || []).map((r, idx) => (
-                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8, alignItems: "center" }}>
                       <input
                         className="filterInput"
                         placeholder="Start IP"
                         value={String(r?.startIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setEditRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), startIp: v };
+                            next[idx] = { ...(next[idx] || {}), startIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.endIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setEditRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
                       />
+                      <div style={{ fontSize: 16, color: "#6c757d", textAlign: "center" }}>→</div>
                       <input
                         className="filterInput"
                         placeholder="End IP"
                         value={String(r?.endIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setEditRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), endIp: v };
+                            next[idx] = { ...(next[idx] || {}), endIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.startIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
-                      />
-                      <button
-                        className="btn"
-                        type="button"
-                        onClick={() => {
-                          setEditRanges((prev) => {
-                            const next = (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx);
-                            return next.length ? next : [{ startIp: "", endIp: "" }];
-                          });
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setEditRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
                         }}
-                        disabled={(editRanges || []).length <= 1}
-                      >
-                        Remove
-                      </button>
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
+                      />
+                      {r?.error && (
+                        <div style={{
+                          gridColumn: "1 / -1",
+                          color: "#dc3545",
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                          </svg>
+                          {r.error}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Egress IP Ranges</div>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() =>
-                      setEditEgressRanges((prev) => [
-                        ...(Array.isArray(prev) ? prev : []),
-                        { startIp: "", endIp: "" },
-                      ])
-                    }
-                  >
-                    + Add Range
-                  </button>
+                <div className="muted" style={{ marginBottom: 4 }}>Egress IP Ranges</div>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+                  Enter IP address ranges (e.g., 10.0.0.1 to 10.0.0.254)
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {(editEgressRanges || []).map((r, idx) => (
-                    <div
-                      key={idx}
-                      style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}
-                    >
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8, alignItems: "center" }}>
                       <input
                         className="filterInput"
                         placeholder="Start IP"
                         value={String(r?.startIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setEditEgressRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), startIp: v };
+                            next[idx] = { ...(next[idx] || {}), startIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.endIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setEditEgressRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
                       />
+                      <div style={{ fontSize: 16, color: "#6c757d", textAlign: "center" }}>→</div>
                       <input
                         className="filterInput"
                         placeholder="End IP"
                         value={String(r?.endIp || "")}
                         onChange={(e) => {
-                          const v = e.target.value;
+                          const v = formatIpInput(e.target.value);
                           setEditEgressRanges((prev) => {
                             const next = Array.isArray(prev) ? [...prev] : [];
-                            next[idx] = { ...(next[idx] || {}), endIp: v };
+                            next[idx] = { ...(next[idx] || {}), endIp: v, error: "" };
+
+                            // Auto-add new row if user is typing in the last row and both fields have content
+                            const isLastRow = idx === prev.length - 1;
+                            const hasContent = v.trim() || next[idx]?.startIp?.trim();
+                            if (isLastRow && hasContent) {
+                              next.push({ startIp: "", endIp: "", error: "" });
+                            }
+
                             return next;
                           });
                         }}
-                      />
-                      <button
-                        className="btn"
-                        type="button"
-                        onClick={() => {
-                          setEditEgressRanges((prev) => {
-                            const next = (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx);
-                            return next.length ? next : [{ startIp: "", endIp: "" }];
-                          });
+                        onBlur={() => {
+                          const error = validateIpRange(r?.startIp, r?.endIp);
+                          if (error) {
+                            setEditEgressRanges((prev) => {
+                              const next = [...prev];
+                              next[idx] = { ...next[idx], error };
+                              return next;
+                            });
+                          }
                         }}
-                        disabled={(editEgressRanges || []).length <= 1}
-                      >
-                        Remove
-                      </button>
+                        style={{
+                          borderColor: r?.error ? "#dc3545" : undefined,
+                        }}
+                      />
+                      {r?.error && (
+                        <div style={{
+                          gridColumn: "1 / -1",
+                          color: "#dc3545",
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                          </svg>
+                          {r.error}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -703,13 +994,13 @@ function ClustersTableView({
                   data-testid="select-all-checkbox"
                 />
               </th>
-              <th>Clustername</th>
+              <th>Cluster Name</th>
               <th>Purpose</th>
               <th>Datacenter</th>
               <th>Applications</th>
               <th>L4 Ingress IP Ranges</th>
               <th>Egress IP Ranges</th>
-              <th>Actions</th>
+              {!readonly && <th>Actions</th>}
             </tr>
             <tr>
               <th></th>
@@ -761,7 +1052,7 @@ function ClustersTableView({
                   data-testid="filter-egress-ip-ranges"
                 />
               </th>
-              <th></th>
+              {!readonly && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -796,9 +1087,9 @@ function ClustersTableView({
                       .join(", ")
                     : ""}
                 </td>
-                <td>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {!readonly && (
+                {!readonly && (
+                  <td>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       <>
                         <button
                           className="iconBtn iconBtn-primary"
@@ -832,9 +1123,9 @@ function ClustersTableView({
                           </svg>
                         </button>
                       </>
-                    )}
-                  </div>
-                </td>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
             {(filteredRows || []).length === 0 ? (

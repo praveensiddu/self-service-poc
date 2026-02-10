@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kubernetes Self Service Provisioning Tool</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=20260124m" />
+    <link rel="stylesheet" href="/static/css/styles.css" />
   </head>
   <body>
     <div id="root"></div>
@@ -12,27 +12,62 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/clustersTable/ClustersTableView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/clustersTable/clustersTable.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/app/AppView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/appsTable/AppsTableView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/shared/HelpIconButton.js?v=20260207a"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespacesTable/NamespacesTableView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/NamespaceBlockHeader.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/BasicInfoBlock.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/EgressConfigBlock.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/RoleBindingsBlock.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/EgressFirewallBlock.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/ResourceQuotaBlock.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/blocks/LimitRangeBlock.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/NamespaceDetailsView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/l4IngressTable/L4IngressTableView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/egressIpTable/EgressIpTableView.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/appsTable/appsTable.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespacesTable/namespacesTable.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/namespaceDetails.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/l4IngressTable/l4IngressTable.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/egressIpTable/egressIpTable.js"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/app/app.js?v=20260124m"></script>
+
+    <!-- 1. Services - API interaction layer (load first) -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/apiClient.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/configService.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/appsService.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/namespacesService.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/clustersService.js"></script>
+
+    <!-- 2. Utils - Pure utility functions -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/utils/url.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/utils/helpers.js"></script>
+
+    <!-- 3. Shared hooks - Reusable across features -->
+    <script type="text/babel" data-presets="react" src="/static/js/shared/hooks/useFilters.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/shared/hooks/useSelection.js"></script>
+
+    <!-- 4. App hooks - Application-specific hooks -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useGlobalError.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useConfig.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useApps.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useNamespaces.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useClusters.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useUiRouting.js"></script>
+
+    <!-- 5. Shared components -->
+    <script type="text/babel" data-presets="react" src="/static/js/shared/components/HelpIconButton.js"></script>
+
+    <!-- 6. Feature components - Namespace Details blocks -->
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/NamespaceBlockHeader.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/BasicInfoBlock.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/EgressConfigBlock.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/RoleBindingsBlock.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/EgressFirewallBlock.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/ResourceQuotaBlock.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/LimitRangeBlock.js"></script>
+
+    <!-- 7. Feature views (presentational) -->
+    <script type="text/babel" data-presets="react" src="/static/js/features/clusters/ClustersTable.view.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/apps/AppsTable.view.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaces/NamespacesTable.view.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/NamespaceDetails.view.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/l4Ingress/L4IngressTable.view.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/egressIp/EgressIpTable.view.js"></script>
+
+    <!-- 8. Feature containers -->
+    <script type="text/babel" data-presets="react" src="/static/js/features/clusters/ClustersTable.container.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/apps/AppsTable.container.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaces/NamespacesTable.container.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/NamespaceDetails.container.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/l4Ingress/L4IngressTable.container.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/egressIp/EgressIpTable.container.js"></script>
+
+    <!-- 9. App view -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/components/App.view.js"></script>
+
+    <!-- 10. App container - Main entry point (must load last) -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/containers/App.container.js"></script>
   </body>
 </html>

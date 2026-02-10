@@ -1,141 +1,15 @@
-async function readErrorMessage(res) {
-  try {
-    const text = await res.text();
-    if (!text) return `HTTP ${res.status}`;
-
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed && typeof parsed.detail === "string") return parsed.detail;
-    } catch {
-      // ignore
-    }
-
-    return text;
-  } catch {
-    return `HTTP ${res.status}`;
-  }
-}
-
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
-  }
-  return await res.json();
-}
-
-async function deleteJson(url) {
-  const res = await fetch(url, {
-    method: "DELETE",
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
-  }
-  return await res.json();
-}
-
-async function postJson(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
-  }
-  return await res.json();
-}
-
-async function putJson(url, body) {
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
-  }
-  return await res.json();
-}
-
-function parseUiRouteFromLocation() {
-  try {
-    const path = window.location.pathname || "/";
-    const params = new URLSearchParams(window.location.search || "");
-    const env = params.get("env") || "";
-    const ns = params.get("ns") || "";
-
-    const m = path.match(/^\/apps(?:\/([^/]+)(?:\/(namespaces|l4_ingress|egress_ips|ns_details))?)?\/?$/);
-    if (!m) return { env, view: "apps", appname: "" };
-
-    const appname = m[1] ? decodeURIComponent(m[1]) : "";
-    const tail = m[2] || "";
-    if (tail === "namespaces") return { env, view: "namespaces", appname };
-    if (tail === "l4_ingress") return { env, view: "l4ingress", appname };
-    if (tail === "egress_ips") return { env, view: "egressips", appname };
-    if (tail === "ns_details") return { env, view: "namespaceDetails", appname, ns };
-    return { env, view: "apps", appname: "" };
-  } catch {
-    return { env: "", view: "apps", appname: "" };
-  }
-}
-
-function buildUiUrl({ view, env, appname, ns }) {
-  const q = env ? `?env=${encodeURIComponent(env)}` : "";
-  if (view === "namespaces" && appname) return `/apps/${encodeURIComponent(appname)}/namespaces${q}`;
-  if (view === "l4ingress" && appname) return `/apps/${encodeURIComponent(appname)}/l4_ingress${q}`;
-  if (view === "egressips" && appname) return `/apps/${encodeURIComponent(appname)}/egress_ips${q}`;
-  if (view === "namespaceDetails" && appname) {
-    const nsq = ns ? `${q ? "&" : "?"}ns=${encodeURIComponent(ns)}` : "";
-    return `/apps/${encodeURIComponent(appname)}/ns_details${q}${nsq}`;
-  }
-  return `/apps${q}`;
-}
-
-function isHomePath() {
-  const path = (window.location.pathname || "/").toLowerCase();
-  return path === "/home" || path === "/home/";
-}
-
-function isSettingsPath() {
-  const path = (window.location.pathname || "/").toLowerCase();
-  return path === "/settings" || path === "/settings/";
-}
-
-function isPrsPath() {
-  const path = (window.location.pathname || "/").toLowerCase();
-  return path === "/prs" || path === "/prs/";
-}
-
-function isClustersPath() {
-  const path = (window.location.pathname || "/").toLowerCase();
-  return path === "/clusters" || path === "/clusters/";
-}
-
-function clustersUrlWithEnv(env) {
-  const q = env ? `?env=${encodeURIComponent(env)}` : "";
-  return `/clusters${q}`;
-}
-
-function pushUiUrl(next, replace = false) {
-  const url = buildUiUrl(next);
-  const state = { view: next.view, env: next.env || "", appname: next.appname || "", ns: next.ns || "" };
-  if (replace) window.history.replaceState(state, "", url);
-  else window.history.pushState(state, "", url);
-}
-
-function uniqStrings(items) {
-  const seen = new Set();
-  const out = [];
-  for (const v of items) {
-    if (!seen.has(v)) {
-      seen.add(v);
-      out.push(v);
-    }
-  }
-  return out;
-}
+/**
+ * App Container - Main stateful component
+ *
+ * This is the primary container component that:
+ * - Manages all application state
+ * - Handles API interactions using services/apiClient.js
+ * - Uses routing utilities from utils/url.js
+ * - Passes data and callbacks to AppView (presentational component)
+ *
+ * Note: All helper functions (fetchJson, postJson, etc.) are globally available
+ * since they are loaded via separate script tags before this file.
+ */
 
 function App() {
   const [deployment, setDeployment] = React.useState(null);
@@ -189,6 +63,9 @@ function App() {
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
+  const [showErrorModal, setShowErrorModal] = React.useState(false);
+  const [showDeleteWarningModal, setShowDeleteWarningModal] = React.useState(false);
+  const [deleteWarningData, setDeleteWarningData] = React.useState(null);
   const [pendingRoute, setPendingRoute] = React.useState(() => parseUiRouteFromLocation());
 
   const configComplete = persistedConfigComplete;
@@ -252,6 +129,7 @@ function App() {
     }
   }
 
+  // Initial data load effect
   React.useEffect(() => {
     let cancelled = false;
 
@@ -357,12 +235,14 @@ function App() {
     };
   }, []);
 
+  // Redirect to Home if config is incomplete
   React.useEffect(() => {
     if (!configComplete && topTab !== "Home") {
       setTopTab("Home");
     }
   }, [configComplete, topTab]);
 
+  // Load enforcement settings when on Settings tab
   React.useEffect(() => {
     if (!configComplete) return;
     if (topTab !== "Settings") return;
@@ -415,6 +295,7 @@ function App() {
     }
   }
 
+  // Load apps when environment changes
   React.useEffect(() => {
     if (!activeEnv) return;
     if (isPrsPath()) return;
@@ -475,6 +356,7 @@ function App() {
     };
   }, [activeEnv]);
 
+  // Load requests/changes when environment changes
   React.useEffect(() => {
     if (!activeEnv) return;
 
@@ -505,7 +387,6 @@ function App() {
 
   const selectedAppArgocdEnabled = Boolean(detailAppName && apps?.[detailAppName]?.argocd);
 
-
   async function refreshRequestsChanges() {
     if (!activeEnv) return;
     try {
@@ -517,7 +398,6 @@ function App() {
       setRequestsChanges({ apps: new Set(), namespaces: new Set() });
     }
   }
-
 
   async function openNamespaces(appname, push = true) {
     if (!appname) return;
@@ -637,7 +517,6 @@ function App() {
     pushUiUrl({ view: "apps", env: activeEnv, appname: "" }, false);
   }
 
-
   async function onViewEgressIps() {
     const appname = getDetailOrSelectedApp();
     if (!appname) return;
@@ -650,6 +529,7 @@ function App() {
     await openNamespaces(appname, true);
   }
 
+  // Popstate handler for browser back/forward navigation
   React.useEffect(() => {
     function onPopState() {
       if (isHomePath()) {
@@ -705,6 +585,7 @@ function App() {
     setClustersByEnv(data || {});
   }
 
+  // Load clusters when on Clusters tab
   React.useEffect(() => {
     if (!configComplete) return;
     if (topTab !== "Clusters") return;
@@ -729,12 +610,14 @@ function App() {
     const env = activeEnv || (envKeys[0] || "");
     if (!env) {
       setError("No environment selected.");
+      setShowErrorModal(true);
       return;
     }
 
     const clustername = String(payload?.clustername || "").trim();
     if (!clustername) {
       setError("clustername is required.");
+      setShowErrorModal(true);
       return;
     }
 
@@ -769,18 +652,70 @@ function App() {
     const env = activeEnv || (envKeys[0] || "");
     if (!env) {
       setError("No environment selected.");
+      setShowErrorModal(true);
       return;
     }
-
-    const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
-    if (!confirm(confirmMsg)) return;
 
     try {
       setLoading(true);
       setError("");
+
+      // First check if cluster can be deleted
+      const checkResult = await fetchJson(
+        `/api/v1/clusters/${encodeURIComponent(clustername)}/can-delete?env=${encodeURIComponent(env)}`
+      );
+
+      if (!checkResult.can_delete) {
+        // Show modal with dependencies
+        setDeleteWarningData({
+          clustername,
+          env,
+          ...checkResult
+        });
+        setShowDeleteWarningModal(true);
+        setLoading(false);
+        return;
+      }
+
+      // If can delete, show confirmation
+      const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
+      if (!confirm(confirmMsg)) {
+        setLoading(false);
+        return;
+      }
+
       await deleteJson(`/api/v1/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
       await refreshClusters(env);
       await refreshApps();
+
+      // Refresh data for cluster-dependent views
+      if (detailAppName) {
+        if (view === "namespaces") {
+          const resp = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setNamespaces(resp || {});
+        } else if (view === "namespaceDetails" && detailNamespaceName) {
+          // Refresh namespace details by re-fetching all the data
+          const resp = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setNamespaces(resp || {});
+
+          // Re-fetch the namespace details
+          await viewNamespaceDetails(detailNamespaceName, null, detailAppName);
+        } else if (view === "l4ingress") {
+          const items = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setL4IngressItems(items || []);
+        } else if (view === "egressips") {
+          const items = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setEgressIpItems(items || []);
+        }
+      }
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
@@ -828,6 +763,7 @@ function App() {
     const selected = Array.from(selectedApps);
     if (selected.length !== 1) {
       setError("Select exactly one application.");
+      setShowErrorModal(true);
       return null;
     }
     return selected[0];
@@ -848,6 +784,7 @@ function App() {
     const appname = appnameOverride || detailAppName;
     if (!appname) {
       setError("No application selected.");
+      setShowErrorModal(true);
       return;
     }
     if (!namespaceName) {
@@ -1056,6 +993,7 @@ function App() {
       }
       delete nextUpdates.rolebindings;
     }
+
     const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;
     const shouldWriteEgressFirewall = Boolean(egressFirewallUpdates);
     let didSideEffectWrite = false;
@@ -1424,6 +1362,17 @@ function App() {
       loading={loading}
       view={view}
       error={error}
+      showErrorModal={showErrorModal}
+      onCloseErrorModal={() => {
+        setShowErrorModal(false);
+        setError("");
+      }}
+      showDeleteWarningModal={showDeleteWarningModal}
+      deleteWarningData={deleteWarningData}
+      onCloseDeleteWarningModal={() => {
+        setShowDeleteWarningModal(false);
+        setDeleteWarningData(null);
+      }}
       topTab={topTab}
       configComplete={configComplete}
       readonly={readonly}
@@ -1464,6 +1413,7 @@ function App() {
       onBackFromNamespaceDetails={onBackFromNamespaceDetails}
       appRows={appRows}
       clustersByApp={clustersByApp}
+      apps={apps}
       selectedApps={selectedApps}
       toggleRow={toggleRow}
       onSelectAllFromFiltered={onSelectAllFromFiltered}

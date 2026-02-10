@@ -8,6 +8,11 @@ function AppView({
   loading,
   view,
   error,
+  showErrorModal,
+  onCloseErrorModal,
+  showDeleteWarningModal,
+  deleteWarningData,
+  onCloseDeleteWarningModal,
   topTab,
   configComplete,
   readonly,
@@ -45,6 +50,7 @@ function AppView({
   onBackFromNamespaceDetails,
   appRows,
   clustersByApp,
+  apps,
   selectedApps,
   toggleRow,
   onSelectAllFromFiltered,
@@ -149,7 +155,7 @@ function AppView({
           ) : null}
         </div>
 
-        {error ? <div className="status">Error: {error}</div> : null}
+        {error && !showErrorModal ? <div className="status">Error: {error}</div> : null}
 
         {topTab === "Home" ? (
           <div className="card" style={{ padding: 16 }}>
@@ -332,6 +338,7 @@ function AppView({
               onOpenCreate={onOpenCreateCluster}
               onCloseCreate={onCloseCreateCluster}
               readonly={readonly}
+              apps={apps}
             />
           </>
         ) : (
@@ -509,7 +516,7 @@ function AppView({
                 readonly={readonly}
               />
             ) : view === "l4ingress" ? (
-              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={setL4IngressAddButton} />
+              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={setL4IngressAddButton} readonly={readonly} />
             ) : (
               <EgressIpTable
                 items={egressIpItems}
@@ -518,6 +525,247 @@ function AppView({
           </>
         )}
       </div>
+
+      {showErrorModal && error ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onCloseErrorModal();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onCloseErrorModal();
+          }}
+          data-testid="error-modal"
+        >
+          <div
+            className="card"
+            style={{
+              width: 480,
+              maxWidth: "92vw",
+              padding: 24,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
+              <div style={{
+                flexShrink: 0,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "rgba(220, 53, 69, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <svg width="24" height="24" viewBox="0 0 16 16" fill="#dc3545">
+                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                  <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600", color: "#212529" }}>
+                  Error
+                </h3>
+                <p style={{ margin: 0, color: "rgba(0,0,0,0.7)", lineHeight: "1.5" }}>
+                  {error}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={onCloseErrorModal}
+                data-testid="close-error-modal-btn"
+                autoFocus
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showDeleteWarningModal && deleteWarningData ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onCloseDeleteWarningModal();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onCloseDeleteWarningModal();
+          }}
+          data-testid="delete-warning-modal"
+        >
+          <div
+            className="card"
+            style={{
+              width: 600,
+              maxWidth: "92vw",
+              maxHeight: "90vh",
+              overflow: "auto",
+              padding: 24,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
+              <div style={{
+                flexShrink: 0,
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "rgba(255, 193, 7, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <svg width="24" height="24" viewBox="0 0 16 16" fill="#ffc107">
+                  <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600", color: "#212529" }}>
+                  Cannot Delete Cluster
+                </h3>
+                <p style={{ margin: "0 0 16px 0", color: "rgba(0,0,0,0.7)", lineHeight: "1.5" }}>
+                  The cluster <strong>{deleteWarningData.clustername}</strong> in environment <strong>{deleteWarningData.env}</strong> cannot be deleted because it is currently in use.
+                </p>
+
+                {deleteWarningData.namespaces && deleteWarningData.namespaces.length > 0 ? (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#212529" }}>
+                      Used by Namespaces ({deleteWarningData.namespaces.length}):
+                    </div>
+                    <div style={{
+                      maxHeight: "150px",
+                      overflow: "auto",
+                      border: "1px solid #dee2e6",
+                      borderRadius: "4px",
+                      background: "#f8f9fa"
+                    }}>
+                      <table style={{ width: "100%", fontSize: "14px" }}>
+                        <thead style={{ background: "#e9ecef", position: "sticky", top: 0 }}>
+                          <tr>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Application</th>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Namespace</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deleteWarningData.namespaces.map((ns, idx) => (
+                            <tr key={idx} style={{ borderBottom: idx < deleteWarningData.namespaces.length - 1 ? "1px solid #dee2e6" : "none" }}>
+                              <td style={{ padding: "8px" }}>{ns.app}</td>
+                              <td style={{ padding: "8px" }}>{ns.namespace}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+
+                {deleteWarningData.l4_ingress_allocations && deleteWarningData.l4_ingress_allocations.length > 0 ? (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#212529" }}>
+                      Has L4 Ingress IP Allocations ({deleteWarningData.l4_ingress_allocations.length}):
+                    </div>
+                    <div style={{
+                      maxHeight: "150px",
+                      overflow: "auto",
+                      border: "1px solid #dee2e6",
+                      borderRadius: "4px",
+                      background: "#f8f9fa"
+                    }}>
+                      <table style={{ width: "100%", fontSize: "14px" }}>
+                        <thead style={{ background: "#e9ecef", position: "sticky", top: 0 }}>
+                          <tr>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Application</th>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Cluster</th>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Note</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deleteWarningData.l4_ingress_allocations.map((alloc, idx) => (
+                            <tr key={idx} style={{ borderBottom: idx < deleteWarningData.l4_ingress_allocations.length - 1 ? "1px solid #dee2e6" : "none" }}>
+                              <td style={{ padding: "8px" }}>{alloc.app}</td>
+                              <td style={{ padding: "8px" }}>{alloc.cluster}</td>
+                              <td style={{ padding: "8px" }}>{alloc.note || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+
+                {deleteWarningData.egress_allocations && deleteWarningData.egress_allocations.length > 0 ? (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#212529" }}>
+                      Has Egress IP Allocations ({deleteWarningData.egress_allocations.length}):
+                    </div>
+                    <div style={{
+                      maxHeight: "150px",
+                      overflow: "auto",
+                      border: "1px solid #dee2e6",
+                      borderRadius: "4px",
+                      background: "#f8f9fa"
+                    }}>
+                      <table style={{ width: "100%", fontSize: "14px" }}>
+                        <thead style={{ background: "#e9ecef", position: "sticky", top: 0 }}>
+                          <tr>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Application</th>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Cluster</th>
+                            <th style={{ padding: "8px", textAlign: "left", borderBottom: "1px solid #dee2e6" }}>Note</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deleteWarningData.egress_allocations.map((alloc, idx) => (
+                            <tr key={idx} style={{ borderBottom: idx < deleteWarningData.egress_allocations.length - 1 ? "1px solid #dee2e6" : "none" }}>
+                              <td style={{ padding: "8px" }}>{alloc.app}</td>
+                              <td style={{ padding: "8px" }}>{alloc.cluster}</td>
+                              <td style={{ padding: "8px" }}>{alloc.note || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div style={{ padding: "12px", background: "#fff3cd", border: "1px solid #ffc107", borderRadius: "4px", fontSize: "14px" }}>
+                  <strong>Action Required:</strong> Please remove this cluster from all namespaces and deallocate all IP addresses before attempting to delete it.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={onCloseDeleteWarningModal}
+                data-testid="close-delete-warning-modal-btn"
+                autoFocus
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

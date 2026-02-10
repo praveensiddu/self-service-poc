@@ -344,6 +344,10 @@ tbody tr:hover td {
   background: rgba(0, 0, 0, 0.04);
 }
 
+tbody tr.clickable-row:hover td {
+  background: rgba(13, 110, 253, 0.08);
+}
+
 td {
   font-size: 14px;
 }
