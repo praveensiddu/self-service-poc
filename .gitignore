@@ -206,3 +206,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+node_modules/
+.idea/
+*.pid
+server.log
+__pycache__/
+*.pyc
+base.txt
+PRE.txt

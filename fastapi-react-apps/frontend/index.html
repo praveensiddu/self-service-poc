@@ -12,9 +12,15 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Utility and Service modules (must load before components) -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/apiClient.js?v=20260210a"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/utils/url.js?v=20260210a"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/utils/helpers.js?v=20260210a"></script>
+
+    <!-- Child components -->
     <script type="text/babel" data-presets="react" src="/static/js/clustersTable/ClustersTableView.js?v=20260124m"></script>
     <script type="text/babel" data-presets="react" src="/static/js/clustersTable/clustersTable.js?v=20260124m"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/app/AppView.js?v=20260124m"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/components/App.view.js?v=20260210a"></script>
     <script type="text/babel" data-presets="react" src="/static/js/appsTable/AppsTableView.js?v=20260124m"></script>
     <script type="text/babel" data-presets="react" src="/static/js/shared/HelpIconButton.js?v=20260207a"></script>
     <script type="text/babel" data-presets="react" src="/static/js/namespacesTable/NamespacesTableView.js?v=20260124m"></script>
@@ -33,6 +39,8 @@
     <script type="text/babel" data-presets="react" src="/static/js/namespaceDetails/namespaceDetails.js?v=20260124m"></script>
     <script type="text/babel" data-presets="react" src="/static/js/l4IngressTable/l4IngressTable.js?v=20260124m"></script>
     <script type="text/babel" data-presets="react" src="/static/js/egressIpTable/egressIpTable.js"></script>
-    <script type="text/babel" data-presets="react" src="/static/js/app/app.js?v=20260124m"></script>
+
+    <!-- App container (main entry point - must load last) -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/containers/App.container.js?v=20260210a"></script>
   </body>
 </html>
