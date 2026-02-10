@@ -520,7 +520,7 @@ function NamespacesTableView({
                 <HelpIconButton docPath="/static/help/namespacesTable/managedByArgoCd.html" title="Managed by ArgoCD" />
               </span>
             </th>
-            <th>Actions</th>
+            {!readonly && <th>Actions</th>}
           </tr>
           <tr>
             <th>
@@ -563,7 +563,7 @@ function NamespacesTableView({
                 data-testid="filter-managed-by-argo"
               />
             </th>
-            <th></th>
+            {!readonly && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -577,7 +577,19 @@ function NamespacesTableView({
             </tr>
           ) : (
             filteredRows.map((r) => (
-              <tr key={r.name} data-testid={`namespace-row-${r.name}`}>
+              <tr
+                key={r.name}
+                data-testid={`namespace-row-${r.name}`}
+                className="clickable-row"
+                onClick={(e) => {
+                  // Don't trigger row click if clicking on action buttons
+                  if (e.target.closest('button')) {
+                    return;
+                  }
+                  onViewDetails(r.name, r.namespace);
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <td
                   style={
                     requestsChanges?.namespaces?.has
@@ -593,21 +605,9 @@ function NamespacesTableView({
                 <td>{r.egressNameIdText}</td>
                 <td>{r.egressFirewallText}</td>
                 <td>{r.managedByArgo ? "True" : "False"}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button
-                      className="iconBtn iconBtn-primary"
-                      onClick={() => onViewDetails(r.name, r.namespace)}
-                      aria-label={`View details for ${r.name}`}
-                      title="View namespace details"
-                      data-testid={`view-namespace-${r.name}`}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
-                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
-                      </svg>
-                    </button>
-                    {!readonly && (
+                {!readonly && (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
                         className="iconBtn"
                         onClick={() => openCopyModal(r.name)}
@@ -620,8 +620,6 @@ function NamespacesTableView({
                           <path d="M14 4H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zm0 10H5V5h9v9z" />
                         </svg>
                       </button>
-                    )}
-                    {!readonly && (
                       <button
                         className="iconBtn iconBtn-danger"
                         onClick={() => onDeleteNamespace(r.name)}
@@ -634,9 +632,9 @@ function NamespacesTableView({
                           <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                         </svg>
                       </button>
-                    )}
-                  </div>
-                </td>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))
           )}

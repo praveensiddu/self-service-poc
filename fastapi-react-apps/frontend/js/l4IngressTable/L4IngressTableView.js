@@ -1,4 +1,4 @@
-function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow, onAllocateRow }) {
+function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow, onAllocateRow, readonly }) {
   return (
     <div className="card">
       <table>
@@ -29,7 +29,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                 <HelpIconButton docPath="/static/help/l4IngressTable/allocatedIps.html" title="Allocated IPs" />
               </span>
             </th>
-            <th>Actions</th>
+            {!readonly && <th>Actions</th>}
           </tr>
           <tr>
             <th>
@@ -67,7 +67,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                 onChange={(e) => setFilters((p) => ({ ...p, allocatedIps: e.target.value }))}
               />
             </th>
-            <th></th>
+            {!readonly && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -95,9 +95,10 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                   {r.allocated}
                 </td>
                 <td>{r.allocatedIps}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <button
+                {!readonly && (
+                  <td>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button
                       type="button"
                       className="iconBtn iconBtn-primary"
                       onClick={() => onEditRow(r)}
@@ -113,7 +114,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                       type="button"
                       className="iconBtn iconBtn-primary"
                       onClick={() => onAllocateRow(r)}
-                      disabled={!(Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0))}
+                      disabled={!(Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange)}
                       aria-label="Allocate"
                       title="Allocate"
                     >
@@ -150,6 +151,7 @@ function L4IngressTableView({ filters, setFilters, rows, filteredRows, onEditRow
                     </button>
                   </div>
                 </td>
+                )}
               </tr>
             ))
           )}

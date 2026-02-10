@@ -1,4 +1,4 @@
-function L4IngressTable({ items, appname, env, renderAddButton }) {
+function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   const [localItems, setLocalItems] = React.useState(Array.isArray(items) ? items : []);
   const [filters, setFilters] = React.useState({
     cluster: "",
@@ -22,9 +22,17 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
   const [editError, setEditError] = React.useState("");
   const [editSaving, setEditSaving] = React.useState(false);
 
+  const [clusters, setClusters] = React.useState([]);
+  const [errorModalOpen, setErrorModalOpen] = React.useState(false);
+  const [errorModalMessage, setErrorModalMessage] = React.useState("");
+
   React.useEffect(() => {
     setLocalItems(Array.isArray(items) ? items : []);
-  }, [items]);
+    // Refresh cluster info when items change (e.g., after cluster deletion)
+    if (env && appname) {
+      fetchClustersInfo();
+    }
+  }, [items, env, appname]);
 
   async function readErrorMessage(res) {
     try {
@@ -79,6 +87,33 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
     }
     const parsed = await res.json();
     return Array.isArray(parsed) ? parsed.map(String) : [];
+  }
+
+  async function fetchClustersInfo() {
+    if (!env) return;
+    try {
+      const res = await fetch(
+        `/api/v1/clusters?env=${encodeURIComponent(env)}`,
+        { headers: { Accept: "application/json" } },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const parsed = await res.json();
+      const clustersForEnv = Array.isArray(parsed?.[env]) ? parsed[env] : [];
+      setClusters(clustersForEnv);
+    } catch (e) {
+      console.error("Failed to fetch clusters info:", e);
+      setClusters([]);
+    }
+  }
+
+  function hasIpRangeForCluster(clusterNo) {
+    const cluster = clusters.find((c) => String(c?.clustername || "") === String(clusterNo || ""));
+    if (!cluster) return false;
+    const ranges = cluster.l4_ingress_ip_ranges;
+    return Array.isArray(ranges) && ranges.length > 0 && ranges.some((r) => r?.start_ip && r?.end_ip);
   }
 
   async function onOpenAdd() {
@@ -158,6 +193,12 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
   }
 
   function onEditRow(row) {
+    const clusterNo = String(row?.clusterNoRaw || row?.clusterNo || "");
+    if (!hasIpRangeForCluster(clusterNo)) {
+      setErrorModalMessage("There is no IP Range defined for this cluster.");
+      setErrorModalOpen(true);
+      return;
+    }
     setEditError("");
     setEditRow(row || null);
     setEditRequested(String(row?.requested ?? ""));
@@ -246,9 +287,12 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
     const requestedRaw = Number(it?.requested_total ?? 0);
     const allocatedRaw = Number(it?.allocated_total ?? 0);
 
+    const clusterNoRaw = String(it?.cluster_no || "");
+    const hasIpRange = hasIpRangeForCluster(clusterNoRaw);
+
     return {
       key,
-      clusterNoRaw: String(it?.cluster_no || ""),
+      clusterNoRaw,
       clusterNo: formatValue(it?.cluster_no),
       purpose,
       requested: formatValue(it?.requested_total),
@@ -256,6 +300,7 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
       requestedRaw,
       allocatedRaw,
       allocatedIps: formatValue(allocatedIps),
+      hasIpRange,
     };
   }).sort((a, b) => {
     const an = String(a?.clusterNoRaw || "").trim();
@@ -295,9 +340,11 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
   React.useEffect(() => {
     if (typeof renderAddButton === 'function') {
       renderAddButton(
-        <button className="btn btn-primary" type="button" onClick={onOpenAdd} data-testid="add-l4-ingress-btn">
-          + Add
-        </button>
+        !readonly ? (
+          <button className="btn btn-primary" type="button" onClick={onOpenAdd} data-testid="add-l4-ingress-btn">
+            + Add
+          </button>
+        ) : null
       );
     }
     return () => {
@@ -305,11 +352,11 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
         renderAddButton(null);
       }
     };
-  }, [renderAddButton, onOpenAdd]);
+  }, [renderAddButton, onOpenAdd, readonly]);
 
   return (
     <>
-      {typeof renderAddButton !== 'function' && (
+      {typeof renderAddButton !== 'function' && !readonly && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <button className="btn btn-primary" type="button" onClick={onOpenAdd}>
             + Add
@@ -322,6 +369,7 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
         rows={rows}
         filteredRows={filteredRows}
         onEditRow={onEditRow}
+        readonly={readonly}
         onAllocateRow={async (row) => {
           try {
             if (!env) throw new Error("No env selected.");
@@ -505,6 +553,37 @@ function L4IngressTable({ items, appname, env, renderAddButton }) {
               </button>
               <button className="btn btn-primary" type="button" onClick={onSaveEdit} disabled={editSaving}>
                 {editSaving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {errorModalOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setErrorModalOpen(false);
+          }}
+        >
+          <div className="card" style={{ width: 480, maxWidth: "92vw", padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Error</div>
+              <button className="btn" type="button" onClick={() => setErrorModalOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="error" style={{ marginBottom: 12 }}>{errorModalMessage}</div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button className="btn btn-primary" type="button" onClick={() => setErrorModalOpen(false)}>
+                OK
               </button>
             </div>
           </div>

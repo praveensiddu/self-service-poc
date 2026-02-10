@@ -10,6 +10,7 @@ function ClustersTable({
   onOpenCreate,
   onCloseCreate,
   readonly,
+  apps,
 }) {
   const [filters, setFilters] = React.useState({
     clustername: "",
@@ -113,6 +114,7 @@ function ClustersTable({
       allSelected={allSelected}
       onSelectAll={onSelectAll}
       readonly={readonly}
+      apps={apps}
     />
   );
 }

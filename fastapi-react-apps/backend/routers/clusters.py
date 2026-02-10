@@ -422,6 +422,152 @@ def add_cluster(payload: ClusterUpsert, env: Optional[str] = None):
     return {"env": env_key.upper(), "cluster": normalized}
 
 
+@router.get("/clusters/{clustername}/can-delete")
+def check_cluster_can_delete(clustername: str, env: Optional[str] = None):
+    """
+    Check if a cluster can be safely deleted.
+    Returns information about dependencies that would prevent deletion.
+    """
+    env_key = str(env or "").strip().lower()
+    if not env_key:
+        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
+
+    name = str(clustername or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="clustername is required")
+
+    try:
+        requests_root = _require_initialized_workspace()
+        workspace_path = _require_workspace_path()
+    except HTTPException:
+        return {"can_delete": True, "namespaces": [], "l4_ingress_allocations": [], "egress_allocations": []}
+
+    env_dir = requests_root / env_key
+    namespaces_using_cluster = []
+    l4_ingress_allocations = []
+    egress_allocations = []
+
+    # Check namespaces using this cluster
+    if env_dir.exists() and env_dir.is_dir():
+        for app_dir in env_dir.iterdir():
+            if not app_dir.is_dir():
+                continue
+            appname = app_dir.name
+
+            for ns_dir in app_dir.iterdir():
+                if not ns_dir.is_dir():
+                    continue
+                ns_info_path = ns_dir / "namespace_info.yaml"
+                if not ns_info_path.exists() or not ns_info_path.is_file():
+                    continue
+                try:
+                    ns_info = yaml.safe_load(ns_info_path.read_text()) or {}
+                    if not isinstance(ns_info, dict):
+                        continue
+                    clusters_list = ns_info.get("clusters")
+                    if not isinstance(clusters_list, list):
+                        continue
+                    # Check if this cluster is in the list
+                    if any(str(c or "").strip().lower() == name.lower() for c in clusters_list):
+                        namespaces_using_cluster.append({
+                            "app": appname,
+                            "namespace": ns_dir.name
+                        })
+                except Exception as e:
+                    logger.error(
+                        "Failed to check namespace_info.yaml for %s/%s/%s: %s",
+                        env_key, app_dir.name, ns_dir.name, str(e)
+                    )
+
+            # Check L4 ingress allocations
+            l4_ingress_request_path = app_dir / "l4_ingress_request.yaml"
+            if l4_ingress_request_path.exists() and l4_ingress_request_path.is_file():
+                try:
+                    l4_data = yaml.safe_load(l4_ingress_request_path.read_text()) or {}
+                    if isinstance(l4_data, dict) and name in l4_data:
+                        l4_ingress_allocations.append({
+                            "app": appname,
+                            "cluster": name
+                        })
+                except Exception as e:
+                    logger.error(
+                        "Failed to check l4_ingress_request.yaml for %s/%s: %s",
+                        env_key, app_dir.name, str(e)
+                    )
+
+    # Check allocated L4 ingress IPs
+    try:
+        allocated_dir = (
+            workspace_path
+            / "kselfserv"
+            / "cloned-repositories"
+            / f"rendered_{env_key}"
+            / "ip_provisioning"
+            / name
+        )
+        if allocated_dir.exists() and allocated_dir.is_dir():
+            allocated_file = allocated_dir / "l4ingressip-allocated.yaml"
+            if allocated_file.exists():
+                try:
+                    allocated_data = yaml.safe_load(allocated_file.read_text()) or []
+                    if allocated_data and len(allocated_data) > 0:
+                        l4_ingress_allocations.append({
+                            "app": "system",
+                            "cluster": name,
+                            "note": "Has allocated L4 ingress IPs"
+                        })
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error(
+            "Failed to check allocated L4 ingress IPs for cluster %s: %s",
+            name, str(e)
+        )
+
+    # Check egress IP allocations (if applicable)
+    # Similar structure for egress IPs if they exist in your system
+    try:
+        egress_allocated_dir = (
+            workspace_path
+            / "kselfserv"
+            / "cloned-repositories"
+            / f"rendered_{env_key}"
+            / "egress_provisioning"
+            / name
+        )
+        if egress_allocated_dir.exists() and egress_allocated_dir.is_dir():
+            egress_allocated_file = egress_allocated_dir / "egressip-allocated.yaml"
+            if egress_allocated_file.exists():
+                try:
+                    egress_data = yaml.safe_load(egress_allocated_file.read_text()) or []
+                    if egress_data and len(egress_data) > 0:
+                        egress_allocations.append({
+                            "app": "system",
+                            "cluster": name,
+                            "note": "Has allocated egress IPs"
+                        })
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error(
+            "Failed to check allocated egress IPs for cluster %s: %s",
+            name, str(e)
+        )
+
+    can_delete = (
+        len(namespaces_using_cluster) == 0 and
+        len(l4_ingress_allocations) == 0 and
+        len(egress_allocations) == 0
+    )
+
+    return {
+        "can_delete": can_delete,
+        "namespaces": namespaces_using_cluster,
+        "l4_ingress_allocations": l4_ingress_allocations,
+        "egress_allocations": egress_allocations
+    }
+
+
 @router.delete("/clusters/{clustername}")
 def delete_cluster(clustername: str, env: Optional[str] = None):
     clusters_root = _require_control_clusters_root()
@@ -435,6 +581,17 @@ def delete_cluster(clustername: str, env: Optional[str] = None):
     name = str(clustername or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="clustername is required")
+
+    # Check if cluster can be deleted
+    check_result = check_cluster_can_delete(clustername=name, env=env_key)
+    if not check_result["can_delete"]:
+        error_details = {
+            "message": "Cannot delete cluster - it is currently in use",
+            "namespaces": check_result["namespaces"],
+            "l4_ingress_allocations": check_result["l4_ingress_allocations"],
+            "egress_allocations": check_result["egress_allocations"]
+        }
+        raise HTTPException(status_code=409, detail=error_details)
 
     file_path = _clusters_file_for_env(clusters_root, env_key)
     clusters = _load_clusters_from_file(file_path)
@@ -454,5 +611,98 @@ def delete_cluster(clustername: str, env: Optional[str] = None):
     except Exception as e:
         logger.error("Failed to write clusters file %s: %s", str(file_path), str(e))
         raise HTTPException(status_code=500, detail="failed")
+
+    # Clean up cluster references from all namespace files and L4 ingress requests
+    if deleted:
+        try:
+            requests_root = _require_initialized_workspace()
+            workspace_path = _require_workspace_path()
+            env_dir = requests_root / env_key
+
+            # Clean up allocated L4 ingress IPs for this cluster
+            try:
+                allocated_dir = (
+                    workspace_path
+                    / "kselfserv"
+                    / "cloned-repositories"
+                    / f"rendered_{env_key}"
+                    / "ip_provisioning"
+                    / name
+                )
+                if allocated_dir.exists() and allocated_dir.is_dir():
+                    allocated_file = allocated_dir / "l4ingressip-allocated.yaml"
+                    if allocated_file.exists():
+                        allocated_file.unlink()
+                        logger.info(
+                            "Removed allocated L4 ingress IPs for cluster %s in env %s",
+                            name, env_key
+                        )
+                    # Remove the cluster directory if it's empty
+                    try:
+                        if allocated_dir.exists() and not any(allocated_dir.iterdir()):
+                            allocated_dir.rmdir()
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.error(
+                    "Failed to clean up allocated L4 ingress IPs for cluster %s: %s",
+                    name, str(e)
+                )
+
+            if env_dir.exists() and env_dir.is_dir():
+                for app_dir in env_dir.iterdir():
+                    if not app_dir.is_dir():
+                        continue
+
+                    # Clean up L4 ingress requests for this cluster
+                    l4_ingress_request_path = app_dir / "l4_ingress_request.yaml"
+                    if l4_ingress_request_path.exists() and l4_ingress_request_path.is_file():
+                        try:
+                            l4_data = yaml.safe_load(l4_ingress_request_path.read_text()) or {}
+                            if isinstance(l4_data, dict) and name in l4_data:
+                                del l4_data[name]
+                                l4_ingress_request_path.write_text(yaml.safe_dump(l4_data, sort_keys=False))
+                                logger.info(
+                                    "Removed cluster %s from L4 ingress requests for app %s/%s",
+                                    name, env_key, app_dir.name
+                                )
+                        except Exception as e:
+                            logger.error(
+                                "Failed to update l4_ingress_request.yaml for %s/%s: %s",
+                                env_key, app_dir.name, str(e)
+                            )
+
+                    for ns_dir in app_dir.iterdir():
+                        if not ns_dir.is_dir():
+                            continue
+                        ns_info_path = ns_dir / "namespace_info.yaml"
+                        if not ns_info_path.exists() or not ns_info_path.is_file():
+                            continue
+                        try:
+                            ns_info = yaml.safe_load(ns_info_path.read_text()) or {}
+                            if not isinstance(ns_info, dict):
+                                continue
+                            clusters_list = ns_info.get("clusters")
+                            if not isinstance(clusters_list, list):
+                                continue
+                            # Remove the deleted cluster from the list
+                            updated_clusters = [
+                                c for c in clusters_list
+                                if str(c or "").strip().lower() != name.lower()
+                            ]
+                            if len(updated_clusters) != len(clusters_list):
+                                ns_info["clusters"] = updated_clusters
+                                ns_info_path.write_text(yaml.safe_dump(ns_info, sort_keys=False))
+                                logger.info(
+                                    "Removed cluster %s from namespace %s/%s/%s",
+                                    name, env_key, app_dir.name, ns_dir.name
+                                )
+                        except Exception as e:
+                            logger.error(
+                                "Failed to update namespace_info.yaml for %s/%s/%s: %s",
+                                env_key, app_dir.name, ns_dir.name, str(e)
+                            )
+        except Exception as e:
+            logger.error("Failed to clean up cluster references from namespaces: %s", str(e))
 
     return {"deleted": deleted}

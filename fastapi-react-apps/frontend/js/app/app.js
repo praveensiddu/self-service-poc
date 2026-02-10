@@ -189,6 +189,9 @@ function App() {
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
+  const [showErrorModal, setShowErrorModal] = React.useState(false);
+  const [showDeleteWarningModal, setShowDeleteWarningModal] = React.useState(false);
+  const [deleteWarningData, setDeleteWarningData] = React.useState(null);
   const [pendingRoute, setPendingRoute] = React.useState(() => parseUiRouteFromLocation());
 
   const configComplete = persistedConfigComplete;
@@ -729,12 +732,14 @@ function App() {
     const env = activeEnv || (envKeys[0] || "");
     if (!env) {
       setError("No environment selected.");
+      setShowErrorModal(true);
       return;
     }
 
     const clustername = String(payload?.clustername || "").trim();
     if (!clustername) {
       setError("clustername is required.");
+      setShowErrorModal(true);
       return;
     }
 
@@ -769,18 +774,70 @@ function App() {
     const env = activeEnv || (envKeys[0] || "");
     if (!env) {
       setError("No environment selected.");
+      setShowErrorModal(true);
       return;
     }
-
-    const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
-    if (!confirm(confirmMsg)) return;
 
     try {
       setLoading(true);
       setError("");
+
+      // First check if cluster can be deleted
+      const checkResult = await fetchJson(
+        `/api/v1/clusters/${encodeURIComponent(clustername)}/can-delete?env=${encodeURIComponent(env)}`
+      );
+
+      if (!checkResult.can_delete) {
+        // Show modal with dependencies
+        setDeleteWarningData({
+          clustername,
+          env,
+          ...checkResult
+        });
+        setShowDeleteWarningModal(true);
+        setLoading(false);
+        return;
+      }
+
+      // If can delete, show confirmation
+      const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
+      if (!confirm(confirmMsg)) {
+        setLoading(false);
+        return;
+      }
+
       await deleteJson(`/api/v1/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
       await refreshClusters(env);
       await refreshApps();
+
+      // Refresh data for cluster-dependent views
+      if (detailAppName) {
+        if (view === "namespaces") {
+          const resp = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setNamespaces(resp || {});
+        } else if (view === "namespaceDetails" && detailNamespaceName) {
+          // Refresh namespace details by re-fetching all the data
+          const resp = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setNamespaces(resp || {});
+
+          // Re-fetch the namespace details
+          await viewNamespaceDetails(detailNamespaceName, null, detailAppName);
+        } else if (view === "l4ingress") {
+          const items = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setL4IngressItems(items || []);
+        } else if (view === "egressips") {
+          const items = await fetchJson(
+            `/api/v1/apps/${encodeURIComponent(detailAppName)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
+          );
+          setEgressIpItems(items || []);
+        }
+      }
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
@@ -828,6 +885,7 @@ function App() {
     const selected = Array.from(selectedApps);
     if (selected.length !== 1) {
       setError("Select exactly one application.");
+      setShowErrorModal(true);
       return null;
     }
     return selected[0];
@@ -848,6 +906,7 @@ function App() {
     const appname = appnameOverride || detailAppName;
     if (!appname) {
       setError("No application selected.");
+      setShowErrorModal(true);
       return;
     }
     if (!namespaceName) {
@@ -1424,6 +1483,17 @@ function App() {
       loading={loading}
       view={view}
       error={error}
+      showErrorModal={showErrorModal}
+      onCloseErrorModal={() => {
+        setShowErrorModal(false);
+        setError("");
+      }}
+      showDeleteWarningModal={showDeleteWarningModal}
+      deleteWarningData={deleteWarningData}
+      onCloseDeleteWarningModal={() => {
+        setShowDeleteWarningModal(false);
+        setDeleteWarningData(null);
+      }}
       topTab={topTab}
       configComplete={configComplete}
       readonly={readonly}
@@ -1464,6 +1534,7 @@ function App() {
       onBackFromNamespaceDetails={onBackFromNamespaceDetails}
       appRows={appRows}
       clustersByApp={clustersByApp}
+      apps={apps}
       selectedApps={selectedApps}
       toggleRow={toggleRow}
       onSelectAllFromFiltered={onSelectAllFromFiltered}
