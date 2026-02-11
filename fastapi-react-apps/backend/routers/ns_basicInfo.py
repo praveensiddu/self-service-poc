@@ -1,44 +1,55 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 
 import logging
 from pathlib import Path
 import yaml
 
-from backend.routers.apps import _require_env, _require_initialized_workspace
+from backend.dependencies import require_env
 from backend.routers import pull_requests
-from backend.routers.ns_models import NamespaceInfoBasicUpdate
-from backend.routers.namespaces import _parse_bool, _require_namespace_dir
+from backend.models import NamespaceInfoBasicUpdate
+from backend.repositories.namespace_repository import NamespaceRepository
+from backend.utils.helpers import parse_bool
+from backend.utils.yaml_utils import read_yaml_dict
 
 router = APIRouter(tags=["ns_basic"])
 
 logger = logging.getLogger("uvicorn.error")
 
 
-def _nsargocd_summary(*, env: str, appname: str, ns_dir: Path) -> dict:
+def get_namespace_repository() -> NamespaceRepository:
+    """Dependency injection for NamespaceRepository."""
+    return NamespaceRepository()
+
+
+
+def _nsargocd_summary(
+    *,
+    env: str,
+    appname: str,
+    ns_dir: Path,
+    repo: NamespaceRepository
+) -> dict:
+    """Get ArgoCD summary for a namespace.
+
+    Args:
+        env: Environment name
+        appname: Application name
+        ns_dir: Namespace directory path
+        repo: NamespaceRepository instance
+
+    Returns:
+        Dictionary with ArgoCD information
+    """
     try:
-        requests_root = _require_initialized_workspace()
-
         nsargocd_path = ns_dir / "nsargocd.yaml"
-        nsargocd = {}
-        if nsargocd_path.exists() and nsargocd_path.is_file():
-            try:
-                parsed = yaml.safe_load(nsargocd_path.read_text()) or {}
-                if isinstance(parsed, dict):
-                    nsargocd = parsed
-            except Exception:
-                nsargocd = {}
+        nsargocd = read_yaml_dict(nsargocd_path)
 
-        need_argo = _parse_bool(nsargocd.get("need_argo"))
+        need_argo = parse_bool(nsargocd.get("need_argo"))
         argocd_sync_strategy = str(nsargocd.get("argocd_sync_strategy", "") or "")
         gitrepourl = str(nsargocd.get("gitrepourl", "") or "")
 
-        argocd_exists = False
-        try:
-            argocd_path = (requests_root / env / appname) / "argocd.yaml"
-            argocd_exists = argocd_path.exists() and argocd_path.is_file()
-        except Exception:
-            argocd_exists = False
+        argocd_exists = repo.argocd_exists(env, appname)
         if not argocd_exists:
             need_argo = False
 
@@ -60,10 +71,28 @@ def _nsargocd_summary(*, env: str, appname: str, ns_dir: Path) -> dict:
 
 
 @router.put("/apps/{appname}/namespaces/{namespace}/namespace_info/basic")
-def put_namespace_info_basic(appname: str, namespace: str, payload: NamespaceInfoBasicUpdate, env: Optional[str] = None):
-    env = _require_env(env)
+def put_namespace_info_basic(
+    appname: str,
+    namespace: str,
+    payload: NamespaceInfoBasicUpdate,
+    env: Optional[str] = None,
+    repo: NamespaceRepository = Depends(get_namespace_repository)
+):
+    """Update basic namespace information (clusters and egress_nameid).
 
-    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+    Args:
+        appname: Application name
+        namespace: Namespace name
+        payload: Namespace info update payload
+        env: Environment name
+        repo: NamespaceRepository instance (injected)
+
+    Returns:
+        Updated namespace basic information
+    """
+    env = require_env(env)
+
+    ns_dir = repo.get_namespace_dir(env, appname, namespace)
     ns_info_path = ns_dir / "namespace_info.yaml"
 
     try:
@@ -93,7 +122,7 @@ def put_namespace_info_basic(appname: str, namespace: str, payload: NamespaceInf
         clusters = []
     clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
 
-    argo = _nsargocd_summary(env=env, appname=appname, ns_dir=ns_dir)
+    argo = _nsargocd_summary(env=env, appname=appname, ns_dir=ns_dir, repo=repo)
     return {
         "clusters": clusters,
         "gitrepourl": str(argo.get("gitrepourl", "") or ""),
@@ -103,9 +132,25 @@ def put_namespace_info_basic(appname: str, namespace: str, payload: NamespaceInf
 
 
 @router.get("/apps/{appname}/namespaces/{namespace}/namespace_info/basic")
-def get_namespace_info_basic(appname: str, namespace: str, env: Optional[str] = None):
-    env = _require_env(env)
-    ns_dir = _require_namespace_dir(env=env, appname=appname, namespace=namespace)
+def get_namespace_info_basic(
+    appname: str,
+    namespace: str,
+    env: Optional[str] = None,
+    repo: NamespaceRepository = Depends(get_namespace_repository)
+):
+    """Get basic namespace information.
+
+    Args:
+        appname: Application name
+        namespace: Namespace name
+        env: Environment name
+        repo: NamespaceRepository instance (injected)
+
+    Returns:
+        Namespace basic information including ArgoCD details
+    """
+    env = require_env(env)
+    ns_dir = repo.get_namespace_dir(env, appname, namespace)
 
     ns_info_path = ns_dir / "namespace_info.yaml"
     ns_info = {}
@@ -124,7 +169,7 @@ def get_namespace_info_basic(appname: str, namespace: str, env: Optional[str] = 
 
     out = {
         "clusters": clusters,
-        "generate_argo_app": _parse_bool(ns_info.get("generate_argo_app")),
+        "generate_argo_app": parse_bool(ns_info.get("generate_argo_app")),
     }
-    out.update(_nsargocd_summary(env=env, appname=appname, ns_dir=ns_dir))
+    out.update(_nsargocd_summary(env=env, appname=appname, ns_dir=ns_dir, repo=repo))
     return out

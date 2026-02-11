@@ -8,7 +8,13 @@ import yaml
 
 from pydantic import BaseModel
 
-from backend.routers.apps import _require_env, _require_initialized_workspace, _require_workspace_path, _require_control_clusters_root
+from backend.dependencies import (
+    require_env,
+    get_requests_root,
+    get_workspace_path,
+    require_control_clusters_root,
+)
+from backend.utils.yaml_utils import read_yaml_dict, write_yaml_dict
 
 router = APIRouter(tags=["allocate_l4_ingress"])
 
@@ -39,19 +45,14 @@ def _allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: s
 
 
 def _load_yaml_dict(path: Path) -> Dict[str, Any]:
-    if not path.exists() or not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text())
-    except Exception:
-        return {}
-    return raw if isinstance(raw, dict) else {}
+    """Helper function for backward compatibility."""
+    return read_yaml_dict(path)
 
 
 def _write_yaml_dict(path: Path, payload: Dict[str, Any]) -> None:
+    """Helper function for backward compatibility."""
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.safe_dump(payload, sort_keys=False))
+        write_yaml_dict(path, payload, sort_keys=False)
     except Exception as e:
         logger.error("Failed to write allocated yaml %s: %s", str(path), str(e))
         raise HTTPException(status_code=500, detail=f"Failed to write allocated yaml: {e}")
@@ -59,7 +60,7 @@ def _write_yaml_dict(path: Path, payload: Dict[str, Any]) -> None:
 
 def _load_requested_total(*, requests_root: Path, env: str, appname: str, cluster_no: str, purpose: str) -> int:
     req_path = requests_root / str(env).strip().lower() / str(appname or "").strip() / "l4_ingress_request.yaml"
-    raw = _load_yaml_dict(req_path)
+    raw = read_yaml_dict(req_path)
 
     cluster_map = raw.get(str(cluster_no))
     if not isinstance(cluster_map, dict):
@@ -163,10 +164,10 @@ def _allocate_from_range(*, start_ip: str, end_ip: str, count: int, already_allo
 
 @router.post("/apps/{appname}/l4_ingress/allocate")
 def allocate_l4_ingress(appname: str, payload: AllocateL4IngressRequest, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-    workspace_path = _require_workspace_path()
-    clusters_root = _require_control_clusters_root()
+    env = require_env(env)
+    requests_root = get_requests_root()
+    workspace_path = get_workspace_path()
+    clusters_root = require_control_clusters_root()
 
     cluster_no = str(payload.cluster_no or "").strip()
     purpose = str(payload.purpose or "").strip()
@@ -185,7 +186,7 @@ def allocate_l4_ingress(appname: str, payload: AllocateL4IngressRequest, env: Op
 
     key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose)
     allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
-    allocated_yaml = _load_yaml_dict(allocated_path)
+    allocated_yaml = read_yaml_dict(allocated_path)
 
     existing_ips_any = _collect_all_allocated_ips(allocated_yaml)
     existing_for_key = allocated_yaml.get(key)
@@ -224,7 +225,7 @@ def allocate_l4_ingress(appname: str, payload: AllocateL4IngressRequest, env: Op
 
     merged = existing_for_key_list + new_ips
     allocated_yaml[key] = merged
-    _write_yaml_dict(allocated_path, allocated_yaml)
+    write_yaml_dict(allocated_path, allocated_yaml, sort_keys=False)
 
     return {
         "env": env,

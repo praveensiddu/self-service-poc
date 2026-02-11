@@ -45,7 +45,7 @@ fi
 
 # Start the FastAPI server (which serves both backend API and frontend)
 echo "🚀 Starting server on port $PORT..."
-nohup uvicorn backend.main:app --reload --host 0.0.0.0 --port $PORT > "$LOG_FILE" 2>&1 &
+nohup venv/bin/uvicorn backend.main:app --reload --host 0.0.0.0 --port $PORT > "$LOG_FILE" 2>&1 &
 
 sleep 2
 
