@@ -3,17 +3,17 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
-from backend.routers.apps import _require_env
-from backend.routers.apps import _require_workspace_path
+from backend.dependencies import require_env, get_workspace_path
 
 router = APIRouter(tags=["egress_ip"])
 
 
+
 @router.get("/apps/{appname}/egress_ips")
 def get_egress_ips(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
+    env = require_env(env)
 
-    workspace_path = _require_workspace_path()
+    workspace_path = get_workspace_path()
     rendered_root = (
         workspace_path
         / "kselfserv"

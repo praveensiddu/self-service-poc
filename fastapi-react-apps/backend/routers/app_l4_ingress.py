@@ -6,23 +6,22 @@ from pathlib import Path
 
 import yaml
 
-from pydantic import BaseModel
-
-from backend.routers.apps import _require_env, _require_initialized_workspace
-from backend.routers.apps import _require_workspace_path
-from backend.routers.apps import _require_control_clusters_root
+from backend.models import L4IngressRequestedUpdate
+from backend.dependencies import (
+    require_env,
+    require_initialized_workspace,
+    get_requests_root,
+    get_workspace_path,
+    require_control_clusters_root,
+)
 from backend.routers.allocate_l4_ingress import _load_cluster_first_range
 from backend.routers.clusters import get_allocated_clusters_for_app
+from backend.utils.yaml_utils import read_yaml_dict
 
 router = APIRouter(tags=["l4_ingress"])
 
 logger = logging.getLogger("uvicorn.error")
 
-
-class L4IngressRequestedUpdate(BaseModel):
-    cluster_no: str
-    purpose: str
-    requested_total: int
 
 
 def _sanitize_allocations(allocations: Any) -> List[Dict[str, Any]]:
@@ -62,13 +61,8 @@ def _key_for_app_purpose(*, appname: str, purpose: str) -> str:
 
 
 def _load_allocated_yaml(path: Path) -> Dict[str, Any]:
-    if not path.exists() or not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text()) or {}
-    except Exception:
-        return {}
-    return raw if isinstance(raw, dict) else {}
+    """Helper function for backward compatibility."""
+    return read_yaml_dict(path)
 
 
 def _sanitize_l4_ingress_items(items: Any) -> List[Dict[str, Any]]:
@@ -91,9 +85,9 @@ def _sanitize_l4_ingress_items(items: Any) -> List[Dict[str, Any]]:
 
 @router.get("/apps/{appname}/l4_ingress")
 def get_l4_ingress(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-    workspace_path = _require_workspace_path()
+    env = require_env(env)
+    requests_root = get_requests_root()
+    workspace_path = get_workspace_path()
 
     allocated_clusters: List[str] = []
     try:
@@ -172,8 +166,8 @@ def get_l4_ingress(appname: str, env: Optional[str] = None):
 
 @router.put("/apps/{appname}/l4_ingress")
 def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
+    env = require_env(env)
+    requests_root = require_initialized_workspace()
 
     cluster_no = str(payload.cluster_no or "").strip()
     purpose = str(payload.purpose or "").strip()
@@ -190,7 +184,7 @@ def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, en
     # Match allocate endpoint behavior: if a cluster doesn't have any configured L4 ingress
     # ranges, we should not allow a non-zero requested_total for that cluster.
     if requested_total > 0:
-        clusters_root = _require_control_clusters_root()
+        clusters_root = require_control_clusters_root()
         first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=cluster_no)
         if not first_range:
             raise HTTPException(status_code=400, detail="No l4_ingress_ip_ranges configured for this cluster")
@@ -229,7 +223,7 @@ def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, en
     # Free pool = (cluster range capacity) - (already allocated IPs in range across all apps/purposes).
     if delta > 0:
         if not first_range:
-            clusters_root = _require_control_clusters_root()
+            clusters_root = require_control_clusters_root()
             first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=cluster_no)
         if not first_range:
             raise HTTPException(status_code=400, detail="No l4_ingress_ip_ranges configured for this cluster")
@@ -246,7 +240,7 @@ def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, en
         if capacity <= 0:
             raise HTTPException(status_code=400, detail="Invalid l4_ingress_ip_ranges configured for this cluster")
 
-        workspace_path = _require_workspace_path()
+        workspace_path = get_workspace_path()
         allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
         allocated_yaml = _load_allocated_yaml(allocated_path)
 

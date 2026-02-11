@@ -5,9 +5,12 @@ import yaml
 
 from pydantic import BaseModel
 
-from backend.routers.apps import _require_env, _require_initialized_workspace
+from backend.dependencies import require_env
+from backend.repositories.namespace_repository import NamespaceRepository
+from backend.utils.yaml_utils import read_yaml_dict
 
 router = APIRouter(tags=["app_argocd"])
+
 
 
 class AppArgoCdDetails(BaseModel):
@@ -23,26 +26,17 @@ def _argocd_yaml_path(app_dir) -> Any:
 
 
 def _read_argocd_yaml(path) -> Dict[str, Any]:
-    if not path.exists() or not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text()) or {}
-        return raw if isinstance(raw, dict) else {}
-    except Exception:
-        return {}
+    """Helper function for backward compatibility."""
+    return read_yaml_dict(path)
 
 
 @router.get("/apps/{appname}/argocd")
 def get_app_argocd(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-
-    app_dir = requests_root / env / appname
-    if not app_dir.exists() or not app_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+    env = require_env(env)
+    app_dir = NamespaceRepository.get_app_dir(env, appname)
 
     cfg_path = _argocd_yaml_path(app_dir)
-    data = _read_argocd_yaml(cfg_path)
+    data = read_yaml_dict(cfg_path)
 
     exists = False
     try:
@@ -62,12 +56,8 @@ def get_app_argocd(appname: str, env: Optional[str] = None):
 
 @router.delete("/apps/{appname}/argocd")
 def delete_app_argocd(appname: str, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-
-    app_dir = requests_root / env / appname
-    if not app_dir.exists() or not app_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+    env = require_env(env)
+    app_dir = NamespaceRepository.get_app_dir(env, appname)
 
     cfg_path = _argocd_yaml_path(app_dir)
     existed = False
@@ -87,12 +77,8 @@ def delete_app_argocd(appname: str, env: Optional[str] = None):
 
 @router.put("/apps/{appname}/argocd")
 def put_app_argocd(appname: str, payload: AppArgoCdDetails, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-
-    app_dir = requests_root / env / appname
-    if not app_dir.exists() or not app_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+    env = require_env(env)
+    app_dir = NamespaceRepository.get_app_dir(env, appname)
 
     out: Dict[str, Any] = {
         "argocd_admin_groups": str(payload.argocd_admin_groups or "").strip(),

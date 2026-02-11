@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 import logging
@@ -10,7 +9,9 @@ import subprocess
 import requests
 import yaml
 
-from backend.routers.general import _require_workspace_path
+from backend.models import PullRequestStatus
+from backend.dependencies import require_env
+from backend.routers.system import _require_workspace_path
 
 router = APIRouter(tags=["pull_requests"])
 
@@ -18,22 +19,8 @@ logger = logging.getLogger("uvicorn.error")
 
 
 def _require_env(env: Optional[str]) -> str:
-    if not env:
-        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
-    return str(env).strip().lower()
-
-
-class PullRequestStatus(BaseModel):
-    env: str
-    appname: str
-    head_branch: str
-    base_branch: str
-    pr_number: Optional[int] = None
-    pr_url: str = ""
-    required_approvers: List[str] = []
-    approved_by: List[str] = []
-    missing_approvers: List[str] = []
-    merge_allowed: bool = False
+    """Wrapper for backward compatibility."""
+    return require_env(env)
 
 
 def _control_repo_root() -> Path:

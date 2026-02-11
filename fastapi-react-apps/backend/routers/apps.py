@@ -1,545 +1,146 @@
-from fastapi import APIRouter, HTTPException
-from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, HTTPException, Depends
+from typing import Dict, List, Optional
 from pathlib import Path
-import shutil
-import re
 import logging
 
-import yaml
-
-from pydantic import BaseModel
-
 from backend.routers import pull_requests
+from backend.dependencies import require_env, require_initialized_workspace
+from backend.models import AppCreate, AppResponse, AppDeleteResponse
+from backend.services.application_service import ApplicationService
+from backend.services.cluster_service import ClusterService
 
 router = APIRouter(tags=["apps"])
 
 logger = logging.getLogger("uvicorn.error")
 
 
-class AppCreate(BaseModel):
-    appname: str
-    description: Optional[str] = ""
-    managedby: Optional[str] = ""
-    clusters: Optional[List[str]] = None
+# ============================================
+# Dependency Injection
+# ============================================
+
+def get_app_service() -> ApplicationService:
+    """Dependency injection for ApplicationService."""
+    return ApplicationService()
 
 
-def _config_path() -> Path:
-    return Path.home() / ".kselfserve" / "kselfserveconfig.yaml"
+def get_cluster_service() -> ClusterService:
+    """Dependency injection for ClusterService."""
+    return ClusterService()
 
 
-def _require_workspace_path() -> Path:
-    cfg_path = _config_path()
-    if not cfg_path.exists():
-        raise HTTPException(status_code=400, detail="not initialized")
 
-    try:
-        raw_cfg = yaml.safe_load(cfg_path.read_text()) or {}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
+# ============================================
+# API Endpoints
+# ============================================
 
-    if not isinstance(raw_cfg, dict):
-        raise HTTPException(status_code=400, detail="not initialized")
+@router.get("/apps", response_model=Dict[str, AppResponse])
+def list_apps(
+    env: Optional[str] = None,
+    service: ApplicationService = Depends(get_app_service)
+):
+    """List all applications for an environment.
 
-    workspace = str(raw_cfg.get("workspace", "") or "").strip()
-    if not workspace:
-        raise HTTPException(status_code=400, detail="not initialized")
+    Args:
+        env: Environment name (dev, qa, prd)
 
-    workspace_path = Path(workspace).expanduser()
-    if not workspace_path.exists() or not workspace_path.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    return workspace_path
+    Returns:
+        Dictionary of applications keyed by app name
+    """
+    env = require_env(env)
+    return service.get_apps_for_env(env)
 
 
-def _require_initialized_workspace() -> Path:
-    cfg_path = _config_path()
-    if not cfg_path.exists():
-        raise HTTPException(status_code=400, detail="not initialized")
+@router.post("/apps", response_model=AppResponse)
+def create_app(
+    payload: AppCreate,
+    env: Optional[str] = None,
+    service: ApplicationService = Depends(get_app_service)
+):
+    """Create a new application.
 
-    try:
-        raw_cfg = yaml.safe_load(cfg_path.read_text()) or {}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
+    Args:
+        payload: Application creation data
+        env: Environment name (dev, qa, prd)
 
-    if not isinstance(raw_cfg, dict):
-        raise HTTPException(status_code=400, detail="not initialized")
+    Returns:
+        Created application data
+    """
+    env = require_env(env)
 
-    workspace = str(raw_cfg.get("workspace", "") or "").strip()
-    if not workspace:
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    workspace_path = Path(workspace).expanduser()
-    if not workspace_path.exists() or not workspace_path.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    requests_root = (
-        workspace_path
-        / "kselfserv"
-        / "cloned-repositories"
-        / "requests"
-        / "apprequests"
+    result = service.create_app(
+        env=env,
+        appname=payload.appname,
+        description=payload.description or "",
+        managedby=payload.managedby or ""
     )
-    if not requests_root.exists() or not requests_root.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
 
-    return requests_root
+    _try_ensure_pull_request(env, payload.appname)
+
+    return result
 
 
-def _require_control_clusters_root() -> Path:
-    workspace_path = _require_workspace_path()
-    clusters_root = (
-        workspace_path
-        / "kselfserv"
-        / "cloned-repositories"
-        / "control"
-        / "clusters"
+@router.put("/apps/{appname}", response_model=AppResponse)
+def update_app(
+    appname: str,
+    payload: AppCreate,
+    env: Optional[str] = None,
+    service: ApplicationService = Depends(get_app_service)
+):
+    """Update an existing application.
+
+    Args:
+        appname: Application name to update
+        payload: Updated application data
+        env: Environment name (dev, qa, prd)
+
+    Returns:
+        Updated application data
+    """
+    env = require_env(env)
+
+    # Validate that appname in URL matches payload (if provided)
+    payload_name = str(payload.appname or "").strip()
+    if payload_name and payload_name != appname:
+        raise HTTPException(status_code=400, detail="Renaming appname is not supported")
+
+    result = service.update_app(
+        env=env,
+        appname=appname,
+        description=payload.description or "",
+        managedby=payload.managedby or ""
     )
-    if not clusters_root.exists() or not clusters_root.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
-    return clusters_root
+
+    _try_ensure_pull_request(env, appname)
+
+    return result
 
 
-def _as_string_list(value: Any) -> List[str]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        out: List[str] = []
-        for v in value:
-            if v is None:
-                continue
-            s = str(v).strip()
-            if s:
-                out.append(s)
-        return out
-    if isinstance(value, str):
-        s = value.strip()
-        if not s:
-            return []
-        return [p.strip() for p in s.split(",") if p.strip()]
-    return []
+@router.delete("/apps/{appname}", response_model=AppDeleteResponse)
+def delete_app(
+    appname: str,
+    env: Optional[str] = None,
+    service: ApplicationService = Depends(get_app_service)
+):
+    """Delete an application and all its associated data.
+
+    Args:
+        appname: Application name to delete
+        env: Environment name (dev, qa, prd)
+
+    Returns:
+        Deletion result data
+    """
+    env = require_env(env)
+    return service.delete_app(env, appname)
 
 
-def _clusters_file_for_env(clusters_root: Path, env: str) -> Path:
-    key = str(env or "").strip().lower()
-    return clusters_root / f"{key}_clusters.yaml"
+# ============================================
+# Helper Functions
+# ============================================
 
-
-def _load_clusters_from_file(path: Path) -> List[Dict[str, Any]]:
-    if not path.exists() or not path.is_file():
-        return []
-    try:
-        raw = yaml.safe_load(path.read_text())
-    except Exception:
-        return []
-    if raw is None:
-        return []
-    if isinstance(raw, list):
-        return [x for x in raw if isinstance(x, dict)]
-    if isinstance(raw, dict):
-        return [raw]
-    return []
-
-
-def _clusters_by_app_for_env(env: str) -> Dict[str, List[str]]:
-    clusters_root = _require_control_clusters_root()
-    file_path = _clusters_file_for_env(clusters_root, env)
-    items = _load_clusters_from_file(file_path)
-
-    out: Dict[str, List[str]] = {}
-    for item in items:
-        raw_clustername = item.get("clustername", item.get("clusterName", item.get("name")))
-        cname = str(raw_clustername or "").strip()
-        if not cname:
-            continue
-        apps = _as_string_list(item.get("applications"))
-        for appname in apps:
-            key = str(appname or "").strip()
-            if not key:
-                continue
-            out.setdefault(key, []).append(cname)
-
-    for k, v in list(out.items()):
-        out[k] = sorted(set([str(x).strip() for x in v if str(x).strip()]), key=lambda s: s.lower())
-    return out
-
-
-
-PULL_REQUESTS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
-    "prd": {
-        "app1": [
-            {
-                "appname": "app1",
-                "clusterno": "06",
-                "description": "prd-dc4--06-app1-update",
-                "createdby": "psiddu",
-                "link": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/prs/7041/overview",
-            },
-            {
-                "appname": "app1",
-                "clusterno": "11",
-                "description": "prd-dc2--11-app1-update",
-                "createdby": "psiddu",
-                "link": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/prs/7040/overview",
-            },
-            {
-                "appname": "app1",
-                "clusterno": "12",
-                "description": "prd-dc3--12-app1-update",
-                "createdby": "psiddu",
-                "link": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/prs/7039/overview",
-            },
-            {
-                "appname": "app1",
-                "clusterno": "07",
-                "description": "prd-dc4--07-app1-update",
-                "createdby": "psiddu",
-                "link": "https://mygitserver.com/projects/openshiftautomation/repos/ocp-app-prov-generated/prs/7038/overview",
-            },
-        ]
-    }
-}
-
-
-EGRESS_IPS_BY_ENV_AND_APP: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
-    "dev": {
-        "app1": [
-            {
-                "selector": "app=app1-dev",
-                "cluster": "01",
-                "allocation_id": "egress-ip-01-dev-001",
-                "allocated_ips": ["10.0.1.100", "10.0.1.101"],
-                "link": "https://console.dev-cluster-01.com/egress/egress-ip-01-dev-001"
-            },
-            {
-                "selector": "app=app1-dev-ns2",
-                "cluster": "04",
-                "allocation_id": "egress-ip-04-dev-002",
-                "allocated_ips": ["10.0.4.102"],
-                "link": "https://console.dev-cluster-04.com/egress/egress-ip-04-dev-002"
-            }
-        ],
-        "app2": [
-            {
-                "selector": "app=app2-dev",
-                "cluster": "07",
-                "allocation_id": "egress-ip-07-dev-003",
-                "allocated_ips": ["10.0.7.103", "10.0.7.104"],
-                "link": "https://console.dev-cluster-07.com/egress/egress-ip-07-dev-003"
-            }
-        ]
-    },
-    "qa": {
-        "app1": [
-            {
-                "selector": "app=app1-qa",
-                "cluster": "11",
-                "allocation_id": "egress-ip-11-qa-001",
-                "allocated_ips": ["1.1.11.100"],
-                "link": "https://console.qa-cluster-11.com/egress/egress-ip-11-qa-001"
-            },
-            {
-                "selector": "app=app1-qa-ns2",
-                "cluster": "12",
-                "allocation_id": "egress-ip-12-qa-002",
-                "allocated_ips": ["1.1.12.101", "1.1.12.102"],
-                "link": "https://console.qa-cluster-12.com/egress/egress-ip-12-qa-002"
-            },
-            {
-                "selector": "app=app1-qa-ns3",
-                "cluster": "06",
-                "allocation_id": "egress-ip-06-qa-003",
-                "allocated_ips": ["1.1.6.103"],
-                "link": "https://console.qa-cluster-06.com/egress/egress-ip-06-qa-003"
-            }
-        ],
-        "app2": [
-            {
-                "selector": "app=app2-qa",
-                "cluster": "01",
-                "allocation_id": "egress-ip-01-qa-004",
-                "allocated_ips": ["1.1.1.104"],
-                "link": "https://console.qa-cluster-01.com/egress/egress-ip-01-qa-004"
-            },
-            {
-                "selector": "app=app2-qa-ns2",
-                "cluster": "04",
-                "allocation_id": "egress-ip-04-qa-005",
-                "allocated_ips": ["1.1.4.105", "1.1.4.106"],
-                "link": "https://console.qa-cluster-04.com/egress/egress-ip-04-qa-005"
-            }
-        ]
-    },
-    "prd": {
-        "app1": [
-            {
-                "selector": "app=app1-prod",
-                "cluster": "01",
-                "allocation_id": "egress-ip-01-prd-001",
-                "allocated_ips": ["1.2.1.100", "1.2.1.101", "1.2.1.102"],
-                "link": "https://console.prod-cluster-01.com/egress/egress-ip-01-prd-001"
-            },
-            {
-                "selector": "app=app1-prod-ns2",
-                "cluster": "04",
-                "allocation_id": "egress-ip-04-prd-002",
-                "allocated_ips": ["1.2.4.103", "1.2.4.104"],
-                "link": "https://console.prod-cluster-04.com/egress/egress-ip-04-prd-002"
-            },
-            {
-                "selector": "app=app1-prod-ns3",
-                "cluster": "07",
-                "allocation_id": "egress-ip-07-prd-003",
-                "allocated_ips": ["1.2.7.105"],
-                "link": "https://console.prod-cluster-07.com/egress/egress-ip-07-prd-003"
-            }
-        ],
-        "app2": [
-            {
-                "selector": "app=app2-prod",
-                "cluster": "12",
-                "allocation_id": "egress-ip-12-prd-004",
-                "allocated_ips": ["1.2.12.106", "1.2.12.107"],
-                "link": "https://console.prod-cluster-12.com/egress/egress-ip-12-prd-004"
-            }
-        ]
-    }
-}
-
-
-def _require_env(env: Optional[str]) -> str:
-    if not env:
-        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
-    return env.strip().lower()
-
-
-@router.get("/apps")
-def list_apps(env: Optional[str] = None):
-    try:
-        env = _require_env(env)
-        requests_root = _require_initialized_workspace()
-
-        env_dir = requests_root / env
-        if not env_dir.exists() or not env_dir.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
-
-        clusters_by_app = {}
-        try:
-            clusters_by_app = _clusters_by_app_for_env(env)
-        except Exception as e:
-            logger.error("Failed to compute clusters_by_app for env=%s: %s", str(env), str(e), exc_info=True)
-            clusters_by_app = {}
-
-        apps_out: Dict[str, Dict[str, Any]] = {}
-        for child in env_dir.iterdir():
-            if not child.is_dir():
-                continue
-
-            appname = child.name
-            appinfo_path = child / "appinfo.yaml"
-            description = ""
-            managedby = ""
-            clusters: List[str] = clusters_by_app.get(appname, [])
-
-            if appinfo_path.exists() and appinfo_path.is_file():
-                try:
-                    appinfo = yaml.safe_load(appinfo_path.read_text()) or {}
-                    if isinstance(appinfo, dict):
-                        description = str(appinfo.get("description", "") or "")
-                        managedby = str(appinfo.get("managedby", "") or "")
-                except Exception as e:
-                    logger.error(
-                        "Failed to read appinfo.yaml for env=%s app=%s path=%s: %s",
-                        str(env),
-                        str(appname),
-                        str(appinfo_path),
-                        str(e),
-                        exc_info=True,
-                    )
-                    description = ""
-                    managedby = ""
-                    clusters = clusters_by_app.get(appname, [])
-
-            totalns = 0
-            try:
-                totalns = sum(1 for p in child.iterdir() if p.is_dir())
-            except Exception as e:
-                logger.error(
-                    "Failed to count namespaces for env=%s app=%s dir=%s: %s",
-                    str(env),
-                    str(appname),
-                    str(child),
-                    str(e),
-                    exc_info=True,
-                )
-                totalns = 0
-
-            argocd = False
-            try:
-                argocd_path = child / "argocd.yaml"
-                argocd = argocd_path.exists() and argocd_path.is_file()
-            except Exception as e:
-                logger.error(
-                    "Failed to check argocd.yaml for env=%s app=%s path=%s: %s",
-                    str(env),
-                    str(appname),
-                    str(child / 'argocd.yaml'),
-                    str(e),
-                    exc_info=True,
-                )
-                argocd = False
-
-            apps_out[appname] = {
-                "appname": appname,
-                "description": description,
-                "managedby": managedby,
-                "clusters": clusters,
-                "totalns": totalns,
-                "argocd": argocd,
-            }
-
-        return apps_out
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Unhandled exception in GET /apps for env=%s: %s", str(env), str(e), exc_info=True)
-        raise
-
-
-@router.post("/apps")
-def create_app(payload: AppCreate, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-
-    appname = str(payload.appname or "").strip()
-    if not appname:
-        raise HTTPException(status_code=400, detail="appname is required")
-    if not re.match(r"^[A-Za-z0-9_.-]+$", appname):
-        raise HTTPException(status_code=400, detail="Invalid appname")
-
-    env_dir = requests_root / env
-    if not env_dir.exists() or not env_dir.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    app_dir = env_dir / appname
-    if app_dir.exists():
-        raise HTTPException(status_code=409, detail=f"App already exists: {appname}")
-
-    try:
-        app_dir.mkdir(parents=True, exist_ok=False)
-        appinfo = {
-            "description": str(payload.description or ""),
-            "managedby": str(payload.managedby or ""),
-        }
-        (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create app: {e}")
-
-    clusters_by_app = {}
-    try:
-        clusters_by_app = _clusters_by_app_for_env(env)
-    except Exception:
-        clusters_by_app = {}
-
+def _try_ensure_pull_request(env: str, appname: str) -> None:
+    """Try to ensure a pull request exists. Logs errors but doesn't fail."""
     try:
         pull_requests.ensure_pull_request(appname=appname, env=env)
     except Exception as e:
-        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
-
-    return {
-        "appname": appname,
-        "description": str(payload.description or ""),
-        "managedby": str(payload.managedby or ""),
-        "clusters": clusters_by_app.get(appname, []),
-        "totalns": 0,
-    }
-
-
-    
-
-
-@router.put("/apps/{appname}")
-def update_app(appname: str, payload: AppCreate, env: Optional[str] = None):
-    env = _require_env(env)
-    requests_root = _require_initialized_workspace()
-
-    target_appname = str(appname or "").strip()
-    if not target_appname:
-        raise HTTPException(status_code=400, detail="appname is required")
-
-    env_dir = requests_root / env
-    if not env_dir.exists() or not env_dir.is_dir():
-        raise HTTPException(status_code=400, detail="not initialized")
-
-    app_dir = env_dir / target_appname
-    if not app_dir.exists() or not app_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"App not found: {target_appname}")
-
-    # Do not allow renaming apps via update.
-    payload_name = str(payload.appname or "").strip()
-    if payload_name and payload_name != target_appname:
-        raise HTTPException(status_code=400, detail="Renaming appname is not supported")
-
-    try:
-        appinfo = {
-            "description": str(payload.description or ""),
-            "managedby": str(payload.managedby or ""),
-        }
-        (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update app: {e}")
-
-    totalns = 0
-    try:
-        totalns = sum(1 for p in app_dir.iterdir() if p.is_dir())
-    except Exception:
-        totalns = 0
-
-    clusters_by_app = {}
-    try:
-        clusters_by_app = _clusters_by_app_for_env(env)
-    except Exception:
-        clusters_by_app = {}
-
-    try:
-        pull_requests.ensure_pull_request(appname=target_appname, env=env)
-    except Exception as e:
-        logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(target_appname), str(e))
-
-    return {
-        "appname": target_appname,
-        "description": str(payload.description or ""),
-        "managedby": str(payload.managedby or ""),
-        "clusters": clusters_by_app.get(target_appname, []),
-        "totalns": totalns,
-    }
-
-
-@router.delete("/apps/{appname}")
-def delete_app(appname: str, env: Optional[str] = None):
-    """Delete an application and all its associated data (namespaces, L4 ingress, pull requests)"""
-    env = _require_env(env)
-
-    requests_root = _require_initialized_workspace()
-    app_dir = requests_root / env / appname
-    if not app_dir.exists() or not app_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
-
-    deleted_data = {
-        "appname": appname,
-        "env": env,
-        "deleted": False,
-        "removed": {}
-    }
-
-    try:
-        shutil.rmtree(app_dir)
-        deleted_data["removed"]["folder"] = True
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete app folder {app_dir}: {e}")
-
-
-
-    deleted_data["deleted"] = True
-    return deleted_data
+        logger.error("Failed to ensure PR for %s/%s: %s", env, appname, str(e))
