@@ -17,27 +17,43 @@
     <script type="text/babel" data-presets="react" src="/static/js/app/services/apiClient.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/configService.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/appsService.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/argocdService.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/namespacesService.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/clustersService.js"></script>
 
     <!-- 2. Utils - Pure utility functions -->
+    <script type="text/babel" data-presets="react" src="/static/js/app/utils/constants.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/utils/url.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/utils/helpers.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/utils/ipValidation.js"></script>
 
     <!-- 3. Shared hooks - Reusable across features -->
     <script type="text/babel" data-presets="react" src="/static/js/shared/hooks/useFilters.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/shared/hooks/useSelection.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/shared/hooks/useTableFilter.js"></script>
 
     <!-- 4. App hooks - Application-specific hooks -->
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useGlobalError.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useConfig.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useApps.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useNamespaces.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useL4Ingress.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useEgressIps.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useClusters.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useUiRouting.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useModals.js"></script>
 
     <!-- 5. Shared components -->
     <script type="text/babel" data-presets="react" src="/static/js/shared/components/HelpIconButton.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/shared/components/IpRangeInput.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/shared/components/ConfirmationModal.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/shared/components/ClusterFormModal.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/shared/components/YamlPreviewModal.js"></script>
+
+    <!-- 5.5 Feature-specific hooks -->
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/hooks/useNamespaceDetailsLogic.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/hooks/useNamespaceDetailsEdit.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/hooks/useNamespaceDetailsApi.js"></script>
 
     <!-- 6. Feature components - Namespace Details blocks -->
     <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/blocks/NamespaceBlockHeader.js"></script>
@@ -64,7 +80,7 @@
     <script type="text/babel" data-presets="react" src="/static/js/features/l4Ingress/L4IngressTable.container.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/features/egressIp/EgressIpTable.container.js"></script>
 
-    <!-- 9. App view -->
+    <!-- 9. App containers (top-level orchestration) -->
     <script type="text/babel" data-presets="react" src="/static/js/app/components/App.view.js"></script>
 
     <!-- 10. App container - Main entry point (must load last) -->

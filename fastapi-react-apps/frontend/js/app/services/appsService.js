@@ -22,14 +22,14 @@ async function loadApps(env) {
  * @returns {Promise<Object>} - Created app data
  */
 async function createAppApi(env, payload) {
-  const appname = String(payload?.appname || "").trim();
+  const appname = safeTrim(payload?.appname);
   if (!appname) throw new Error("App Name is required.");
   if (!env) throw new Error("Environment is required.");
 
   return await postJson(`/api/v1/apps?env=${encodeURIComponent(env)}`, {
     appname,
-    description: String(payload?.description || ""),
-    managedby: String(payload?.managedby || ""),
+    description: safeTrim(payload?.description),
+    managedby: safeTrim(payload?.managedby),
   });
 }
 
@@ -41,14 +41,14 @@ async function createAppApi(env, payload) {
  * @returns {Promise<Object>} - Updated app data
  */
 async function updateAppApi(env, appname, payload) {
-  const target = String(appname || payload?.appname || "").trim();
+  const target = safeTrim(appname || payload?.appname);
   if (!target) throw new Error("App Name is required.");
   if (!env) throw new Error("Environment is required.");
 
   return await putJson(`/api/v1/apps/${encodeURIComponent(target)}?env=${encodeURIComponent(env)}`, {
     appname: target,
-    description: String(payload?.description || ""),
-    managedby: String(payload?.managedby || ""),
+    description: safeTrim(payload?.description),
+    managedby: safeTrim(payload?.managedby),
   });
 }
 
@@ -62,15 +62,9 @@ async function deleteAppApi(env, appname) {
   if (!appname) throw new Error("App Name is required.");
   if (!env) throw new Error("Environment is required.");
 
-  const response = await fetch(
-    `/api/v1/apps/${encodeURIComponent(appname)}?env=${encodeURIComponent(env)}`,
-    { method: "DELETE", headers: { Accept: "application/json" } }
+  return await deleteJson(
+    `/api/v1/apps/${encodeURIComponent(appname)}?env=${encodeURIComponent(env)}`
   );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to delete ${appname}: ${response.status} ${text}`);
-  }
-  return await response.json();
 }
 
 /**

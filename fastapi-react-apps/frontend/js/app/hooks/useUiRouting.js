@@ -19,11 +19,7 @@
  * @param {string} params.activeEnv - Currently active environment
  * @param {Function} params.setActiveEnv - Setter for active environment
  * @param {Function} params.setTopTab - Setter for top tab
- * @param {Function} params.setView - Setter for view
- * @param {Function} params.setDetailAppName - Setter for detail app name
- * @param {Function} params.setNamespaces - Setter for namespaces
- * @param {Function} params.setL4IngressItems - Setter for L4 ingress items
- * @param {Function} params.setEgressIpItems - Setter for egress IPs
+ * @param {Function} params.onResetNamespacesState - Callback to reset namespace state
  * @returns {Object} - Routing utilities
  */
 function useUiRouting({
@@ -32,13 +28,10 @@ function useUiRouting({
   activeEnv,
   setActiveEnv,
   setTopTab,
-  setView,
-  setDetailAppName,
-  setNamespaces,
-  setL4IngressItems,
-  setEgressIpItems,
+  onResetNamespacesState,
 }) {
   const [pendingRoute, setPendingRoute] = React.useState(() => parseUiRouteFromLocation());
+  const [view, setView] = React.useState("apps");
 
   /**
    * Navigate to a new UI route.
@@ -109,15 +102,11 @@ function useUiRouting({
       const nextEnv = r.env || activeEnv || (envKeys[0] || "");
       if (nextEnv) setActiveEnv(nextEnv);
       // Always reset to apps view when clicking "Request provisioning"
-      setView("apps");
-      setDetailAppName("");
-      setNamespaces({});
-      setL4IngressItems([]);
-      setEgressIpItems([]);
+      if (onResetNamespacesState) onResetNamespacesState();
       setPendingRoute({ env: nextEnv, view: "apps", appname: "", ns: "" });
       pushUiUrl({ view: "apps", env: nextEnv, appname: "", ns: "" }, false);
     }
-  }, [configComplete, activeEnv, envKeys, setTopTab, setActiveEnv, setView, setDetailAppName, setNamespaces, setL4IngressItems, setEgressIpItems]);
+  }, [configComplete, activeEnv, envKeys, setTopTab, setActiveEnv, onResetNamespacesState]);
 
   /**
    * Handle popstate event (browser back/forward).
@@ -156,14 +145,10 @@ function useUiRouting({
     setPendingRoute(r);
     if (r.env) setActiveEnv(r.env);
     else if (envKeys.length > 0 && !activeEnv) setActiveEnv(envKeys[0]);
-    if (r.view === "apps") {
-      setView("apps");
-      setDetailAppName("");
-      setNamespaces({});
-      setL4IngressItems([]);
-      setEgressIpItems([]);
+    if (r.view === "apps" && onResetNamespacesState) {
+      onResetNamespacesState();
     }
-  }, [configComplete, envKeys, activeEnv, setActiveEnv, setTopTab, setView, setDetailAppName, setNamespaces, setL4IngressItems, setEgressIpItems]);
+  }, [configComplete, envKeys, activeEnv, setActiveEnv, setTopTab, onResetNamespacesState]);
 
   // Set up popstate listener
   React.useEffect(() => {
@@ -219,6 +204,8 @@ function useUiRouting({
   return {
     pendingRoute,
     setPendingRoute,
+    view,
+    setView,
     navigateTo,
     navigateToApps,
     setTopTabWithUrl,

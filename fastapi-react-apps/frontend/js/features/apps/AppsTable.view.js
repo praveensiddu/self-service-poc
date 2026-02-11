@@ -4,181 +4,53 @@ function AppsTableView({
   filters,
   setFilters,
   env,
-  onRefreshApps,
   clustersByApp,
-  availableClusters,
   selectedApps,
   onToggleRow,
   onSelectAll,
   onDeleteApp,
   onViewDetails,
   onCreateApp,
-  onUpdateApp,
   showCreate,
-  onOpenCreate,
   onCloseCreate,
   requestsChanges,
   readonly,
+  newAppName,
+  setNewAppName,
+  newDescription,
+  setNewDescription,
+  newManagedBy,
+  setNewManagedBy,
+  canSubmitCreate,
+  showEdit,
+  setShowEdit,
+  editAppName,
+  editDescription,
+  setEditDescription,
+  editManagedBy,
+  setEditManagedBy,
+  canSubmitEdit,
+  openEditApp,
+  onSubmitEdit,
+  showArgoCd,
+  argoCdAppName,
+  argoCdExists,
+  argoCdAdminGroups,
+  setArgoCdAdminGroups,
+  argoCdOperatorGroups,
+  setArgoCdOperatorGroups,
+  argoCdReadonlyGroups,
+  setArgoCdReadonlyGroups,
+  argoCdSyncStrategy,
+  setArgoCdSyncStrategy,
+  argoCdGitUrl,
+  setArgoCdGitUrl,
+  canSubmitArgoCd,
+  openArgoCd,
+  closeArgoCd,
+  onSubmitArgoCd,
+  onDeleteArgoCd,
 }) {
-  const [newAppName, setNewAppName] = React.useState("");
-  const [newDescription, setNewDescription] = React.useState("");
-  const [newManagedBy, setNewManagedBy] = React.useState("");
-
-  const canSubmitCreate = Boolean(
-    (newAppName || "").trim() && (newDescription || "").trim() && (newManagedBy || "").trim(),
-  );
-
-  function normalizeCluster(v) {
-    return String(v || "").trim();
-  }
-
-  const [showEdit, setShowEdit] = React.useState(false);
-  const [editAppName, setEditAppName] = React.useState("");
-  const [editDescription, setEditDescription] = React.useState("");
-  const [editManagedBy, setEditManagedBy] = React.useState("");
-
-  const [showArgoCd, setShowArgoCd] = React.useState(false);
-  const [argoCdAppName, setArgoCdAppName] = React.useState("");
-  const [argoCdExists, setArgoCdExists] = React.useState(false);
-  const [argoCdAdminGroups, setArgoCdAdminGroups] = React.useState("");
-  const [argoCdOperatorGroups, setArgoCdOperatorGroups] = React.useState("");
-  const [argoCdReadonlyGroups, setArgoCdReadonlyGroups] = React.useState("");
-  const [argoCdSyncStrategy, setArgoCdSyncStrategy] = React.useState("auto");
-  const [argoCdGitUrl, setArgoCdGitUrl] = React.useState("");
-
-  const canSubmitArgoCd = Boolean(String(argoCdGitUrl || "").trim());
-
-  async function openArgoCd(row) {
-    const r = row || {};
-    const name = String(r?.appname || "");
-    setArgoCdAppName(name);
-    setArgoCdExists(Boolean(r?.argocd));
-
-    setArgoCdAdminGroups("");
-    setArgoCdOperatorGroups("");
-    setArgoCdReadonlyGroups("");
-    setArgoCdSyncStrategy("auto");
-    setArgoCdGitUrl("");
-
-    setShowArgoCd(true);
-
-    try {
-      if (!env) throw new Error("Missing env");
-      const resp = await fetch(
-        `/api/v1/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
-        { headers: { Accept: "application/json" } }
-      );
-      if (resp.ok) {
-        const parsed = await resp.json();
-        setArgoCdExists(Boolean(parsed?.exists));
-        setArgoCdAdminGroups(String(parsed?.argocd_admin_groups || ""));
-        setArgoCdOperatorGroups(String(parsed?.argocd_operator_groups || ""));
-        setArgoCdReadonlyGroups(String(parsed?.argocd_readonly_groups || ""));
-        setArgoCdSyncStrategy(String(parsed?.argocd_sync_strategy || "auto") || "auto");
-        setArgoCdGitUrl(String(parsed?.gitrepourl || ""));
-      }
-    } catch {
-      // Best-effort prefill; keep modal open with defaults.
-    }
-  }
-
-  function closeArgoCd() {
-    setShowArgoCd(false);
-  }
-
-  async function onSubmitArgoCd() {
-    try {
-      const name = String(argoCdAppName || "").trim();
-      if (!name) throw new Error("App Name is required.");
-      if (!env) throw new Error("Environment is required.");
-      const payload = {
-        argocd_admin_groups: String(argoCdAdminGroups || "").trim(),
-        argocd_operator_groups: String(argoCdOperatorGroups || "").trim(),
-        argocd_readonly_groups: String(argoCdReadonlyGroups || "").trim(),
-        argocd_sync_strategy: String(argoCdSyncStrategy || "").trim(),
-        gitrepourl: String(argoCdGitUrl || "").trim(),
-      };
-
-      const resp = await fetch(
-        `/api/v1/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
-        {
-          method: "PUT",
-          headers: { Accept: "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
-      }
-      setArgoCdExists(true);
-      setShowArgoCd(false);
-      if (typeof onRefreshApps === "function") {
-        await onRefreshApps();
-      }
-    } catch (e) {
-      alert(e?.message || String(e));
-    }
-  }
-
-  async function onDeleteArgoCd() {
-    try {
-      const name = String(argoCdAppName || "").trim();
-      if (!name) throw new Error("App Name is required.");
-      if (!env) throw new Error("Environment is required.");
-
-      const resp = await fetch(
-        `/api/v1/apps/${encodeURIComponent(name)}/argocd?env=${encodeURIComponent(env)}`,
-        { method: "DELETE", headers: { Accept: "application/json" } }
-      );
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
-      }
-
-      setArgoCdExists(false);
-      setArgoCdAdminGroups("");
-      setArgoCdOperatorGroups("");
-      setArgoCdReadonlyGroups("");
-      setArgoCdSyncStrategy("auto");
-      setArgoCdGitUrl("");
-      setShowArgoCd(false);
-      if (typeof onRefreshApps === "function") {
-        await onRefreshApps();
-      }
-    } catch (e) {
-      alert(e?.message || String(e));
-    }
-  }
-
-  const canSubmitEdit = Boolean(
-    (editAppName || "").trim() && (editDescription || "").trim() && (editManagedBy || "").trim(),
-  );
-
-  function openEditApp(row) {
-    const r = row || {};
-    const name = String(r?.appname || "");
-    setEditAppName(name);
-    setEditDescription(String(r?.description || ""));
-    setEditManagedBy(String(r?.managedby || ""));
-    setShowEdit(true);
-  }
-
-  async function onSubmitEdit() {
-    try {
-      if (typeof onUpdateApp !== "function") return;
-      const target = String(editAppName || "").trim();
-      if (!target) throw new Error("App Name is required.");
-      await onUpdateApp(target, {
-        appname: target,
-        description: editDescription,
-        managedby: editManagedBy,
-      });
-      setShowEdit(false);
-    } catch (e) {
-      alert(e?.message || String(e));
-    }
-  }
 
   return (
     <div className="card">
@@ -251,22 +123,7 @@ function AppsTableView({
               <button
                 className="btn btn-primary"
                 type="button"
-                onClick={async () => {
-                  try {
-                    if (typeof onCreateApp !== "function") return;
-                    await onCreateApp({
-                      appname: newAppName,
-                      description: newDescription,
-                      managedby: newManagedBy,
-                    });
-                    onCloseCreate();
-                    setNewAppName("");
-                    setNewDescription("");
-                    setNewManagedBy("");
-                  } catch (e) {
-                    alert(e?.message || String(e));
-                  }
-                }}
+                onClick={onCreateApp}
                 disabled={!canSubmitCreate}
                 data-testid="submit-app-btn"
               >

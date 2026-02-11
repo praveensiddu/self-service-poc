@@ -8,8 +8,27 @@ function NamespaceRoleBindingsCard({
 }) {
   const readonly = Boolean(header?.readonly);
   const isEditingRoleBindings = Boolean(header?.isEditing);
+
+  // YAML preview modal state
+  const [yamlPreview, setYamlPreview] = React.useState({ isOpen: false, yaml: "", title: "" });
+
+  async function showYamlPreview(yaml, title = "RoleBinding Definition") {
+    setYamlPreview({ isOpen: true, yaml, title });
+  }
+
+  function closeYamlPreview() {
+    setYamlPreview({ isOpen: false, yaml: "", title: "" });
+  }
+
   return (
     <div className="dashboardCard">
+      <YamlPreviewModal
+        isOpen={yamlPreview.isOpen}
+        onClose={closeYamlPreview}
+        title={yamlPreview.title}
+        yaml={yamlPreview.yaml}
+        titleColor="#0d6efd"
+      />
       <NamespaceBlockHeader
         icon={(
           <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '8px' }}>
@@ -133,57 +152,16 @@ function NamespaceRoleBindingsCard({
                             <button
                               className="iconBtn iconBtn-plain"
                               onClick={async () => {
-                                const roleYaml = await fetchRoleBindingYaml({
-                                  subjects: entry.subjects || [],
-                                  roleRef: entry.roleRef,
-                                  bindingIndex: idx,
-                                });
-
-                                const modal = document.createElement('div');
-                                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                const modalContent = document.createElement('div');
-                                modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                const header = document.createElement('div');
-                                header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                const closeBtn = document.createElement('button');
-                                closeBtn.innerHTML = '&times;';
-                                closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                closeBtn.onclick = () => modal.remove();
-                                header.appendChild(closeBtn);
-
-                                const pre = document.createElement('pre');
-                                pre.textContent = roleYaml;
-                                pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                const footer = document.createElement('div');
-                                footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                const copyBtn = document.createElement('button');
-                                copyBtn.textContent = 'Copy';
-                                copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                copyBtn.onclick = () => {
-                                  navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                };
-
-                                const closeBtn2 = document.createElement('button');
-                                closeBtn2.textContent = 'Close';
-                                closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                closeBtn2.onclick = () => modal.remove();
-
-                                footer.appendChild(copyBtn);
-                                footer.appendChild(closeBtn2);
-
-                                modalContent.appendChild(header);
-                                modalContent.appendChild(pre);
-                                modalContent.appendChild(footer);
-                                modal.appendChild(modalContent);
-
-                                document.body.appendChild(modal);
-                                modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                try {
+                                  const roleYaml = await fetchRoleBindingYaml({
+                                    subjects: entry.subjects || [],
+                                    roleRef: entry.roleRef,
+                                    bindingIndex: idx,
+                                  });
+                                  showYamlPreview(roleYaml, "RoleBinding Details");
+                                } catch (e) {
+                                  alert(e?.message || String(e));
+                                }
                               }}
                               aria-label="View YAML"
                               title="View YAML description"
@@ -329,57 +307,16 @@ function NamespaceRoleBindingsCard({
                                 <button
                                   className="iconBtn iconBtn-plain"
                                   onClick={async () => {
-                                    const roleYaml = await fetchRoleBindingYaml({
-                                      subjects: entry.subjects || [],
-                                      roleRef: entry.roleRef,
-                                      bindingIndex: idx,
-                                    });
-
-                                    const modal = document.createElement('div');
-                                    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                    const modalContent = document.createElement('div');
-                                    modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                    const header = document.createElement('div');
-                                    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                    header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                    const closeBtn = document.createElement('button');
-                                    closeBtn.innerHTML = '&times;';
-                                    closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                    closeBtn.onclick = () => modal.remove();
-                                    header.appendChild(closeBtn);
-
-                                    const pre = document.createElement('pre');
-                                    pre.textContent = roleYaml;
-                                    pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                    const footer = document.createElement('div');
-                                    footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                    const copyBtn = document.createElement('button');
-                                    copyBtn.textContent = 'Copy';
-                                    copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                    copyBtn.onclick = () => {
-                                      navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                    };
-
-                                    const closeBtn2 = document.createElement('button');
-                                    closeBtn2.textContent = 'Close';
-                                    closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                    closeBtn2.onclick = () => modal.remove();
-
-                                    footer.appendChild(copyBtn);
-                                    footer.appendChild(closeBtn2);
-
-                                    modalContent.appendChild(header);
-                                    modalContent.appendChild(pre);
-                                    modalContent.appendChild(footer);
-                                    modal.appendChild(modalContent);
-
-                                    document.body.appendChild(modal);
-                                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                    try {
+                                      const roleYaml = await fetchRoleBindingYaml({
+                                        subjects: entry.subjects || [],
+                                        roleRef: entry.roleRef,
+                                        bindingIndex: idx,
+                                      });
+                                      showYamlPreview(roleYaml, "RoleBinding Details");
+                                    } catch (e) {
+                                      alert(e?.message || String(e));
+                                    }
                                   }}
                                   aria-label="View YAML"
                                   title="View YAML description"
@@ -433,57 +370,16 @@ function NamespaceRoleBindingsCard({
                           <button
                             className="iconBtn iconBtn-plain"
                             onClick={async () => {
-                              const roleYaml = await fetchRoleBindingYaml({
-                                subjects: subjects,
-                                roleRef: binding.roleRef,
-                                bindingIndex: idx,
-                              });
-
-                              const modal = document.createElement('div');
-                              modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                              const modalContent = document.createElement('div');
-                              modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                              const header = document.createElement('div');
-                              header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                              header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                              const closeBtn = document.createElement('button');
-                              closeBtn.innerHTML = '&times;';
-                              closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                              closeBtn.onclick = () => modal.remove();
-                              header.appendChild(closeBtn);
-
-                              const pre = document.createElement('pre');
-                              pre.textContent = roleYaml;
-                              pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                              const footer = document.createElement('div');
-                              footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                              const copyBtn = document.createElement('button');
-                              copyBtn.textContent = 'Copy';
-                              copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                              copyBtn.onclick = () => {
-                                navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                              };
-
-                              const closeBtn2 = document.createElement('button');
-                              closeBtn2.textContent = 'Close';
-                              closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                              closeBtn2.onclick = () => modal.remove();
-
-                              footer.appendChild(copyBtn);
-                              footer.appendChild(closeBtn2);
-
-                              modalContent.appendChild(header);
-                              modalContent.appendChild(pre);
-                              modalContent.appendChild(footer);
-                              modal.appendChild(modalContent);
-
-                              document.body.appendChild(modal);
-                              modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                              try {
+                                const roleYaml = await fetchRoleBindingYaml({
+                                  subjects: subjects,
+                                  roleRef: binding.roleRef,
+                                  bindingIndex: idx,
+                                });
+                                showYamlPreview(roleYaml, "RoleBinding Details");
+                              } catch (e) {
+                                alert(e?.message || String(e));
+                              }
                             }}
                             aria-label="View YAML"
                             title="View YAML description"
@@ -511,57 +407,16 @@ function NamespaceRoleBindingsCard({
                               <button
                                 className="iconBtn iconBtn-plain"
                                 onClick={async () => {
-                                  const roleYaml = await fetchRoleBindingYaml({
-                                    subjects: subjects,
-                                    roleRef: binding.roleRef,
-                                    bindingIndex: idx,
-                                  });
-
-                                  const modal = document.createElement('div');
-                                  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
-
-                                  const modalContent = document.createElement('div');
-                                  modalContent.style.cssText = 'background: white; padding: 24px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-
-                                  const header = document.createElement('div');
-                                  header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; padding-bottom: 12px;';
-                                  header.innerHTML = '<h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #0d6efd;">RoleBinding Details</h3>';
-
-                                  const closeBtn = document.createElement('button');
-                                  closeBtn.innerHTML = '&times;';
-                                  closeBtn.style.cssText = 'border: none; background: none; font-size: 24px; cursor: pointer; color: #6c757d;';
-                                  closeBtn.onclick = () => modal.remove();
-                                  header.appendChild(closeBtn);
-
-                                  const pre = document.createElement('pre');
-                                  pre.textContent = roleYaml;
-                                  pre.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0; font-family: "Courier New", monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;';
-
-                                  const footer = document.createElement('div');
-                                  footer.style.cssText = 'margin-top: 16px; text-align: right;';
-
-                                  const copyBtn = document.createElement('button');
-                                  copyBtn.textContent = 'Copy';
-                                  copyBtn.style.cssText = 'padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 8px;';
-                                  copyBtn.onclick = () => {
-                                    navigator.clipboard.writeText(roleYaml).then(() => alert('Copied to clipboard!'));
-                                  };
-
-                                  const closeBtn2 = document.createElement('button');
-                                  closeBtn2.textContent = 'Close';
-                                  closeBtn2.style.cssText = 'padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;';
-                                  closeBtn2.onclick = () => modal.remove();
-
-                                  footer.appendChild(copyBtn);
-                                  footer.appendChild(closeBtn2);
-
-                                  modalContent.appendChild(header);
-                                  modalContent.appendChild(pre);
-                                  modalContent.appendChild(footer);
-                                  modal.appendChild(modalContent);
-
-                                  document.body.appendChild(modal);
-                                  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                                  try {
+                                    const roleYaml = await fetchRoleBindingYaml({
+                                      subjects: subjects,
+                                      roleRef: binding.roleRef,
+                                      bindingIndex: idx,
+                                    });
+                                    showYamlPreview(roleYaml, "RoleBinding Details");
+                                  } catch (e) {
+                                    alert(e?.message || String(e));
+                                  }
                                 }}
                                 aria-label="View YAML"
                                 title="View YAML description"

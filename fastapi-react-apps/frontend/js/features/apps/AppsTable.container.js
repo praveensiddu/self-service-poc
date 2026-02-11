@@ -1,51 +1,205 @@
-function AppsTable({ rows, env, onRefreshApps, clustersByApp, availableClusters, selectedApps, onToggleRow, onSelectAll, onDeleteApp, onViewDetails, onCreateApp, onUpdateApp, showCreate, onOpenCreate, onCloseCreate, requestsChanges, readonly }) {
-  const [filters, setFilters] = React.useState({
-    appname: "",
-    description: "",
-    managedby: "",
-    clusters: "",
-    namespaces: "",
-    argocd: "",
+function AppsTable({
+  rows,
+  env,
+  clustersByApp,
+  selectedApps,
+  onToggleRow,
+  onSelectAll,
+  onDeleteApp,
+  onViewDetails,
+  onCreateApp,
+  showCreate,
+  onCloseCreate,
+  requestsChanges,
+  readonly,
+}) {
+  // Centralized filtering and sorting
+  const {
+    sortedRows,
+    filters,
+    setFilters
+  } = useTableFilter({
+    rows,
+    initialFilters: {
+      appname: "",
+      description: "",
+      managedby: "",
+      clusters: "",
+      namespaces: "",
+      argocd: "",
+    },
+    fieldMapping: (app) => ({
+      appname: safeTrim(app?.appname),
+      description: safeTrim(app?.description),
+      managedby: safeTrim(app?.managedby),
+      clusters: (clustersByApp?.[app?.appname] || []).join(", "),
+      namespaces: String(app?.totalns || ""),
+      argocd: String(Boolean(app?.argocd)),
+    }),
+    sortBy: (a, b) => {
+      const an = safeTrim(a?.appname).toLowerCase();
+      const bn = safeTrim(b?.appname).toLowerCase();
+      return an.localeCompare(bn);
+    },
   });
 
-  function formatValue(val) {
-    if (val === null || val === undefined) return "";
-    if (Array.isArray(val)) return val.join(", ");
-    if (typeof val === "object") {
-      try {
-        return JSON.stringify(val);
-      } catch {
-        return String(val);
-      }
+  const allSelected = React.useMemo(() => {
+    return sortedRows.length > 0 && sortedRows.every((a) => selectedApps.has(a.appname));
+  }, [sortedRows, selectedApps]);
+
+  // Modal and form state
+  const [newAppName, setNewAppName] = React.useState("");
+  const [newDescription, setNewDescription] = React.useState("");
+  const [newManagedBy, setNewManagedBy] = React.useState("");
+
+  const canSubmitCreate = React.useMemo(() => {
+    return isNonEmptyString(newAppName) && isNonEmptyString(newDescription) && isNonEmptyString(newManagedBy);
+  }, [newAppName, newDescription, newManagedBy]);
+
+  const [showEdit, setShowEdit] = React.useState(false);
+  const [editAppName, setEditAppName] = React.useState("");
+  const [editDescription, setEditDescription] = React.useState("");
+  const [editManagedBy, setEditManagedBy] = React.useState("");
+
+  const [showArgoCd, setShowArgoCd] = React.useState(false);
+  const [argoCdAppName, setArgoCdAppName] = React.useState("");
+  const [argoCdExists, setArgoCdExists] = React.useState(false);
+  const [argoCdAdminGroups, setArgoCdAdminGroups] = React.useState("");
+  const [argoCdOperatorGroups, setArgoCdOperatorGroups] = React.useState("");
+  const [argoCdReadonlyGroups, setArgoCdReadonlyGroups] = React.useState("");
+  const [argoCdSyncStrategy, setArgoCdSyncStrategy] = React.useState("auto");
+  const [argoCdGitUrl, setArgoCdGitUrl] = React.useState("");
+
+  const canSubmitArgoCd = React.useMemo(() => {
+    return isNonEmptyString(argoCdGitUrl);
+  }, [argoCdGitUrl]);
+
+  async function openArgoCd(row) {
+    const r = row || {};
+    const name = safeTrim(r?.appname);
+    setArgoCdAppName(name);
+    setArgoCdExists(Boolean(r?.argocd));
+
+    setArgoCdAdminGroups("");
+    setArgoCdOperatorGroups("");
+    setArgoCdReadonlyGroups("");
+    setArgoCdSyncStrategy("auto");
+    setArgoCdGitUrl("");
+
+    setShowArgoCd(true);
+
+    try {
+      if (!env) throw new Error("Missing env");
+      const parsed = await loadAppArgoCD(env, name);
+      setArgoCdExists(Boolean(parsed?.exists));
+      setArgoCdAdminGroups(safeTrim(parsed?.argocd_admin_groups));
+      setArgoCdOperatorGroups(safeTrim(parsed?.argocd_operator_groups));
+      setArgoCdReadonlyGroups(safeTrim(parsed?.argocd_readonly_groups));
+      setArgoCdSyncStrategy(safeTrim(parsed?.argocd_sync_strategy) || "auto");
+      setArgoCdGitUrl(safeTrim(parsed?.gitrepourl));
+    } catch {
+      // Best-effort prefill; keep modal open with defaults.
     }
-    return String(val);
   }
 
-  const filteredRows = (rows || []).filter((a) => {
-    const appname = formatValue(a?.appname).toLowerCase();
-    const description = formatValue(a?.description).toLowerCase();
-    const managedby = formatValue(a?.managedby).toLowerCase();
-    const clusters = formatValue((clustersByApp?.[a?.appname] || []).join(", ")).toLowerCase();
-    const namespacesCount = formatValue(a?.totalns).toLowerCase();
-    const argocd = String(Boolean(a?.argocd)).toLowerCase();
+  function closeArgoCd() {
+    setShowArgoCd(false);
+  }
 
-    return (
-      appname.includes((filters.appname || "").toLowerCase()) &&
-      description.includes((filters.description || "").toLowerCase()) &&
-      managedby.includes((filters.managedby || "").toLowerCase()) &&
-      clusters.includes((filters.clusters || "").toLowerCase()) &&
-      namespacesCount.includes((filters.namespaces || "").toLowerCase()) &&
-      argocd.includes((filters.argocd || "").toLowerCase())
-    );
-  });
+  async function onSubmitArgoCd() {
+    try {
+      const name = safeTrim(argoCdAppName);
+      if (!name) throw new Error("App Name is required.");
+      if (!env) throw new Error("Environment is required.");
 
-  const sortedRows = [...filteredRows].sort((a, b) => {
-    const an = formatValue(a?.appname).toLowerCase();
-    const bn = formatValue(b?.appname).toLowerCase();
-    return an.localeCompare(bn);
-  });
+      const payload = {
+        argocd_admin_groups: safeTrim(argoCdAdminGroups),
+        argocd_operator_groups: safeTrim(argoCdOperatorGroups),
+        argocd_readonly_groups: safeTrim(argoCdReadonlyGroups),
+        argocd_sync_strategy: safeTrim(argoCdSyncStrategy),
+        gitrepourl: safeTrim(argoCdGitUrl),
+      };
 
-  const allSelected = sortedRows.length > 0 && sortedRows.every((a) => selectedApps.has(a.appname));
+      await saveAppArgoCD(env, name, payload);
+
+      setArgoCdExists(true);
+      setShowArgoCd(false);
+      if (typeof onRefreshApps === "function") {
+        await onRefreshApps();
+      }
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
+
+  async function onDeleteArgoCd() {
+    try {
+      const name = safeTrim(argoCdAppName);
+      if (!name) throw new Error("App Name is required.");
+      if (!env) throw new Error("Environment is required.");
+
+      await deleteAppArgoCD(env, name);
+
+      setArgoCdExists(false);
+      setArgoCdAdminGroups("");
+      setArgoCdOperatorGroups("");
+      setArgoCdReadonlyGroups("");
+      setArgoCdSyncStrategy("auto");
+      setArgoCdGitUrl("");
+      setShowArgoCd(false);
+      if (typeof onRefreshApps === "function") {
+        await onRefreshApps();
+      }
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
+
+  const canSubmitEdit = React.useMemo(() => {
+    return isNonEmptyString(editAppName) && isNonEmptyString(editDescription) && isNonEmptyString(editManagedBy);
+  }, [editAppName, editDescription, editManagedBy]);
+
+  function openEditApp(row) {
+    const r = row || {};
+    const name = safeTrim(r?.appname);
+    setEditAppName(name);
+    setEditDescription(safeTrim(r?.description));
+    setEditManagedBy(safeTrim(r?.managedby));
+    setShowEdit(true);
+  }
+
+  async function onSubmitEdit() {
+    try {
+      if (typeof onUpdateApp !== "function") return;
+      const target = safeTrim(editAppName);
+      if (!target) throw new Error("App Name is required.");
+      await onUpdateApp(target, {
+        appname: target,
+        description: editDescription,
+        managedby: editManagedBy,
+      });
+      setShowEdit(false);
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
+
+  async function onSubmitCreate() {
+    try {
+      if (typeof onCreateApp !== "function") return;
+      await onCreateApp({
+        appname: newAppName,
+        description: newDescription,
+        managedby: newManagedBy,
+      });
+      onCloseCreate();
+      setNewAppName("");
+      setNewDescription("");
+      setNewManagedBy("");
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
 
   return (
     <AppsTableView
@@ -54,21 +208,52 @@ function AppsTable({ rows, env, onRefreshApps, clustersByApp, availableClusters,
       filters={filters}
       setFilters={setFilters}
       env={env}
-      onRefreshApps={onRefreshApps}
       clustersByApp={clustersByApp}
-      availableClusters={availableClusters}
       selectedApps={selectedApps}
       onToggleRow={onToggleRow}
       onSelectAll={onSelectAll}
       onDeleteApp={onDeleteApp}
       onViewDetails={onViewDetails}
-      onCreateApp={onCreateApp}
-      onUpdateApp={onUpdateApp}
+      onCreateApp={onSubmitCreate}
       showCreate={showCreate}
-      onOpenCreate={onOpenCreate}
       onCloseCreate={onCloseCreate}
       requestsChanges={requestsChanges}
       readonly={readonly}
+      newAppName={newAppName}
+      setNewAppName={setNewAppName}
+      newDescription={newDescription}
+      setNewDescription={setNewDescription}
+      newManagedBy={newManagedBy}
+      setNewManagedBy={setNewManagedBy}
+      canSubmitCreate={canSubmitCreate}
+      showEdit={showEdit}
+      setShowEdit={setShowEdit}
+      editAppName={editAppName}
+      editDescription={editDescription}
+      setEditDescription={setEditDescription}
+      editManagedBy={editManagedBy}
+      setEditManagedBy={setEditManagedBy}
+      canSubmitEdit={canSubmitEdit}
+      openEditApp={openEditApp}
+      onSubmitEdit={onSubmitEdit}
+      showArgoCd={showArgoCd}
+      argoCdAppName={argoCdAppName}
+      argoCdExists={argoCdExists}
+      argoCdAdminGroups={argoCdAdminGroups}
+      setArgoCdAdminGroups={setArgoCdAdminGroups}
+      argoCdOperatorGroups={argoCdOperatorGroups}
+      setArgoCdOperatorGroups={setArgoCdOperatorGroups}
+      argoCdReadonlyGroups={argoCdReadonlyGroups}
+      setArgoCdReadonlyGroups={setArgoCdReadonlyGroups}
+      argoCdSyncStrategy={argoCdSyncStrategy}
+      setArgoCdSyncStrategy={setArgoCdSyncStrategy}
+      argoCdGitUrl={argoCdGitUrl}
+      setArgoCdGitUrl={setArgoCdGitUrl}
+      canSubmitArgoCd={canSubmitArgoCd}
+      openArgoCd={openArgoCd}
+      closeArgoCd={closeArgoCd}
+      onSubmitArgoCd={onSubmitArgoCd}
+      onDeleteArgoCd={onDeleteArgoCd}
     />
   );
 }

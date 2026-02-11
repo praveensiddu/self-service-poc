@@ -1,12 +1,11 @@
+/**
+ * L4IngressTable Container
+ *
+ * Note: Uses global API helpers from services/apiClient.js (fetchJson, putJson, postJson, deleteJson)
+ */
+
 function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   const [localItems, setLocalItems] = React.useState(Array.isArray(items) ? items : []);
-  const [filters, setFilters] = React.useState({
-    cluster: "",
-    purpose: "",
-    requested: "",
-    allocated: "",
-    allocatedIps: "",
-  });
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [addClusters, setAddClusters] = React.useState([]);
@@ -28,51 +27,11 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
 
   React.useEffect(() => {
     setLocalItems(Array.isArray(items) ? items : []);
-    // Refresh cluster info when items change (e.g., after cluster deletion)
     if (env && appname) {
       fetchClustersInfo();
     }
   }, [items, env, appname]);
 
-  async function readErrorMessage(res) {
-    try {
-      const text = await res.text();
-      if (!text) return `HTTP ${res.status}`;
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed && typeof parsed === "object" && parsed.detail) return String(parsed.detail);
-      } catch {
-        // ignore
-      }
-      return text;
-    } catch {
-      return `HTTP ${res.status}`;
-    }
-  }
-
-  async function putJson(url, body) {
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-    });
-    if (!res.ok) {
-      throw new Error(await readErrorMessage(res));
-    }
-    return await res.json();
-  }
-
-  async function postJson(url, body) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-    });
-    if (!res.ok) {
-      throw new Error(await readErrorMessage(res));
-    }
-    return await res.json();
-  }
 
   async function fetchClustersForApp() {
     if (!env) throw new Error("No env selected.");
@@ -260,81 +219,127 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     }
   }
 
-  function formatValue(val) {
-    if (val === null || val === undefined) return "";
-    if (Array.isArray(val)) return val.join(", ");
-    if (typeof val === "object") {
-      try {
-        return JSON.stringify(val);
-      } catch {
-        return String(val);
-      }
+  async function onAllocateRow(row) {
+    try {
+      if (!env) throw new Error("No env selected.");
+      if (!appname) throw new Error("No app selected.");
+      if (!row) return;
+      const cluster_no = String(row.clusterNoRaw || row.clusterNo || "").trim();
+      const purpose = String(row.purpose || "").trim();
+      if (!cluster_no) throw new Error("Missing cluster.");
+      if (!purpose) throw new Error("Missing purpose.");
+
+      const resp = await postJson(
+        `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress/allocate?env=${encodeURIComponent(env)}`,
+        { cluster_no, purpose },
+      );
+
+      const allocated_total = Number(resp?.allocated_total ?? row.allocatedRaw ?? 0);
+      const ips = Array.isArray(resp?.allocated_ips) ? resp.allocated_ips : [];
+
+      setLocalItems((prev) =>
+        (Array.isArray(prev) ? prev : []).map((it) => {
+          if (String(it?.cluster_no || "") === cluster_no && String(it?.purpose || "") === purpose) {
+            return {
+              ...it,
+              allocated_total,
+              allocations: ips.length
+                ? [{ name: String(resp?.key || ""), purpose, ips }]
+                : (Array.isArray(it?.allocations) ? it.allocations : []),
+            };
+          }
+          return it;
+        }),
+      );
+    } catch (e) {
+      alert(e?.message || String(e));
     }
-    return String(val);
   }
 
-  const rows = (localItems || []).map((it, idx) => {
-    const allocationIds = (it?.allocations || []).map((a) => a?.name).filter(Boolean);
-    const purpose = formatValue(it?.purpose);
-    const allocationIdText = allocationIds.length ? allocationIds.join(", ") : purpose;
-    const key = `${it?.cluster_no || ""}::${allocationIdText || idx}`;
+  function onCloseAdd() {
+    setAddOpen(false);
+  }
 
-    const allocatedIpsList = (it?.allocations || [])
-      .flatMap((a) => (Array.isArray(a?.ips) ? a.ips : []))
-      .filter(Boolean);
-    const allocatedIps = Array.from(new Set(allocatedIpsList));
+  function onCloseEdit() {
+    setEditOpen(false);
+  }
 
-    const requestedRaw = Number(it?.requested_total ?? 0);
-    const allocatedRaw = Number(it?.allocated_total ?? 0);
+  function onCloseErrorModal() {
+    setErrorModalOpen(false);
+  }
 
-    const clusterNoRaw = String(it?.cluster_no || "");
-    const hasIpRange = hasIpRangeForCluster(clusterNoRaw);
+  // Transform and sort rows
+  const rows = React.useMemo(() => {
+    return (localItems || []).map((it, idx) => {
+      const allocationIds = (it?.allocations || []).map((a) => a?.name).filter(Boolean);
+      const purpose = formatTableValue(it?.purpose);
+      const allocationIdText = allocationIds.length ? allocationIds.join(", ") : purpose;
+      const key = `${it?.cluster_no || ""}::${allocationIdText || idx}`;
 
-    return {
-      key,
-      clusterNoRaw,
-      clusterNo: formatValue(it?.cluster_no),
-      purpose,
-      requested: formatValue(it?.requested_total),
-      allocated: formatValue(it?.allocated_total),
-      requestedRaw,
-      allocatedRaw,
-      allocatedIps: formatValue(allocatedIps),
-      hasIpRange,
-    };
-  }).sort((a, b) => {
-    const an = String(a?.clusterNoRaw || "").trim();
-    const bn = String(b?.clusterNoRaw || "").trim();
+      const allocatedIpsList = (it?.allocations || [])
+        .flatMap((a) => (Array.isArray(a?.ips) ? a.ips : []))
+        .filter(Boolean);
+      const allocatedIps = Array.from(new Set(allocatedIpsList));
 
-    const ai = Number(an);
-    const bi = Number(bn);
-    const aNum = Number.isFinite(ai) && String(Math.floor(ai)) === an;
-    const bNum = Number.isFinite(bi) && String(Math.floor(bi)) === bn;
+      const requestedRaw = Number(it?.requested_total ?? 0);
+      const allocatedRaw = Number(it?.allocated_total ?? 0);
 
-    if (aNum && bNum) {
-      if (ai !== bi) return ai - bi;
-    } else {
-      const c = an.localeCompare(bn, undefined, { numeric: true, sensitivity: "base" });
-      if (c !== 0) return c;
-    }
+      const clusterNoRaw = String(it?.cluster_no || "");
+      const hasIpRange = hasIpRangeForCluster(clusterNoRaw);
 
-    return String(a?.purpose || "").localeCompare(String(b?.purpose || ""), undefined, { sensitivity: "base" });
-  });
+      return {
+        key,
+        clusterNoRaw,
+        clusterNo: formatTableValue(it?.cluster_no),
+        purpose,
+        requested: formatTableValue(it?.requested_total),
+        allocated: formatTableValue(it?.allocated_total),
+        requestedRaw,
+        allocatedRaw,
+        allocatedIps: formatTableValue(allocatedIps),
+        hasIpRange,
+      };
+    }).sort((a, b) => {
+      const an = String(a?.clusterNoRaw || "").trim();
+      const bn = String(b?.clusterNoRaw || "").trim();
 
-  const filteredRows = rows.filter((r) => {
-    const cluster = (r.clusterNo || "").toLowerCase();
-    const purpose = (r.purpose || "").toLowerCase();
-    const requested = (r.requested || "").toLowerCase();
-    const allocated = (r.allocated || "").toLowerCase();
-    const allocatedIps = (r.allocatedIps || "").toLowerCase();
+      const ai = Number(an);
+      const bi = Number(bn);
+      const aNum = Number.isFinite(ai) && String(Math.floor(ai)) === an;
+      const bNum = Number.isFinite(bi) && String(Math.floor(bi)) === bn;
 
-    return (
-      cluster.includes((filters.cluster || "").toLowerCase()) &&
-      purpose.includes((filters.purpose || "").toLowerCase()) &&
-      requested.includes((filters.requested || "").toLowerCase()) &&
-      allocated.includes((filters.allocated || "").toLowerCase()) &&
-      allocatedIps.includes((filters.allocatedIps || "").toLowerCase())
-    );
+      if (aNum && bNum) {
+        if (ai !== bi) return ai - bi;
+      } else {
+        const c = an.localeCompare(bn, undefined, { numeric: true, sensitivity: "base" });
+        if (c !== 0) return c;
+      }
+
+      return String(a?.purpose || "").localeCompare(String(b?.purpose || ""), undefined, { sensitivity: "base" });
+    });
+  }, [localItems, clusters]);
+
+  // Use centralized filtering hook
+  const {
+    sortedRows: filteredRows,
+    filters,
+    setFilters,
+  } = useTableFilter({
+    rows,
+    initialFilters: {
+      cluster: "",
+      purpose: "",
+      requested: "",
+      allocated: "",
+      allocatedIps: "",
+    },
+    fieldMapping: (row) => ({
+      cluster: safeTrim(row?.clusterNo),
+      purpose: safeTrim(row?.purpose),
+      requested: safeTrim(row?.requested),
+      allocated: safeTrim(row?.allocated),
+      allocatedIps: safeTrim(row?.allocatedIps),
+    }),
   });
 
   React.useEffect(() => {
@@ -355,240 +360,41 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   }, [renderAddButton, onOpenAdd, readonly]);
 
   return (
-    <>
-      {typeof renderAddButton !== 'function' && !readonly && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <button className="btn btn-primary" type="button" onClick={onOpenAdd}>
-            + Add
-          </button>
-        </div>
-      )}
-      <L4IngressTableView
-        filters={filters}
-        setFilters={setFilters}
-        rows={rows}
-        filteredRows={filteredRows}
-        onEditRow={onEditRow}
-        readonly={readonly}
-        onAllocateRow={async (row) => {
-          try {
-            if (!env) throw new Error("No env selected.");
-            if (!appname) throw new Error("No app selected.");
-            if (!row) return;
-            const cluster_no = String(row.clusterNoRaw || row.clusterNo || "").trim();
-            const purpose = String(row.purpose || "").trim();
-            if (!cluster_no) throw new Error("Missing cluster.");
-            if (!purpose) throw new Error("Missing purpose.");
-
-            const resp = await postJson(
-              `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress/allocate?env=${encodeURIComponent(env)}`,
-              { cluster_no, purpose },
-            );
-
-            const allocated_total = Number(resp?.allocated_total ?? row.allocatedRaw ?? 0);
-            const ips = Array.isArray(resp?.allocated_ips) ? resp.allocated_ips : [];
-
-            setLocalItems((prev) =>
-              (Array.isArray(prev) ? prev : []).map((it) => {
-                if (String(it?.cluster_no || "") === cluster_no && String(it?.purpose || "") === purpose) {
-                  return {
-                    ...it,
-                    allocated_total,
-                    allocations: ips.length
-                      ? [{ name: String(resp?.key || ""), purpose, ips }]
-                      : (Array.isArray(it?.allocations) ? it.allocations : []),
-                  };
-                }
-                return it;
-              }),
-            );
-          } catch (e) {
-            alert(e?.message || String(e));
-          }
-        }}
-      />
-      {addOpen ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setAddOpen(false);
-          }}
-          data-testid="add-l4-ingress-panel"
-        >
-          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16, overflow: "visible" }}>
-            <div className="muted" style={{ textAlign: "center", marginBottom: 8 }}>
-              Environment: {env || ""} App: {appname || ""}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700 }}>Add L4 Ingress Request</div>
-              <button className="btn" type="button" onClick={() => setAddOpen(false)}>
-                Close
-              </button>
-            </div>
-            {addError ? <div className="error" style={{ marginBottom: 10 }}>{addError}</div> : null}
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Cluster</div>
-                </div>
-                <select
-                  className="filterInput"
-                  value={addClusterNo}
-                  onChange={(e) => setAddClusterNo(e.target.value)}
-                  disabled={addSaving}
-                >
-                  <option value="">Select...</option>
-                  {(addClusters || []).map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Purpose</div>
-                </div>
-                <input
-                  className="filterInput"
-                  value={addPurpose}
-                  onChange={(e) => setAddPurpose(e.target.value)}
-                  disabled={addSaving}
-                />
-              </div>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Requested</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Whole number 0..256</div>
-                </div>
-                <input
-                  className="filterInput"
-                  type="number"
-                  min={0}
-                  max={256}
-                  step={1}
-                  value={addRequested}
-                  onChange={(e) => setAddRequested(e.target.value)}
-                  disabled={addSaving}
-                />
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button className="btn" type="button" onClick={() => setAddOpen(false)} disabled={addSaving}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" type="button" onClick={onSaveAdd} disabled={addSaving}>
-                {addSaving ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {editOpen ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEditOpen(false);
-          }}
-          data-testid="edit-l4-ingress-panel"
-        >
-          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16, overflow: "visible" }}>
-            <div className="muted" style={{ textAlign: "center", marginBottom: 8 }}>
-              Environment: {env || ""} App: {appname || ""}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700 }}>Edit L4 Ingress Requested</div>
-              <button className="btn" type="button" onClick={() => setEditOpen(false)}>
-                Close
-              </button>
-            </div>
-            {editError ? <div className="error" style={{ marginBottom: 10 }}>{editError}</div> : null}
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Cluster</div>
-                </div>
-                <input className="filterInput" value={String(editRow?.clusterNo || "")} disabled readOnly />
-              </div>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Purpose</div>
-                </div>
-                <input className="filterInput" value={String(editRow?.purpose || "")} disabled readOnly />
-              </div>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Requested</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Whole number</div>
-                </div>
-                <input
-                  className="filterInput"
-                  type="number"
-                  min={0}
-                  max={256}
-                  step={1}
-                  value={editRequested}
-                  onChange={(e) => setEditRequested(e.target.value)}
-                  disabled={editSaving}
-                />
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button className="btn" type="button" onClick={() => setEditOpen(false)} disabled={editSaving}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" type="button" onClick={onSaveEdit} disabled={editSaving}>
-                {editSaving ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {errorModalOpen ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setErrorModalOpen(false);
-          }}
-        >
-          <div className="card" style={{ width: 480, maxWidth: "92vw", padding: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700 }}>Error</div>
-              <button className="btn" type="button" onClick={() => setErrorModalOpen(false)}>
-                Close
-              </button>
-            </div>
-            <div className="error" style={{ marginBottom: 12 }}>{errorModalMessage}</div>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button className="btn btn-primary" type="button" onClick={() => setErrorModalOpen(false)}>
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
+    <L4IngressTableView
+      filters={filters}
+      setFilters={setFilters}
+      rows={rows}
+      filteredRows={filteredRows}
+      onEditRow={onEditRow}
+      onAllocateRow={onAllocateRow}
+      readonly={readonly}
+      renderAddButton={renderAddButton}
+      onOpenAdd={onOpenAdd}
+      addOpen={addOpen}
+      addClusters={addClusters}
+      addClusterNo={addClusterNo}
+      setAddClusterNo={setAddClusterNo}
+      addPurpose={addPurpose}
+      setAddPurpose={setAddPurpose}
+      addRequested={addRequested}
+      setAddRequested={setAddRequested}
+      addError={addError}
+      addSaving={addSaving}
+      onSaveAdd={onSaveAdd}
+      onCloseAdd={onCloseAdd}
+      editOpen={editOpen}
+      editRow={editRow}
+      editRequested={editRequested}
+      setEditRequested={setEditRequested}
+      editError={editError}
+      editSaving={editSaving}
+      onSaveEdit={onSaveEdit}
+      onCloseEdit={onCloseEdit}
+      errorModalOpen={errorModalOpen}
+      errorModalMessage={errorModalMessage}
+      onCloseErrorModal={onCloseErrorModal}
+      env={env}
+      appname={appname}
+    />
   );
 }

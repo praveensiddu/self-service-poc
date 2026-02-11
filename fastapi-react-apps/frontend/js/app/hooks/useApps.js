@@ -14,9 +14,12 @@
  * Custom hook for managing applications.
  * @param {Object} params - Hook parameters
  * @param {string} params.activeEnv - Currently active environment
+ * @param {Function} params.setLoading - Loading state setter
+ * @param {Function} params.setError - Error state setter
+ * @param {Function} params.setShowErrorModal - Error modal visibility setter
  * @returns {Object} - Apps state and operations
  */
-function useApps({ activeEnv }) {
+function useApps({ activeEnv, setLoading, setError, setShowErrorModal }) {
   const [apps, setApps] = React.useState({});
   const [clustersByApp, setClustersByApp] = React.useState({});
   const [selectedApps, setSelectedApps] = React.useState(new Set());
@@ -28,6 +31,22 @@ function useApps({ activeEnv }) {
   const appRows = React.useMemo(() => {
     return Object.keys(apps).map((k) => apps[k]);
   }, [apps]);
+
+  /**
+   * Load requests/changes for the current environment.
+   */
+  const refreshRequestsChangesData = React.useCallback(async () => {
+    if (!activeEnv) return;
+    try {
+      const data = await loadRequestsChanges(activeEnv);
+      setRequestsChanges({
+        apps: new Set(data.apps),
+        namespaces: new Set(data.namespaces),
+      });
+    } catch {
+      setRequestsChanges({ apps: new Set(), namespaces: new Set() });
+    }
+  }, [activeEnv]);
 
   /**
    * Load apps for the current environment.
@@ -59,23 +78,32 @@ function useApps({ activeEnv }) {
     setClustersByApp(nextClusters);
 
     await refreshRequestsChangesData();
-  }, [activeEnv]);
+  }, [activeEnv, refreshRequestsChangesData]);
 
   /**
    * Create a new application.
    * @param {{appname: string, description?: string, managedby?: string}} payload
    */
   const createApp = React.useCallback(async (payload) => {
-    await createAppApi(activeEnv, payload);
+    try {
+      setLoading(true);
+      setError("");
+      await createAppApi(activeEnv, payload);
 
-    const appsResp = await loadApps(activeEnv);
-    setApps(appsResp);
+      const appsResp = await loadApps(activeEnv);
+      setApps(appsResp);
 
-    const nextClusters = extractClustersByApp(appsResp);
-    setClustersByApp(nextClusters);
+      const nextClusters = extractClustersByApp(appsResp);
+      setClustersByApp(nextClusters);
 
-    await refreshRequestsChangesData();
-  }, [activeEnv]);
+      await refreshRequestsChangesData();
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, refreshRequestsChangesData, setLoading, setError]);
 
   /**
    * Update an existing application.
@@ -83,16 +111,25 @@ function useApps({ activeEnv }) {
    * @param {{description?: string, managedby?: string}} payload
    */
   const updateApp = React.useCallback(async (appname, payload) => {
-    await updateAppApi(activeEnv, appname, payload);
+    try {
+      setLoading(true);
+      setError("");
+      await updateAppApi(activeEnv, appname, payload);
 
-    const appsResp = await loadApps(activeEnv);
-    setApps(appsResp);
+      const appsResp = await loadApps(activeEnv);
+      setApps(appsResp);
 
-    const nextClusters = extractClustersByApp(appsResp);
-    setClustersByApp(nextClusters);
+      const nextClusters = extractClustersByApp(appsResp);
+      setClustersByApp(nextClusters);
 
-    await refreshRequestsChangesData();
-  }, [activeEnv]);
+      await refreshRequestsChangesData();
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, refreshRequestsChangesData, setLoading, setError]);
 
   /**
    * Delete an application.
@@ -105,27 +142,25 @@ function useApps({ activeEnv }) {
       return false;
     }
 
-    await deleteAppApi(activeEnv, appname);
+    try {
+      setLoading(true);
+      setError("");
+      await deleteAppApi(activeEnv, appname);
 
-    const appsResp = await loadApps(activeEnv);
-    setApps(appsResp);
+      const appsResp = await loadApps(activeEnv);
+      setApps(appsResp);
 
-    const nextClusters = extractClustersByApp(appsResp);
-    setClustersByApp(nextClusters);
+      const nextClusters = extractClustersByApp(appsResp);
+      setClustersByApp(nextClusters);
 
-    return true;
-  }, [activeEnv]);
-
-  /**
-   * Load requests/changes for the current environment.
-   */
-  const refreshRequestsChangesData = React.useCallback(async () => {
-    const data = await loadRequestsChanges(activeEnv);
-    setRequestsChanges({
-      apps: new Set(data.apps),
-      namespaces: new Set(data.namespaces),
-    });
-  }, [activeEnv]);
+      return true;
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, setLoading, setError]);
 
   /**
    * Toggle selection of all apps.
@@ -191,13 +226,9 @@ function useApps({ activeEnv }) {
   return {
     // State
     apps,
-    setApps,
     clustersByApp,
-    setClustersByApp,
     selectedApps,
-    setSelectedApps,
     requestsChanges,
-    setRequestsChanges,
     appRows,
 
     // Operations
