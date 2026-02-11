@@ -17,7 +17,7 @@ try:
     from pathlib import Path
 
     # Load .env.local from the project root
-    env_file = Path(__file__).parent.parent / ".env.local"
+    env_file = Path(__file__).parent.parent / ".env"
     load_dotenv(dotenv_path=env_file)
 except Exception:
     pass
