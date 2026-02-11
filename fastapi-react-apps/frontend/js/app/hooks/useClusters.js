@@ -14,9 +14,22 @@
  * @param {Object} params - Hook parameters
  * @param {string} params.activeEnv - Currently active environment
  * @param {string[]} params.envKeys - Available environment keys
+ * @param {Function} params.setLoading - Loading state setter
+ * @param {Function} params.setError - Error state setter
+ * @param {Function} params.setShowErrorModal - Error modal visibility setter
+ * @param {Function} params.setShowDeleteWarningModal - Delete warning modal visibility setter
+ * @param {Function} params.setDeleteWarningData - Delete warning data setter
  * @returns {Object} - Clusters state and operations
  */
-function useClusters({ activeEnv, envKeys }) {
+function useClusters({
+  activeEnv,
+  envKeys,
+  setLoading,
+  setError,
+  setShowErrorModal,
+  setShowDeleteWarningModal,
+  setDeleteWarningData
+}) {
   const [clustersByEnv, setClustersByEnv] = React.useState({});
 
   /**
@@ -53,15 +66,35 @@ function useClusters({ activeEnv, envKeys }) {
    */
   const addCluster = React.useCallback(async (payload, onRefreshApps) => {
     const env = activeEnv || (envKeys[0] || "");
-    if (!env) throw new Error("No environment selected.");
-
-    await createClusterApi(env, payload);
-    await refreshClusters(env);
-
-    if (typeof onRefreshApps === "function") {
-      await onRefreshApps();
+    if (!env) {
+      setError("No environment selected.");
+      setShowErrorModal(true);
+      return;
     }
-  }, [activeEnv, envKeys, refreshClusters]);
+
+    const clustername = String(payload?.clustername || "").trim();
+    if (!clustername) {
+      setError("clustername is required.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      await createClusterApi(env, payload);
+      await refreshClusters(env);
+
+      if (typeof onRefreshApps === "function") {
+        await onRefreshApps();
+      }
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, envKeys, refreshClusters, setLoading, setError, setShowErrorModal]);
 
   /**
    * Delete a cluster.
@@ -71,43 +104,65 @@ function useClusters({ activeEnv, envKeys }) {
    */
   const deleteCluster = React.useCallback(async (clustername, onRefreshApps) => {
     const env = activeEnv || (envKeys[0] || "");
-    if (!env) throw new Error("No environment selected.");
-
-    // First check if cluster can be deleted
-    const checkResult = await canDeleteCluster(env, clustername);
-
-    if (!checkResult.can_delete) {
-      return {
-        deleted: false,
-        showWarning: true,
-        warningData: {
-          clustername,
-          env,
-          ...checkResult,
-        },
-      };
-    }
-
-    // Confirm deletion
-    const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
-    if (!confirm(confirmMsg)) {
+    if (!env) {
+      setError("No environment selected.");
+      setShowErrorModal(true);
       return { deleted: false, showWarning: false };
     }
 
-    await deleteClusterApi(env, clustername);
-    await refreshClusters(env);
+    try {
+      setLoading(true);
+      setError("");
 
-    if (typeof onRefreshApps === "function") {
-      await onRefreshApps();
+      // First check if cluster can be deleted
+      const checkResult = await canDeleteCluster(env, clustername);
+
+      if (!checkResult.can_delete) {
+        // Show modal with dependencies
+        setDeleteWarningData({
+          clustername,
+          env,
+          ...checkResult,
+        });
+        setShowDeleteWarningModal(true);
+        setLoading(false);
+        return {
+          deleted: false,
+          showWarning: true,
+          warningData: {
+            clustername,
+            env,
+            ...checkResult,
+          },
+        };
+      }
+
+      // Confirm deletion
+      const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
+      if (!confirm(confirmMsg)) {
+        setLoading(false);
+        return { deleted: false, showWarning: false };
+      }
+
+      await deleteClusterApi(env, clustername);
+      await refreshClusters(env);
+
+      if (typeof onRefreshApps === "function") {
+        await onRefreshApps();
+      }
+
+      return { deleted: true, showWarning: false };
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
     }
-
-    return { deleted: true, showWarning: false };
-  }, [activeEnv, envKeys, refreshClusters]);
+  }, [activeEnv, envKeys, refreshClusters, setLoading, setError, setShowErrorModal, setShowDeleteWarningModal, setDeleteWarningData]);
 
   return {
     // State
     clustersByEnv,
-    setClustersByEnv,
     availableClusters,
 
     // Operations

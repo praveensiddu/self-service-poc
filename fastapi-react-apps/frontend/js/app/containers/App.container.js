@@ -17,117 +17,172 @@ function App() {
   const [envKeys, setEnvKeys] = React.useState([]);
   const [activeEnv, setActiveEnv] = React.useState("");
   const [readonly, setReadonly] = React.useState(false);
-
-  const [workspace, setWorkspace] = React.useState("");
-  const [requestsRepo, setRequestsRepo] = React.useState("");
-  const [templatesRepo, setTemplatesRepo] = React.useState("");
-  const [renderedManifestsRepo, setRenderedManifestsRepo] = React.useState("");
-  const [controlRepo, setControlRepo] = React.useState("");
-  const [persistedConfigComplete, setPersistedConfigComplete] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
 
-  const [apps, setApps] = React.useState({});
-  const [clustersByApp, setClustersByApp] = React.useState({});
-  const [selectedNamespaces, setSelectedNamespaces] = React.useState(() => new Set());
-  const [selectedApps, setSelectedApps] = React.useState(new Set());
-  const [showCreateApp, setShowCreateApp] = React.useState(false);
-  const [showCreateNamespace, setShowCreateNamespace] = React.useState(false);
-  const [showCreateCluster, setShowCreateCluster] = React.useState(false);
-  const [view, setView] = React.useState("apps");
-  const [detailAppName, setDetailAppName] = React.useState("");
-  const [detailNamespace, setDetailNamespace] = React.useState(null);
-  const [detailNamespaceName, setDetailNamespaceName] = React.useState("");
-  const [namespaces, setNamespaces] = React.useState({});
-  const [l4IngressItems, setL4IngressItems] = React.useState([]);
-  const [egressIpItems, setEgressIpItems] = React.useState([]);
-  const [namespaceDetailsHeaderButtons, setNamespaceDetailsHeaderButtons] = React.useState(null);
+  // Use global error hook for centralized error and loading state
+  const {
+    loading,
+    setLoading,
+    error,
+    setError,
+    showErrorModal,
+    setShowErrorModal,
+    showDeleteWarningModal,
+    setShowDeleteWarningModal,
+    deleteWarningData,
+    setDeleteWarningData,
+    closeErrorModal,
+    closeDeleteWarningModal,
+  } = useGlobalError();
 
-  const [clustersByEnv, setClustersByEnv] = React.useState({});
-
-  const [requestsChanges, setRequestsChanges] = React.useState({ apps: new Set(), namespaces: new Set() });
-
-  const [enforcementSettings, setEnforcementSettings] = React.useState({
-    enforce_egress_firewall: "yes",
-    enforce_egress_ip: "yes",
+  // Use config hook for configuration management
+  const {
+    workspace,
+    setWorkspace,
+    requestsRepo,
+    setRequestsRepo,
+    templatesRepo,
+    setTemplatesRepo,
+    renderedManifestsRepo,
+    setRenderedManifestsRepo,
+    controlRepo,
+    setControlRepo,
+    configComplete,
+    loadConfigData,
+    saveConfigData,
+    saveDefaultConfigData,
+    markConfigIncomplete,
+    enforcementSettings,
+    draftEnforcementSettings,
+    setDraftEnforcementSettings,
+    enforcementSettingsError,
+    enforcementSettingsLoading,
+    loadEnforcementSettingsData,
+    saveEnforcementSettingsData,
+  } = useConfig({
+    setLoading,
+    setError,
   });
-  const [draftEnforcementSettings, setDraftEnforcementSettings] = React.useState({
-    enforce_egress_firewall: "yes",
-    enforce_egress_ip: "yes",
+
+  // Use apps hook for application management
+  const {
+    apps,
+    clustersByApp,
+    selectedApps,
+    requestsChanges,
+    appRows,
+    loadAppsData,
+    refreshApps,
+    createApp,
+    deleteApp,
+    refreshRequestsChangesData,
+    toggleRow,
+    onSelectAllFromFiltered,
+    requireExactlyOneSelectedApp,
+  } = useApps({
+    activeEnv,
+    setLoading,
+    setError,
+    setShowErrorModal,
   });
-  const [enforcementSettingsError, setEnforcementSettingsError] = React.useState("");
-  const [enforcementSettingsLoading, setEnforcementSettingsLoading] = React.useState(false);
 
-  const availableClusters = ((clustersByEnv || {})[String(activeEnv || "").toUpperCase()] || [])
-    .map((r) => String(r?.clustername || "").trim())
-    .filter(Boolean);
+  // Use clusters hook for cluster management
+  const {
+    clustersByEnv,
+    refreshClusters,
+    addCluster,
+    deleteCluster,
+  } = useClusters({
+    activeEnv,
+    envKeys,
+    setLoading,
+    setError,
+    setShowErrorModal,
+    setShowDeleteWarningModal,
+    setDeleteWarningData,
+  });
 
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
-  const [showErrorModal, setShowErrorModal] = React.useState(false);
-  const [showDeleteWarningModal, setShowDeleteWarningModal] = React.useState(false);
-  const [deleteWarningData, setDeleteWarningData] = React.useState(null);
-  const [pendingRoute, setPendingRoute] = React.useState(() => parseUiRouteFromLocation());
+  // Use namespaces hook for namespace management
+  const {
+    namespaces,
+    selectedNamespaces,
+    detailAppName,
+    detailNamespace,
+    detailNamespaceName,
+    namespaceDetailsHeaderButtons,
+    setNamespaceDetailsHeaderButtons,
+    loadNamespacesData,
+    createNamespace,
+    deleteNamespace: deleteNamespaceFromHook,
+    copyNamespace: copyNamespaceFromHook,
+    loadNamespaceDetailsData,
+    updateNamespaceInfo: updateNamespaceInfoFromHook,
+    toggleNamespace,
+    onSelectAllNamespaces,
+    resetNamespacesState,
+    clearDetailState,
+  } = useNamespaces({
+    activeEnv,
+    setLoading,
+    setError,
+    setShowErrorModal,
+  });
 
-  const configComplete = persistedConfigComplete;
+  // Use L4 Ingress hook for L4 Ingress management
+  const {
+    l4IngressItems,
+    l4IngressAddButton,
+    setL4IngressAddButton,
+    loadL4IngressData,
+    resetL4IngressState,
+  } = useL4Ingress({
+    activeEnv,
+  });
 
-  function setTopTabWithUrl(nextTab) {
-    setTopTab(nextTab);
+  // Use Egress IPs hook for Egress IPs management
+  const {
+    egressIpItems,
+    loadEgressIpsData,
+    resetEgressIpsState,
+  } = useEgressIps({
+    activeEnv,
+  });
 
-    if (nextTab === "Home") {
-      window.history.pushState({ topTab: "Home" }, "", "/home");
-      return;
-    }
+  // Use modals hook for modal visibility
+  const {
+    showCreateApp,
+    openCreateApp,
+    closeCreateApp,
+    showCreateNamespace,
+    openCreateNamespace,
+    closeCreateNamespace,
+    showCreateCluster,
+    openCreateCluster,
+    closeCreateCluster,
+  } = useModals();
 
-    if (nextTab === "Settings") {
-      window.history.pushState({ topTab: "Settings" }, "", "/settings");
-      return;
-    }
-
-    if (nextTab === "PRs and Approval") {
-      if (!configComplete) {
-        setTopTab("Home");
-        window.history.pushState({ topTab: "Home" }, "", "/home");
-        return;
-      }
-      window.history.pushState({ topTab: "PRs and Approval" }, "", "/prs");
-      return;
-    }
-
-    if (nextTab === "Clusters") {
-      if (!configComplete) {
-        setTopTab("Home");
-        window.history.pushState({ topTab: "Home" }, "", "/home");
-        return;
-      }
-      const r = parseUiRouteFromLocation();
-      const nextEnv = r.env || activeEnv || (envKeys[0] || "");
-      if (nextEnv) setActiveEnv(nextEnv);
-      window.history.pushState({ topTab: "Clusters" }, "", clustersUrlWithEnv(nextEnv));
-      return;
-    }
-
-    if (!configComplete) {
-      setTopTab("Home");
-      window.history.pushState({ topTab: "Home" }, "", "/home");
-      return;
-    }
-
-    if (nextTab === "Request provisioning") {
-      const r = parseUiRouteFromLocation();
-      const nextEnv = r.env || activeEnv || (envKeys[0] || "");
-      if (nextEnv) setActiveEnv(nextEnv);
-      // Always reset to apps view when clicking "Request provisioning"
+  // Use UI routing hook for navigation and history
+  const {
+    pendingRoute,
+    setPendingRoute,
+    view,
+    setView,
+    setTopTabWithUrl,
+    initializeRouting,
+  } = useUiRouting({
+    configComplete,
+    envKeys,
+    activeEnv,
+    setActiveEnv,
+    setTopTab,
+    onResetNamespacesState: () => {
       setView("apps");
-      setDetailAppName("");
-      setNamespaces({});
-      setL4IngressItems([]);
-      setSelectedNamespaces(new Set());
-      setEgressIpItems([]);
-      setPendingRoute({ env: nextEnv, view: "apps", appname: "", ns: "" });
-      pushUiUrl({ view: "apps", env: nextEnv, appname: "", ns: "" }, false);
-      return;
-    }
-  }
+      resetNamespacesState();
+      resetL4IngressState();
+      resetEgressIpsState();
+    },
+  });
+
 
   // Initial data load effect
   React.useEffect(() => {
@@ -138,10 +193,9 @@ function App() {
         setLoading(true);
         setError("");
 
-        const [deploymentType, user, cfg, portalMode] = await Promise.all([
+        const [deploymentType, user, portalMode] = await Promise.all([
           fetchJson("/api/v1/deployment_type"),
           fetchJson("/api/v1/current-user"),
-          fetchJson("/api/v1/config"),
           fetchJson("/api/v1/portal-mode"),
         ]);
 
@@ -151,19 +205,8 @@ function App() {
         setCurrentUser(user.user || "");
         setReadonly(portalMode?.readonly || false);
 
-        setWorkspace(cfg?.workspace || "");
-        setRequestsRepo(cfg?.requestsRepo || "");
-        setTemplatesRepo(cfg?.templatesRepo || "");
-        setRenderedManifestsRepo(cfg?.renderedManifestsRepo || "");
-        setControlRepo(cfg?.controlRepo || "");
-
-        const isComplete = Boolean(
-          (cfg?.workspace || "").trim() &&
-            (cfg?.requestsRepo || "").trim() &&
-            (cfg?.renderedManifestsRepo || "").trim() &&
-            (cfg?.controlRepo || "").trim()
-        );
-        setPersistedConfigComplete(isComplete);
+        const { isComplete } = await loadConfigData();
+        if (cancelled) return;
 
         const initial = parseUiRouteFromLocation();
         setPendingRoute(initial);
@@ -176,7 +219,7 @@ function App() {
             envList = await fetchJson("/api/v1/envlist");
           } catch {
             if (cancelled) return;
-            setPersistedConfigComplete(false);
+            markConfigIncomplete();
             setEnvKeys([]);
             setActiveEnv("");
             setTopTab("Home");
@@ -191,38 +234,9 @@ function App() {
 
         setEnvKeys(keys);
         setActiveEnv(initialEnv);
-        if (isComplete && initialEnv && !isHomePath() && !isSettingsPath() && !isPrsPath() && !isClustersPath()) {
-          pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname, ns: initial.ns }, true);
-        }
 
-        if (isClustersPath()) {
-          window.history.replaceState(
-            { topTab: isComplete ? "Clusters" : "Home" },
-            "",
-            clustersUrlWithEnv(initialEnv),
-          );
-        }
-
-        if (isHomePath()) {
-          setTopTab("Home");
-        } else if (isSettingsPath()) {
-          setTopTab("Settings");
-        } else if (isPrsPath()) {
-          setTopTab(isComplete ? "PRs and Approval" : "Home");
-          if (!isComplete) {
-            window.history.replaceState({ topTab: "Home" }, "", "/home");
-          }
-        } else if (isClustersPath()) {
-          setTopTab(isComplete ? "Clusters" : "Home");
-          if (!isComplete) {
-            window.history.replaceState({ topTab: "Home" }, "", "/home");
-          }
-        } else {
-          setTopTab(isComplete ? "Request provisioning" : "Home");
-          if (!isComplete) {
-            window.history.replaceState({ topTab: "Home" }, "", "/home");
-          }
-        }
+        // Initialize routing using the hook
+        initializeRouting(isComplete, keys, initialEnv);
       } catch (e) {
         if (!cancelled) setError(e?.message || String(e));
       } finally {
@@ -251,49 +265,16 @@ function App() {
 
     (async () => {
       try {
-        setEnforcementSettingsLoading(true);
-        setEnforcementSettingsError("");
-        const data = await fetchJson("/api/v1/settings/enforcement");
-        if (cancelled) return;
-        const next = {
-          enforce_egress_firewall: String(data?.enforce_egress_firewall || "yes"),
-          enforce_egress_ip: String(data?.enforce_egress_ip || "yes"),
-        };
-        setEnforcementSettings(next);
-        setDraftEnforcementSettings(next);
-      } catch (e) {
-        if (!cancelled) setEnforcementSettingsError(e?.message || String(e));
-      } finally {
-        if (!cancelled) setEnforcementSettingsLoading(false);
+        await loadEnforcementSettingsData();
+      } catch {
+        // Error already handled by hook
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [configComplete, topTab]);
-
-  async function onSaveEnforcementSettings() {
-    try {
-      setEnforcementSettingsLoading(true);
-      setEnforcementSettingsError("");
-      const saved = await putJson("/api/v1/settings/enforcement", {
-        enforce_egress_firewall: String(draftEnforcementSettings?.enforce_egress_firewall || "yes"),
-        enforce_egress_ip: String(draftEnforcementSettings?.enforce_egress_ip || "yes"),
-      });
-      const next = {
-        enforce_egress_firewall: String(saved?.enforce_egress_firewall || "yes"),
-        enforce_egress_ip: String(saved?.enforce_egress_ip || "yes"),
-      };
-      setEnforcementSettings(next);
-      setDraftEnforcementSettings(next);
-    } catch (e) {
-      setEnforcementSettingsError(e?.message || String(e));
-      throw e;
-    } finally {
-      setEnforcementSettingsLoading(false);
-    }
-  }
+  }, [configComplete, topTab, loadEnforcementSettingsData]);
 
   // Load apps when environment changes
   React.useEffect(() => {
@@ -307,21 +288,11 @@ function App() {
         setLoading(true);
         setError("");
 
-        const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
+        await loadAppsData();
         if (cancelled) return;
 
-        setApps(appsResp);
-        const nextClusters = {};
-        for (const [appname, app] of Object.entries(appsResp || {})) {
-          nextClusters[appname] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-        }
-        setClustersByApp(nextClusters);
-        setSelectedApps(new Set());
         setView("apps");
-        setDetailAppName("");
-        setNamespaces({});
-        setL4IngressItems([]);
-        setEgressIpItems([]);
+        resetNamespacesState();
 
         const pr = pendingRoute;
         if (pr && (pr.env || "").toUpperCase() === (activeEnv || "").toUpperCase()) {
@@ -363,227 +334,13 @@ function App() {
     let cancelled = false;
 
     (async () => {
-      try {
-        const data = await fetchJson(`/api/v1/requests/changes?env=${encodeURIComponent(activeEnv)}`);
-        if (cancelled) return;
-        const appsList = Array.isArray(data?.apps) ? data.apps.map(String) : [];
-        const namespacesList = Array.isArray(data?.namespaces) ? data.namespaces.map(String) : [];
-        setRequestsChanges({ apps: new Set(appsList), namespaces: new Set(namespacesList) });
-      } catch {
-        if (!cancelled) setRequestsChanges({ apps: new Set(), namespaces: new Set() });
-      }
+      await refreshRequestsChangesData();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [activeEnv]);
-
-  const deploymentEnv = deployment?.deployment_env || "";
-  const bannerTitle = deployment?.title?.[deploymentEnv] || "OCP App Provisioning Portal";
-  const bannerColor = deployment?.headerColor?.[deploymentEnv] || "#384454";
-
-  const appRows = Object.keys(apps).map((k) => apps[k]);
-
-  const selectedAppArgocdEnabled = Boolean(detailAppName && apps?.[detailAppName]?.argocd);
-
-  async function refreshRequestsChanges() {
-    if (!activeEnv) return;
-    try {
-      const data = await fetchJson(`/api/v1/requests/changes?env=${encodeURIComponent(activeEnv)}`);
-      const appsList = Array.isArray(data?.apps) ? data.apps.map(String) : [];
-      const namespacesList = Array.isArray(data?.namespaces) ? data.namespaces.map(String) : [];
-      setRequestsChanges({ apps: new Set(appsList), namespaces: new Set(namespacesList) });
-    } catch {
-      setRequestsChanges({ apps: new Set(), namespaces: new Set() });
-    }
-  }
-
-  async function openNamespaces(appname, push = true) {
-    if (!appname) return;
-    try {
-      setLoading(true);
-      setError("");
-      const resp = await fetchJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-      );
-      setDetailAppName(appname);
-      setNamespaces(resp || {});
-      setL4IngressItems([]);
-      setSelectedNamespaces(new Set());
-      setView("namespaces");
-      if (push) pushUiUrl({ view: "namespaces", env: activeEnv, appname }, false);
-      return resp || {};
-    } catch (e) {
-      setError(e?.message || String(e));
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function copyNamespace(fromNamespace, payload) {
-    const appname = detailAppName;
-    if (!appname) throw new Error("No application selected.");
-
-    const from_env = String(payload?.from_env || "").trim();
-    const to_env = String(payload?.to_env || "").trim();
-    const to_namespace = String(payload?.to_namespace || "").trim();
-
-    if (!fromNamespace) throw new Error("No source namespace selected.");
-    if (!from_env) throw new Error("from_env is required.");
-    if (!to_env) throw new Error("to_env is required.");
-    if (!to_namespace) throw new Error("to_namespace is required.");
-    if (from_env !== String(activeEnv || "").trim()) {
-      throw new Error("from_env must match the active environment.");
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      await postJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(fromNamespace)}/copy?env=${encodeURIComponent(activeEnv)}`,
-        { from_env, to_env, to_namespace },
-      );
-
-      const resp = await fetchJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-      );
-      setNamespaces(resp || {});
-
-      const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-      setApps(appsResp);
-
-      const nextClusters = {};
-      for (const [k, app] of Object.entries(appsResp || {})) {
-        nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-      }
-      setClustersByApp(nextClusters);
-
-      await refreshRequestsChanges();
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function openL4Ingress(appname, push = true) {
-    if (!appname) return;
-    try {
-      setLoading(true);
-      setError("");
-      const items = await fetchJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
-      );
-      setDetailAppName(appname);
-      setL4IngressItems(items || []);
-      setNamespaces({});
-      setView("l4ingress");
-      if (push) pushUiUrl({ view: "l4ingress", env: activeEnv, appname }, false);
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function openEgressIps(appname, push = true) {
-    if (!appname) return;
-    try {
-      setLoading(true);
-      setError("");
-      const items = await fetchJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
-      );
-      setDetailAppName(appname);
-      setEgressIpItems(items || []);
-      setNamespaces({});
-      setView("egressips");
-      if (push) pushUiUrl({ view: "egressips", env: activeEnv, appname }, false);
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function onBackToApps() {
-    setView("apps");
-    setDetailAppName("");
-    setNamespaces({});
-    setL4IngressItems([]);
-    setSelectedNamespaces(new Set());
-    setEgressIpItems([]);
-    setError("");
-    pushUiUrl({ view: "apps", env: activeEnv, appname: "" }, false);
-  }
-
-  async function onViewEgressIps() {
-    const appname = getDetailOrSelectedApp();
-    if (!appname) return;
-    await openEgressIps(appname, true);
-  }
-
-  async function onViewNamespaces() {
-    const appname = getDetailOrSelectedApp();
-    if (!appname) return;
-    await openNamespaces(appname, true);
-  }
-
-  // Popstate handler for browser back/forward navigation
-  React.useEffect(() => {
-    function onPopState() {
-      if (isHomePath()) {
-        setTopTab("Home");
-        return;
-      }
-
-      if (isSettingsPath()) {
-        setTopTab("Settings");
-        return;
-      }
-
-      if (isPrsPath()) {
-        setTopTab(configComplete ? "PRs and Approval" : "Home");
-        if (!configComplete) window.history.replaceState({ topTab: "Home" }, "", "/home");
-        return;
-      }
-
-      if (isClustersPath()) {
-        try {
-          const params = new URLSearchParams(window.location.search || "");
-          const envFromUrl = (params.get("env") || "").trim();
-          if (envFromUrl) setActiveEnv(envFromUrl);
-        } catch {
-          // ignore
-        }
-        setTopTab(configComplete ? "Clusters" : "Home");
-        if (!configComplete) window.history.replaceState({ topTab: "Home" }, "", "/home");
-        return;
-      }
-
-      const r = parseUiRouteFromLocation();
-      setPendingRoute(r);
-      if (r.env) setActiveEnv(r.env);
-      else if (envKeys.length > 0 && !activeEnv) setActiveEnv(envKeys[0]);
-      if (r.view === "apps") {
-        setView("apps");
-        setDetailAppName("");
-        setNamespaces({});
-        setL4IngressItems([]);
-        setEgressIpItems([]);
-      }
-    }
-
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [envKeys, activeEnv, configComplete]);
-
-  async function refreshClusters(env) {
-    const effectiveEnv = env || activeEnv || (envKeys[0] || "");
-    const q = effectiveEnv ? `?env=${encodeURIComponent(effectiveEnv)}` : "";
-    const data = await fetchJson(`/api/v1/clusters${q}`);
-    setClustersByEnv(data || {});
-  }
+  }, [activeEnv, refreshRequestsChangesData]);
 
   // Load clusters when on Clusters tab
   React.useEffect(() => {
@@ -604,182 +361,162 @@ function App() {
         setLoading(false);
       }
     })();
-  }, [topTab, configComplete, activeEnv, envKeys]);
+  }, [topTab, configComplete, activeEnv, envKeys, refreshClusters]);
 
-  async function onAddCluster(payload) {
-    const env = activeEnv || (envKeys[0] || "");
-    if (!env) {
-      setError("No environment selected.");
-      setShowErrorModal(true);
-      return;
-    }
+  // ============================================================================
+  // CONFIG HANDLERS
+  // ============================================================================
 
-    const clustername = String(payload?.clustername || "").trim();
-    if (!clustername) {
-      setError("clustername is required.");
-      setShowErrorModal(true);
-      return;
-    }
+  /**
+   * Save configuration settings and initialize environment.
+   * After successful save, loads environment list and navigates to apps view.
+   */
+  async function onSaveConfig() {
+    const { isComplete } = await saveConfigData();
 
-    const purpose = String(payload?.purpose || "");
-    const datacenter = String(payload?.datacenter || "");
-    const applications = Array.isArray(payload?.applications) ? payload.applications : [];
-    const l4IngressIpRanges = Array.isArray(payload?.l4_ingress_ip_ranges) ? payload.l4_ingress_ip_ranges : [];
-    const egressIpRanges = Array.isArray(payload?.egress_ip_ranges) ? payload.egress_ip_ranges : [];
-
-    try {
-      setLoading(true);
-      setError("");
-      await postJson(`/api/v1/clusters?env=${encodeURIComponent(env)}`, {
-        clustername,
-        purpose,
-        datacenter,
-        applications,
-        l4_ingress_ip_ranges: l4IngressIpRanges,
-        egress_ip_ranges: egressIpRanges,
-      });
-      await refreshClusters(env);
-      await refreshApps();
-    } catch (e) {
-      setError(e?.message || String(e));
-      throw e;
-    } finally {
-      setLoading(false);
+    if (isComplete) {
+      const envList = await fetchJson("/api/v1/envlist");
+      const keys = Object.keys(envList);
+      setEnvKeys(keys);
+      const initialEnv = keys[0] || "";
+      setActiveEnv(initialEnv);
+      setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
+      if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
+      setTopTab("Request provisioning");
     }
   }
 
-  async function onDeleteCluster(clustername) {
-    const env = activeEnv || (envKeys[0] || "");
-    if (!env) {
-      setError("No environment selected.");
-      setShowErrorModal(true);
-      return;
-    }
+  /**
+   * Use default configuration settings and initialize environment.
+   * After successful save, loads environment list and navigates to apps view.
+   */
+  async function onUseDefaults() {
+    const { isComplete } = await saveDefaultConfigData();
 
-    try {
-      setLoading(true);
-      setError("");
-
-      // First check if cluster can be deleted
-      const checkResult = await fetchJson(
-        `/api/v1/clusters/${encodeURIComponent(clustername)}/can-delete?env=${encodeURIComponent(env)}`
-      );
-
-      if (!checkResult.can_delete) {
-        // Show modal with dependencies
-        setDeleteWarningData({
-          clustername,
-          env,
-          ...checkResult
-        });
-        setShowDeleteWarningModal(true);
-        setLoading(false);
-        return;
-      }
-
-      // If can delete, show confirmation
-      const confirmMsg = `Are you sure you want to delete cluster "${clustername}" in ${env}?\n\nThis action cannot be undone.`;
-      if (!confirm(confirmMsg)) {
-        setLoading(false);
-        return;
-      }
-
-      await deleteJson(`/api/v1/clusters/${encodeURIComponent(clustername)}?env=${encodeURIComponent(env)}`);
-      await refreshClusters(env);
-      await refreshApps();
-
-      // Refresh data for cluster-dependent views
-      if (detailAppName) {
-        if (view === "namespaces") {
-          const resp = await fetchJson(
-            `/api/v1/apps/${encodeURIComponent(detailAppName)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-          );
-          setNamespaces(resp || {});
-        } else if (view === "namespaceDetails" && detailNamespaceName) {
-          // Refresh namespace details by re-fetching all the data
-          const resp = await fetchJson(
-            `/api/v1/apps/${encodeURIComponent(detailAppName)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-          );
-          setNamespaces(resp || {});
-
-          // Re-fetch the namespace details
-          await viewNamespaceDetails(detailNamespaceName, null, detailAppName);
-        } else if (view === "l4ingress") {
-          const items = await fetchJson(
-            `/api/v1/apps/${encodeURIComponent(detailAppName)}/l4_ingress?env=${encodeURIComponent(activeEnv)}`,
-          );
-          setL4IngressItems(items || []);
-        } else if (view === "egressips") {
-          const items = await fetchJson(
-            `/api/v1/apps/${encodeURIComponent(detailAppName)}/egress_ips?env=${encodeURIComponent(activeEnv)}`,
-          );
-          setEgressIpItems(items || []);
-        }
-      }
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
+    if (isComplete) {
+      const envList = await fetchJson("/api/v1/envlist");
+      const keys = Object.keys(envList);
+      setEnvKeys(keys);
+      const initialEnv = keys[0] || "";
+      setActiveEnv(initialEnv);
+      setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
+      if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
+      setTopTab("Request provisioning");
     }
   }
 
-  function toggleSelectAll(checked) {
-    if (checked) {
-      setSelectedApps(new Set(appRows.map((a) => a.appname)));
-    } else {
-      setSelectedApps(new Set());
-    }
-  }
+  // ============================================================================
+  // APP HANDLERS
+  // ============================================================================
 
-  function toggleRow(appname, checked) {
-    setSelectedApps((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(appname);
-      else next.delete(appname);
-      return next;
-    });
-  }
-
-  function onSelectAllFromFiltered(checked, appnames) {
-    if (checked) setSelectedApps(new Set(appnames));
-    else setSelectedApps(new Set());
-  }
-
-  function toggleNamespace(namespace, checked) {
-    setSelectedNamespaces((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(namespace);
-      else next.delete(namespace);
-      return next;
-    });
-  }
-
-  function onSelectAllNamespaces(checked, namespaceNames) {
-    if (checked) setSelectedNamespaces(new Set(namespaceNames));
-    else setSelectedNamespaces(new Set());
-  }
-
-  function requireExactlyOneSelectedApp() {
-    const selected = Array.from(selectedApps);
-    if (selected.length !== 1) {
-      setError("Select exactly one application.");
-      setShowErrorModal(true);
-      return null;
-    }
-    return selected[0];
-  }
-
+  /**
+   * Get the application name from either detail view or selected app.
+   * Returns detailAppName if in detail view, otherwise requires exactly one selected app.
+   * @returns {string|null} - Application name or null if validation fails
+   */
   function getDetailOrSelectedApp() {
     if (detailAppName) return detailAppName;
-    return requireExactlyOneSelectedApp();
+    return requireExactlyOneSelectedApp(setError, setShowErrorModal);
   }
 
-  async function onViewL4Ingress() {
+  /**
+   * Open the create app modal.
+   * Refreshes cluster list before opening to ensure latest data.
+   */
+  async function onOpenCreateApp() {
+    try {
+      await refreshClusters(activeEnv);
+    } catch {
+      // Ignore errors, still open modal
+    }
+    openCreateApp();
+  }
+
+  // ============================================================================
+  // NAMESPACE HANDLERS
+  // ============================================================================
+
+  /**
+   * Load namespaces for an application and navigate to namespaces view.
+   * @param {string} appname - Application name to load namespaces for
+   * @param {boolean} [push=true] - Whether to push URL to browser history
+   * @returns {Promise<Object>} - Namespaces data
+   */
+  async function openNamespaces(appname, push = true) {
+    if (!appname) return;
+
+    const resp = await loadNamespacesData(appname);
+    setView("namespaces");
+    if (push) pushUiUrl({ view: "namespaces", env: activeEnv, appname }, false);
+    return resp;
+  }
+
+  /**
+   * View namespaces for the currently selected or detailed app.
+   * Determines app from either detail view or selected apps list.
+   */
+  async function onViewNamespaces() {
     const appname = getDetailOrSelectedApp();
     if (!appname) return;
-    await openL4Ingress(appname, true);
+    await openNamespaces(appname, true);
   }
 
+  /**
+   * Create a new namespace for the current app.
+   * @param {Object} payload - Namespace creation payload
+   * @param {string} payload.namespace - Namespace name
+   * @param {string[]} [payload.clusters] - List of clusters
+   * @param {boolean} [payload.need_argo] - Whether ArgoCD is needed
+   * @param {string} [payload.egress_nameid] - Egress name ID
+   */
+  async function onCreateNamespace(payload) {
+    const appname = detailAppName;
+    if (!appname) throw new Error("No application selected.");
+
+    const namespace = String(payload?.namespace || "").trim();
+    if (!namespace) throw new Error("Namespace name is required.");
+
+    // Create namespace using hook (service handles ArgoCD setup automatically)
+    await createNamespace(appname, payload);
+
+    // Refresh the apps list to update totalns count
+    await refreshApps();
+  }
+
+  /**
+   * Delete a namespace and refresh apps list.
+   * @param {string} namespaceName - Name of namespace to delete
+   */
+  async function deleteNamespace(namespaceName) {
+    const deleted = await deleteNamespaceFromHook(detailAppName, namespaceName);
+
+    if (!deleted) {
+      return;
+    }
+
+    // Refresh apps list to update totalns count
+    await refreshApps();
+  }
+
+  /**
+   * Copy a namespace to another environment.
+   * @param {string} fromNamespace - Source namespace name
+   * @param {Object} payload - Copy payload
+   * @param {string} payload.from_env - Source environment
+   * @param {string} payload.to_env - Target environment
+   * @param {string} payload.to_namespace - Target namespace name
+   */
+  async function copyNamespace(fromNamespace, payload) {
+    await copyNamespaceFromHook(detailAppName, fromNamespace, payload);
+    await refreshApps();
+  }
+
+  /**
+   * View detailed information for a specific namespace.
+   * @param {string} namespaceName - Namespace name to view
+   * @param {Object} [namespaceData] - Optional namespace data (unused, kept for compatibility)
+   * @param {string} [appnameOverride] - Optional app name override
+   */
   async function viewNamespaceDetails(namespaceName, namespaceData, appnameOverride) {
     const appname = appnameOverride || detailAppName;
     if (!appname) {
@@ -792,64 +529,27 @@ function App() {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError("");
-
-      const envParam = `env=${encodeURIComponent(activeEnv)}`;
-      const base = `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}`;
-
-      const [
-        basic,
-        egress,
-        rolebindings,
-        egressFirewall,
-        resourcequota,
-        limitrange,
-      ] = await Promise.all([
-        fetchJson(`${base}/namespace_info/basic?${envParam}`),
-        fetchJson(`${base}/namespace_info/egress?${envParam}`),
-        fetchJson(`${base}/rolebinding_requests?${envParam}`),
-        fetchJson(`${base}/egressfirewall?${envParam}`),
-        fetchJson(`${base}/resources/resourcequota?${envParam}`),
-        fetchJson(`${base}/resources/limitrange?${envParam}`),
-      ]);
-
-      const nextNamespace = {
-        name: namespaceName,
-        clusters: Array.isArray(basic?.clusters) ? basic.clusters : [],
-        egress_nameid: egress?.egress_nameid ?? null,
-        enable_pod_based_egress_ip: Boolean(egress?.enable_pod_based_egress_ip),
-        allow_all_egress: Boolean(egress?.allow_all_egress),
-        need_argo: Boolean(basic?.need_argo),
-        argocd_sync_strategy: String(basic?.argocd_sync_strategy || ""),
-        gitrepourl: String(basic?.gitrepourl || ""),
-        generate_argo_app: Boolean(basic?.generate_argo_app),
-        status: String(basic?.status || ""),
-        resources: {
-          requests: resourcequota?.requests || {},
-          quota_limits: resourcequota?.quota_limits || {},
-          limits: limitrange?.limits || {},
-        },
-        rolebindings: Array.isArray(rolebindings?.bindings) ? rolebindings.bindings : [],
-        egress_firewall_rules: Array.isArray(egressFirewall?.rules) ? egressFirewall.rules : [],
-      };
-
-      setDetailAppName(appname);
-      setDetailNamespace(nextNamespace);
-      setDetailNamespaceName(namespaceName);
-      setView("namespaceDetails");
-      pushUiUrl({ view: "namespaceDetails", env: activeEnv, appname, ns: namespaceName }, false);
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
+    await loadNamespaceDetailsData(appname, namespaceName);
+    setView("namespaceDetails");
+    pushUiUrl({ view: "namespaceDetails", env: activeEnv, appname, ns: namespaceName }, false);
   }
 
+  /**
+   * Update namespace information (resources, role bindings, ArgoCD, etc.).
+   * @param {string} namespaceName - Namespace name to update
+   * @param {Object} updates - Update payload
+   * @returns {Promise<Object>} - Updated namespace data
+   */
+  async function onUpdateNamespaceInfo(namespaceName, updates) {
+    return await updateNamespaceInfoFromHook(detailAppName, namespaceName, updates);
+  }
+
+  /**
+   * Navigate back from namespace details to namespaces list.
+   * Clears detail state and returns to namespaces view for the current app.
+   */
   async function onBackFromNamespaceDetails() {
-    setDetailNamespace(null);
-    setDetailNamespaceName("");
+    clearDetailState();
 
     const appname = detailAppName;
     if (!appname) {
@@ -861,501 +561,135 @@ function App() {
     await openNamespaces(appname, true);
   }
 
-  async function onUpdateNamespaceInfo(namespaceName, updates) {
-    const appname = detailAppName;
-    if (!appname) throw new Error("No application selected.");
-    if (!namespaceName) throw new Error("No namespace selected.");
+  // ============================================================================
+  // L4 INGRESS & EGRESS IP HANDLERS
+  // ============================================================================
 
-    const nextUpdates = { ...(updates || {}) };
-    const ni = nextUpdates?.namespace_info ? { ...(nextUpdates.namespace_info || {}) } : null;
-    const nextNeedArgo = ni && Object.prototype.hasOwnProperty.call(ni, "need_argo")
-      ? Boolean(ni.need_argo)
-      : null;
-    if (ni && Object.prototype.hasOwnProperty.call(ni, "need_argo")) {
-      delete ni.need_argo;
-      nextUpdates.namespace_info = ni;
-    }
-
-    const nsargocdUpdates = nextUpdates && nextUpdates.nsargocd ? { ...(nextUpdates.nsargocd || {}) } : null;
-    if (nextUpdates && Object.prototype.hasOwnProperty.call(nextUpdates, "nsargocd")) {
-      delete nextUpdates.nsargocd;
-    }
-
-    const egressFirewallUpdates = nextUpdates && nextUpdates.egressfirewall ? { ...(nextUpdates.egressfirewall || {}) } : null;
-    if (nextUpdates && Object.prototype.hasOwnProperty.call(nextUpdates, "egressfirewall")) {
-      delete nextUpdates.egressfirewall;
-    }
-
-    const envParam = `env=${encodeURIComponent(activeEnv)}`;
-    let updated = null;
-
-    const hasNamespaceInfo = Boolean(nextUpdates && nextUpdates.namespace_info);
-    const hasResources = Boolean(nextUpdates && nextUpdates.resources);
-    const hasRoleBindings = Boolean(nextUpdates && nextUpdates.rolebindings);
-
-    if (hasNamespaceInfo) {
-      const nsInfo = nextUpdates.namespace_info || {};
-      const hasClusters = Object.prototype.hasOwnProperty.call(nsInfo, "clusters");
-      const hasEgressNameId = Object.prototype.hasOwnProperty.call(nsInfo, "egress_nameid");
-      const hasPodBased = Object.prototype.hasOwnProperty.call(nsInfo, "enable_pod_based_egress_ip");
-
-      if (hasClusters) {
-        const basicResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/basic?${envParam}`,
-          { namespace_info: { clusters: nsInfo.clusters } },
-        );
-        updated = { ...(updated || {}), ...(basicResp || {}) };
-      }
-
-      if (hasEgressNameId || hasPodBased) {
-        const egressResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/egress?${envParam}`,
-          {
-            namespace_info: {
-              ...(hasEgressNameId ? { egress_nameid: nsInfo.egress_nameid } : {}),
-              ...(hasPodBased ? { enable_pod_based_egress_ip: nsInfo.enable_pod_based_egress_ip } : {}),
-            },
-          },
-        );
-        updated = { ...(updated || {}), ...(egressResp || {}) };
-      }
-
-      delete nextUpdates.namespace_info;
-    }
-
-    if (hasResources) {
-      const resources = nextUpdates.resources || {};
-
-      const hasResourceQuota = Boolean(resources && (resources.requests || resources.quota_limits));
-      if (hasResourceQuota) {
-        const rqResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/resourcequota?${envParam}`,
-          {
-            requests: resources.requests || null,
-            quota_limits: resources.quota_limits || null,
-          },
-        );
-
-        const prevResources = {
-          ...((detailNamespace && detailNamespace.resources) || {}),
-          ...((updated && updated.resources) || {}),
-        };
-
-        updated = {
-          ...(updated || {}),
-          resources: {
-            ...prevResources,
-            requests: rqResp && Object.prototype.hasOwnProperty.call(rqResp, "requests") ? rqResp.requests : null,
-            quota_limits: rqResp && Object.prototype.hasOwnProperty.call(rqResp, "quota_limits") ? rqResp.quota_limits : null,
-          },
-        };
-      }
-
-      const hasLimitRange = Boolean(resources && resources.limits);
-      if (hasLimitRange) {
-        const lrResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/resources/limitrange?${envParam}`,
-          { limits: resources.limits || null },
-        );
-
-        const prevResources = {
-          ...((detailNamespace && detailNamespace.resources) || {}),
-          ...((updated && updated.resources) || {}),
-        };
-
-        updated = {
-          ...(updated || {}),
-          resources: {
-            ...prevResources,
-            limits: lrResp && Object.prototype.hasOwnProperty.call(lrResp, "limits") ? lrResp.limits : null,
-          },
-        };
-      }
-
-      delete nextUpdates.resources;
-    }
-
-    if (hasRoleBindings) {
-      const bindings = nextUpdates?.rolebindings?.bindings;
-      if (bindings !== undefined) {
-        console.log('[App] Updating rolebindings with:', JSON.stringify(bindings, null, 2));
-        const rbResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/rolebinding_requests?${envParam}`,
-          { bindings: Array.isArray(bindings) ? bindings : [] },
-        );
-        console.log('[App] Rolebindings update response:', JSON.stringify(rbResp, null, 2));
-        // Backend returns {"bindings": [...]}, but namespace structure expects {"rolebindings": [...]}
-        updated = {
-          ...(updated || {}),
-          rolebindings: Array.isArray(rbResp?.bindings) ? rbResp.bindings : [],
-        };
-        console.log('[App] Updated namespace object with rolebindings:', JSON.stringify(updated, null, 2));
-      }
-      delete nextUpdates.rolebindings;
-    }
-
-    const shouldWriteNsArgo = nextNeedArgo !== null || nsargocdUpdates;
-    const shouldWriteEgressFirewall = Boolean(egressFirewallUpdates);
-    let didSideEffectWrite = false;
-    let sideEffectPatch = null;
-
-    if (!updated && !shouldWriteNsArgo && !shouldWriteEgressFirewall) {
-      throw new Error("No matching namespace update route for the provided payload.");
-    }
-
-    if (shouldWriteNsArgo) {
-      const payload = { ...(nsargocdUpdates || {}) };
-      if (nextNeedArgo !== null) payload.need_argo = nextNeedArgo;
-
-      if (payload.need_argo === false) {
-        await fetch(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
-          { method: "DELETE", headers: { Accept: "application/json" } },
-        );
-        sideEffectPatch = {
-          ...(sideEffectPatch || {}),
-          need_argo: false,
-          argocd_sync_strategy: "",
-          gitrepourl: "",
-        };
-      } else {
-        const nsArgoResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
-          payload,
-        );
-        sideEffectPatch = { ...(sideEffectPatch || {}), ...(nsArgoResp || {}) };
-      }
-      didSideEffectWrite = true;
-    }
-
-    if (shouldWriteEgressFirewall) {
-      const rules = Array.isArray(egressFirewallUpdates.rules) ? egressFirewallUpdates.rules : [];
-      if (rules.length === 0) {
-        await fetch(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
-          { method: "DELETE", headers: { Accept: "application/json" } },
-        );
-        sideEffectPatch = { ...(sideEffectPatch || {}), egress_firewall_rules: [] };
-      } else {
-        const efResp = await putJson(
-          `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/egressfirewall?env=${encodeURIComponent(activeEnv)}`,
-          { rules },
-        );
-        const nextRules = Array.isArray(efResp?.rules) ? efResp.rules : rules;
-        sideEffectPatch = { ...(sideEffectPatch || {}), egress_firewall_rules: nextRules };
-      }
-      didSideEffectWrite = true;
-    }
-
-    const merged = {
-      ...(detailNamespace || {}),
-      ...(updated || {}),
-      ...(sideEffectPatch || {}),
-    };
-    console.log('[App] Final merged namespace:', JSON.stringify(merged, null, 2));
-    setDetailNamespace(merged);
-    setNamespaces((prev) => ({ ...(prev || {}), [namespaceName]: merged }));
-    return merged;
+  /**
+   * Load L4 ingress data for an application and navigate to L4 ingress view.
+   * @param {string} appname - Application name
+   * @param {boolean} [push=true] - Whether to push URL to browser history
+   */
+  async function openL4Ingress(appname, push = true) {
+    if (!appname) return;
+    await loadL4IngressData(appname);
+    setView("l4ingress");
+    if (push) pushUiUrl({ view: "l4ingress", env: activeEnv, appname }, false);
   }
 
-  async function deleteNamespace(namespaceName) {
-    const appname = detailAppName;
-    if (!appname) {
-      setError("No application selected.");
+  /**
+   * View L4 ingress for the currently selected or detailed app.
+   * Determines app from either detail view or selected apps list.
+   */
+  async function onViewL4Ingress() {
+    const appname = getDetailOrSelectedApp();
+    if (!appname) return;
+    await openL4Ingress(appname, true);
+  }
+
+  /**
+   * Load egress IPs for an application and navigate to egress IPs view.
+   * @param {string} appname - Application name
+   * @param {boolean} [push=true] - Whether to push URL to browser history
+   */
+  async function openEgressIps(appname, push = true) {
+    if (!appname) return;
+    await loadEgressIpsData(appname);
+    setView("egressips");
+    if (push) pushUiUrl({ view: "egressips", env: activeEnv, appname }, false);
+  }
+
+  /**
+   * View egress IPs for the currently selected or detailed app.
+   * Determines app from either detail view or selected apps list.
+   */
+  async function onViewEgressIps() {
+    const appname = getDetailOrSelectedApp();
+    if (!appname) return;
+    await openEgressIps(appname, true);
+  }
+
+  // ============================================================================
+  // CLUSTER HANDLERS
+  // ============================================================================
+
+  /**
+   * Add a new cluster to the environment.
+   * Refreshes the apps list after successful addition.
+   * @param {Object} payload - Cluster creation payload
+   */
+  async function onAddCluster(payload) {
+    await addCluster(payload, refreshApps);
+  }
+
+  /**
+   * Delete a cluster from the environment.
+   * Refreshes apps list and view-specific data after successful deletion.
+   * @param {string} clustername - Name of cluster to delete
+   */
+  async function onDeleteCluster(clustername) {
+    const result = await deleteCluster(clustername, refreshApps);
+
+    if (!result?.deleted) {
       return;
     }
 
-    const confirmMsg = `Are you sure you want to delete namespace "${namespaceName}" from ${appname}?\n\nThis action cannot be undone.`;
-    if (!confirm(confirmMsg)) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await fetch(
-        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}&namespaces=${encodeURIComponent(namespaceName)}`,
-        { method: "DELETE", headers: { Accept: "application/json" } }
-      );
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to delete namespace: ${response.status} ${text}`);
+    // Refresh view-specific data if we're viewing app details
+    if (detailAppName) {
+      try {
+        if (view === "namespaces") {
+          await loadNamespacesData(detailAppName);
+        } else if (view === "namespaceDetails" && detailNamespaceName) {
+          await loadNamespacesData(detailAppName);
+          await viewNamespaceDetails(detailNamespaceName, null, detailAppName);
+        } else if (view === "l4ingress") {
+          await loadL4IngressData(detailAppName);
+        } else if (view === "egressips") {
+          await loadEgressIpsData(detailAppName);
+        }
+      } catch (e) {
+        setError(e?.message || String(e));
       }
-
-      await response.json();
-
-      // Refresh the namespaces list
-      const resp = await fetchJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-      );
-      setNamespaces(resp || {});
-
-      // Refresh apps list to update totalns count
-      const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-      setApps(appsResp);
-
-      const nextClusters = {};
-      for (const [appname, app] of Object.entries(appsResp || {})) {
-        nextClusters[appname] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-      }
-      setClustersByApp(nextClusters);
-
-      setError("");
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
     }
   }
 
-  async function deleteApp(appname) {
-    const confirmMsg = `Are you sure you want to delete app "${appname}"?\n\nThis will remove all associated namespaces, L4 ingress IPs, and pull requests.\n\nThis action cannot be undone.`;
-    if (!confirm(confirmMsg)) {
-      return;
-    }
+  // ============================================================================
+  // NAVIGATION HANDLERS
+  // ============================================================================
 
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await fetch(
-        `/api/v1/apps/${encodeURIComponent(appname)}?env=${encodeURIComponent(activeEnv)}`,
-        { method: "DELETE", headers: { Accept: "application/json" } }
-      );
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Failed to delete ${appname}: ${response.status} ${text}`);
-      }
-      await response.json();
-
-      // Refresh the apps list
-      const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-      setApps(appsResp);
-
-      const nextClusters = {};
-      for (const [appname, app] of Object.entries(appsResp || {})) {
-        nextClusters[appname] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-      }
-      setClustersByApp(nextClusters);
-
-      setError("");
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
+  /**
+   * Handle environment change from UI.
+   * Updates active environment and navigates to apps view.
+   * @param {string} env - Environment name to switch to
+   */
+  function onEnvClick(env) {
+    setActiveEnv(env);
+    pushUiUrl({ view: "apps", env, appname: "" }, false);
   }
 
-  async function createApp(payload) {
-    const appname = String(payload?.appname || "").trim();
-    const description = String(payload?.description || "");
-    const managedby = String(payload?.managedby || "");
-
-    if (!appname) throw new Error("App Name is required.");
-
-    await postJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`,
-      {
-        appname,
-        description,
-        managedby,
-      });
-
-    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-    setApps(appsResp);
-
-    const nextClusters = {};
-    for (const [appname, app] of Object.entries(appsResp || {})) {
-      nextClusters[appname] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-    }
-    setClustersByApp(nextClusters);
-
-    await refreshRequestsChanges();
+  /**
+   * Navigate back to apps list view.
+   * Resets namespace state, clears errors, and updates URL.
+   */
+  function onBackToApps() {
+    setView("apps");
+    resetNamespacesState();
+    resetL4IngressState();
+    resetEgressIpsState();
+    setError("");
+    pushUiUrl({ view: "apps", env: activeEnv, appname: "" }, false);
   }
 
-  async function refreshApps() {
-    if (!activeEnv) return;
-    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-    setApps(appsResp);
-
-    const nextClusters = {};
-    for (const [k, app] of Object.entries(appsResp || {})) {
-      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-    }
-    setClustersByApp(nextClusters);
-
-    await refreshRequestsChanges();
-  }
-
-  async function updateApp(appname, payload) {
-    const target = String(appname || payload?.appname || "").trim();
-    const description = String(payload?.description || "");
-    const managedby = String(payload?.managedby || "");
-
-    if (!target) throw new Error("App Name is required.");
-
-    await putJson(`/api/v1/apps/${encodeURIComponent(target)}?env=${encodeURIComponent(activeEnv)}`,
-      {
-        appname: target,
-        description,
-        managedby,
-      });
-
-    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-    setApps(appsResp);
-
-    const nextClusters = {};
-    for (const [k, app] of Object.entries(appsResp || {})) {
-      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-    }
-    setClustersByApp(nextClusters);
-
-    await refreshRequestsChanges();
-  }
-
-  async function createNamespace(payload) {
-    const appname = detailAppName;
-    if (!appname) throw new Error("No application selected.");
-
-    const namespace = String(payload?.namespace || "").trim();
-    const clusters = Array.isArray(payload?.clusters)
-      ? payload.clusters.map((s) => String(s).trim()).filter(Boolean)
-      : String(payload?.clusters || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-    const need_argo = Boolean(payload?.need_argo);
-    const egress_nameid = String(payload?.egress_nameid || "").trim();
-
-    if (!namespace) throw new Error("Namespace name is required.");
-
-    await postJson(
-      `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`,
-      {
-        namespace,
-        clusters,
-        egress_nameid: egress_nameid || undefined,
-      }
-    );
-
-    if (need_argo) {
-      await putJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespace)}/nsargocd?env=${encodeURIComponent(activeEnv)}`,
-        { need_argo },
-      );
-    }
-
-    // Refresh the namespaces list
-    const resp = await fetchJson(
-      `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(activeEnv)}`
-    );
-    setNamespaces(resp || {});
-
-    // Refresh the apps list to update totalns count
-    const appsResp = await fetchJson(`/api/v1/apps?env=${encodeURIComponent(activeEnv)}`);
-    setApps(appsResp);
-
-    const nextClusters = {};
-    for (const [k, app] of Object.entries(appsResp || {})) {
-      nextClusters[k] = Array.isArray(app?.clusters) ? app.clusters.map(String) : [];
-    }
-    setClustersByApp(nextClusters);
-
-    await refreshRequestsChanges();
-  }
-
-  async function onSaveConfig() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const saved = await postJson("/api/v1/config", {
-        workspace,
-        requestsRepo,
-        templatesRepo,
-        renderedManifestsRepo,
-        controlRepo,
-      });
-
-      setWorkspace(saved?.workspace || "");
-      setRequestsRepo(saved?.requestsRepo || "");
-      setTemplatesRepo(saved?.templatesRepo || "");
-      setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
-      setControlRepo(saved?.controlRepo || "");
-
-      const isComplete = Boolean(
-        (saved?.workspace || "").trim() &&
-          (saved?.requestsRepo || "").trim() &&
-          (saved?.renderedManifestsRepo || "").trim() &&
-          (saved?.controlRepo || "").trim(),
-      );
-      setPersistedConfigComplete(isComplete);
-      if (isComplete) {
-        const envList = await fetchJson("/api/v1/envlist");
-        const keys = Object.keys(envList);
-        setEnvKeys(keys);
-        const initialEnv = keys[0] || "";
-        setActiveEnv(initialEnv);
-        setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
-        if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
-        setTopTab("Request provisioning");
-      }
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onUseDefaults() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const saved = await postJson("/api/v1/config", {
-        workspace: "~/workspace",
-        requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
-        templatesRepo: "https://github.com/praveensiddu/kselfservice-templates",
-        renderedManifestsRepo: "https://github.com/praveensiddu/kselfservice-rendered",
-        controlRepo: "https://github.com/praveensiddu/kselfservice-control",
-      });
-
-      setWorkspace(saved?.workspace || "");
-      setRequestsRepo(saved?.requestsRepo || "");
-      setTemplatesRepo(saved?.templatesRepo || "");
-      setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
-      setControlRepo(saved?.controlRepo || "");
-
-      const isComplete = Boolean(
-        (saved?.workspace || "").trim() &&
-          (saved?.requestsRepo || "").trim() &&
-          (saved?.renderedManifestsRepo || "").trim() &&
-          (saved?.controlRepo || "").trim(),
-      );
-      setPersistedConfigComplete(isComplete);
-      if (isComplete) {
-        const envList = await fetchJson("/api/v1/envlist");
-        const keys = Object.keys(envList);
-        setEnvKeys(keys);
-        const initialEnv = keys[0] || "";
-        setActiveEnv(initialEnv);
-        setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
-        if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
-        setTopTab("Request provisioning");
-      }
-    } catch (e) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Derive values from state
+  const deploymentEnv = deployment?.deployment_env || "";
+  const bannerTitle = deployment?.title?.[deploymentEnv] || "OCP App Provisioning Portal";
+  const bannerColor = deployment?.headerColor?.[deploymentEnv] || "#384454";
+  const selectedAppArgocdEnabled = Boolean(detailAppName && apps?.[detailAppName]?.argocd);
 
   return (
     <AppView
       bannerColor={bannerColor}
       bannerTitle={bannerTitle}
-      deploymentEnv={deploymentEnv}
       currentUser={currentUser}
       envKeys={envKeys}
       activeEnv={activeEnv}
@@ -1363,27 +697,20 @@ function App() {
       view={view}
       error={error}
       showErrorModal={showErrorModal}
-      onCloseErrorModal={() => {
-        setShowErrorModal(false);
-        setError("");
-      }}
+      onCloseErrorModal={closeErrorModal}
       showDeleteWarningModal={showDeleteWarningModal}
       deleteWarningData={deleteWarningData}
-      onCloseDeleteWarningModal={() => {
-        setShowDeleteWarningModal(false);
-        setDeleteWarningData(null);
-      }}
+      onCloseDeleteWarningModal={closeDeleteWarningModal}
       topTab={topTab}
       configComplete={configComplete}
       readonly={readonly}
       onTopTabChange={setTopTabWithUrl}
       clustersByEnv={clustersByEnv}
-      availableClusters={availableClusters}
       onAddCluster={onAddCluster}
       onDeleteCluster={onDeleteCluster}
       showCreateCluster={showCreateCluster}
-      onOpenCreateCluster={() => setShowCreateCluster(true)}
-      onCloseCreateCluster={() => setShowCreateCluster(false)}
+      onOpenCreateCluster={openCreateCluster}
+      onCloseCreateCluster={closeCreateCluster}
       workspace={workspace}
       setWorkspace={setWorkspace}
       requestsRepo={requestsRepo}
@@ -1401,11 +728,8 @@ function App() {
       setDraftEnforcementSettings={setDraftEnforcementSettings}
       enforcementSettingsError={enforcementSettingsError}
       enforcementSettingsLoading={enforcementSettingsLoading}
-      onSaveEnforcementSettings={onSaveEnforcementSettings}
-      onEnvClick={(env) => {
-        setActiveEnv(env);
-        pushUiUrl({ view: "apps", env, appname: "" }, false);
-      }}
+      onSaveEnforcementSettings={saveEnforcementSettingsData}
+      onEnvClick={onEnvClick}
       onViewL4Ingress={onViewL4Ingress}
       onViewEgressIps={onViewEgressIps}
       onViewNamespaces={onViewNamespaces}
@@ -1430,22 +754,13 @@ function App() {
       viewNamespaceDetails={viewNamespaceDetails}
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
       onCreateApp={createApp}
-      onUpdateApp={updateApp}
-      onRefreshApps={refreshApps}
       showCreateApp={showCreateApp}
-      onOpenCreateApp={async () => {
-        try {
-          await refreshClusters(activeEnv);
-        } catch {
-          // noop
-        }
-        setShowCreateApp(true);
-      }}
-      onCloseCreateApp={() => setShowCreateApp(false)}
-      onCreateNamespace={createNamespace}
+      onOpenCreateApp={onOpenCreateApp}
+      onCloseCreateApp={closeCreateApp}
+      onCreateNamespace={onCreateNamespace}
       showCreateNamespace={showCreateNamespace}
-      onOpenCreateNamespace={() => setShowCreateNamespace(true)}
-      onCloseCreateNamespace={() => setShowCreateNamespace(false)}
+      onOpenCreateNamespace={openCreateNamespace}
+      onCloseCreateNamespace={closeCreateNamespace}
       detailAppName={detailAppName}
       argocdEnabled={selectedAppArgocdEnabled}
       requestsChanges={requestsChanges}
@@ -1453,6 +768,8 @@ function App() {
       egressIpItems={egressIpItems}
       namespaceDetailsHeaderButtons={namespaceDetailsHeaderButtons}
       onSetNamespaceDetailsHeaderButtons={setNamespaceDetailsHeaderButtons}
+      l4IngressAddButton={l4IngressAddButton}
+      onSetL4IngressAddButton={setL4IngressAddButton}
     />
   );
 }

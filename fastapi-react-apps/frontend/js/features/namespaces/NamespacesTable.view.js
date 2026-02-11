@@ -5,124 +5,43 @@ function NamespacesTableView({
   setFilters,
   onViewDetails,
   onDeleteNamespace,
-  onCopyNamespace,
-  onCreateNamespace,
-  argocdEnabled,
   requestsChanges,
   env,
   envKeys,
   appname,
   showCreate,
-  onOpenCreate,
   onCloseCreate,
   readonly,
+  newNamespace,
+  setNewNamespace,
+  newClustersList,
+  clusterQuery,
+  setClusterQuery,
+  clusterPickerOpen,
+  setClusterPickerOpen,
+  newManagedByArgo,
+  setNewManagedByArgo,
+  newEgressNameId,
+  setNewEgressNameId,
+  canEnableArgoForNewNamespace,
+  filteredClusterOptions,
+  addCluster,
+  removeCluster,
+  canSubmitCreate,
+  handleCreateNamespace,
+  showCopy,
+  copyFromNamespace,
+  copyToEnv,
+  setCopyToEnv,
+  copyToNamespace,
+  setCopyToNamespace,
+  copyBusy,
+  copyError,
+  canSubmitCopy,
+  openCopyModal,
+  closeCopyModal,
+  handleCopyNamespace,
 }) {
-  const [newNamespace, setNewNamespace] = React.useState("");
-  const [newClustersList, setNewClustersList] = React.useState([]);
-  const [clusterOptions, setClusterOptions] = React.useState([]);
-  const [clusterQuery, setClusterQuery] = React.useState("");
-  const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
-  const [newManagedByArgo, setNewManagedByArgo] = React.useState(false);
-  const [newEgressNameId, setNewEgressNameId] = React.useState("");
-
-  const [showCopy, setShowCopy] = React.useState(false);
-  const [copyFromNamespace, setCopyFromNamespace] = React.useState("");
-  const [copyToEnv, setCopyToEnv] = React.useState("");
-  const [copyToNamespace, setCopyToNamespace] = React.useState("");
-  const [copyBusy, setCopyBusy] = React.useState(false);
-  const [copyError, setCopyError] = React.useState("");
-
-  const canEnableArgoForNewNamespace = Boolean(argocdEnabled);
-
-  React.useEffect(() => {
-    if (!showCreate) return;
-    if (!canEnableArgoForNewNamespace) setNewManagedByArgo(false);
-  }, [showCreate, canEnableArgoForNewNamespace]);
-
-  React.useEffect(() => {
-    if (!showCreate) return;
-    const appKey = String(appname || "").trim();
-    if (!appKey) return;
-    setNewEgressNameId((prev) => (String(prev || "").trim() ? prev : appKey));
-  }, [showCreate, appname]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    if (!showCreate) return;
-
-    const envKey = String(env || "").trim();
-    const appKey = String(appname || "").trim();
-    if (!envKey || !appKey) {
-      setClusterOptions([]);
-      return;
-    }
-
-    (async () => {
-      try {
-        const resp = await fetch(
-          `/api/v1/clusters?env=${encodeURIComponent(envKey)}&app=${encodeURIComponent(appKey)}`,
-        );
-        if (!resp.ok) throw new Error("Failed to load clusters");
-        const data = await resp.json();
-        if (cancelled) return;
-        setClusterOptions(Array.isArray(data) ? data.map(String) : []);
-      } catch {
-        if (!cancelled) setClusterOptions([]);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showCreate, env, appname]);
-
-  const filteredClusterOptions = (clusterOptions || [])
-    .filter((c) => !(newClustersList || []).includes(c))
-    .filter((c) => (c || "").toLowerCase().includes((clusterQuery || "").toLowerCase()));
-
-  function addCluster(c) {
-    const v = String(c || "").trim();
-    if (!v) return;
-    setNewClustersList((prev) => {
-      const next = Array.isArray(prev) ? prev.slice() : [];
-      if (!next.includes(v)) next.push(v);
-      return next;
-    });
-    setClusterQuery("");
-    setClusterPickerOpen(false);
-  }
-
-  function removeCluster(c) {
-    const v = String(c || "").trim();
-    setNewClustersList((prev) => (Array.isArray(prev) ? prev.filter((x) => x !== v) : []));
-  }
-
-  const canSubmitCreate = Boolean(
-    (newNamespace || "").trim() && Array.isArray(newClustersList) && newClustersList.length > 0,
-  );
-
-  const canSubmitCopy = Boolean(
-    !copyBusy &&
-      (copyFromNamespace || "").trim() &&
-      (copyToEnv || "").trim() &&
-      (copyToNamespace || "").trim() &&
-      !(String(copyToEnv || "").trim() === String(env || "").trim() &&
-        String(copyToNamespace || "").trim() === String(copyFromNamespace || "").trim()),
-  );
-
-  function openCopyModal(fromNamespace) {
-    setCopyError("");
-    setCopyFromNamespace(String(fromNamespace || "").trim());
-    const initialToEnv = String(env || "").trim() || (Array.isArray(envKeys) ? String(envKeys[0] || "").trim() : "");
-    setCopyToEnv(initialToEnv);
-    setCopyToNamespace("");
-    setShowCopy(true);
-  }
-
-  function closeCopyModal() {
-    if (copyBusy) return;
-    setShowCopy(false);
-  }
 
   return (
     <div>
@@ -220,22 +139,7 @@ function NamespacesTableView({
                   className="btn btn-primary"
                   type="button"
                   disabled={!canSubmitCopy}
-                  onClick={async () => {
-                    try {
-                      setCopyBusy(true);
-                      setCopyError("");
-                      await onCopyNamespace(copyFromNamespace, {
-                        from_env: String(env || "").trim(),
-                        to_env: String(copyToEnv || "").trim(),
-                        to_namespace: String(copyToNamespace || "").trim(),
-                      });
-                      setShowCopy(false);
-                    } catch (e) {
-                      setCopyError(e?.message || String(e));
-                    } finally {
-                      setCopyBusy(false);
-                    }
-                  }}
+                  onClick={handleCopyNamespace}
                   data-testid="copy-namespace-submit"
                 >
                   {copyBusy ? "Copying..." : "Copy"}
@@ -462,26 +366,7 @@ function NamespacesTableView({
               <button
                 className="btn btn-primary"
                 type="button"
-                onClick={async () => {
-                  try {
-                    if (typeof onCreateNamespace !== "function") return;
-                    await onCreateNamespace({
-                      namespace: newNamespace,
-                      clusters: newClustersList,
-                      need_argo: canEnableArgoForNewNamespace ? newManagedByArgo : false,
-                      egress_nameid: newEgressNameId,
-                    });
-                    onCloseCreate();
-                    setNewNamespace("");
-                    setNewClustersList([]);
-                    setClusterQuery("");
-                    setClusterPickerOpen(false);
-                    setNewManagedByArgo(false);
-                    setNewEgressNameId("");
-                  } catch (e) {
-                    alert(e?.message || String(e));
-                  }
-                }}
+                onClick={handleCreateNamespace}
                 disabled={!canSubmitCreate}
                 data-testid="submit-namespace-btn"
               >

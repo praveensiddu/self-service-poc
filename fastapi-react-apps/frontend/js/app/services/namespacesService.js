@@ -30,16 +30,13 @@ async function createNamespaceApi(env, appname, payload) {
   if (!env) throw new Error("Environment is required.");
   if (!appname) throw new Error("Application name is required.");
 
-  const namespace = String(payload?.namespace || "").trim();
+  const namespace = safeTrim(payload?.namespace);
   if (!namespace) throw new Error("Namespace name is required.");
 
   const clusters = Array.isArray(payload?.clusters)
-    ? payload.clusters.map((s) => String(s).trim()).filter(Boolean)
-    : String(payload?.clusters || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-  const egress_nameid = String(payload?.egress_nameid || "").trim();
+    ? payload.clusters.map(safeTrim).filter(Boolean)
+    : parseCommaSeparated(payload?.clusters);
+  const egress_nameid = safeTrim(payload?.egress_nameid);
 
   await postJson(
     `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(env)}`,
@@ -73,17 +70,9 @@ async function deleteNamespaceApi(env, appname, namespaceName) {
   if (!appname) throw new Error("Application name is required.");
   if (!namespaceName) throw new Error("Namespace name is required.");
 
-  const response = await fetch(
-    `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(env)}&namespaces=${encodeURIComponent(namespaceName)}`,
-    { method: "DELETE", headers: { Accept: "application/json" } }
+  return await deleteJson(
+    `/api/v1/apps/${encodeURIComponent(appname)}/namespaces?env=${encodeURIComponent(env)}&namespaces=${encodeURIComponent(namespaceName)}`
   );
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to delete namespace: ${response.status} ${text}`);
-  }
-
-  return await response.json();
 }
 
 /**
@@ -99,14 +88,14 @@ async function copyNamespaceApi(env, appname, fromNamespace, payload) {
   if (!appname) throw new Error("Application name is required.");
   if (!fromNamespace) throw new Error("Source namespace is required.");
 
-  const from_env = String(payload?.from_env || "").trim();
-  const to_env = String(payload?.to_env || "").trim();
-  const to_namespace = String(payload?.to_namespace || "").trim();
+  const from_env = safeTrim(payload?.from_env);
+  const to_env = safeTrim(payload?.to_env);
+  const to_namespace = safeTrim(payload?.to_namespace);
 
   if (!from_env) throw new Error("from_env is required.");
   if (!to_env) throw new Error("to_env is required.");
   if (!to_namespace) throw new Error("to_namespace is required.");
-  if (from_env !== String(env || "").trim()) {
+  if (from_env !== safeTrim(env)) {
     throw new Error("from_env must match the active environment.");
   }
 

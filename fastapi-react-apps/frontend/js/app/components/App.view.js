@@ -1,7 +1,6 @@
 function AppView({
   bannerColor,
   bannerTitle,
-  deploymentEnv,
   currentUser,
   envKeys,
   activeEnv,
@@ -18,7 +17,6 @@ function AppView({
   readonly,
   onTopTabChange,
   clustersByEnv,
-  availableClusters,
   onAddCluster,
   onDeleteCluster,
   showCreateCluster,
@@ -57,8 +55,6 @@ function AppView({
   deleteApp,
   openNamespaces,
   onCreateApp,
-  onUpdateApp,
-  onRefreshApps,
   showCreateApp,
   onOpenCreateApp,
   onCloseCreateApp,
@@ -81,15 +77,12 @@ function AppView({
   requestsChanges,
   l4IngressItems,
   egressIpItems,
-  selectedEgressIps,
-  toggleEgressIp,
-  onSelectAllEgressIps,
   namespaceDetailsHeaderButtons,
   onSetNamespaceDetailsHeaderButtons,
+  l4IngressAddButton,
+  onSetL4IngressAddButton,
 }) {
-  const [l4IngressAddButton, setL4IngressAddButton] = React.useState(null);
-
-  const showProvisioningTabs = Boolean(configComplete);
+  // Validation for config save button
   const canSaveConfig = Boolean(
     (workspace || "").trim() &&
       (requestsRepo || "").trim() &&
@@ -97,6 +90,7 @@ function AppView({
       (controlRepo || "").trim(),
   );
 
+  // Check if enforcement settings have unsaved changes
   const hasUnsavedEnforcementSettings = Boolean(
     String(draftEnforcementSettings?.enforce_egress_firewall || "") !==
       String(enforcementSettings?.enforce_egress_firewall || "") ||
@@ -128,7 +122,7 @@ function AppView({
           >
             Settings
           </button>
-          {showProvisioningTabs ? (
+          {configComplete ? (
             <>
               <button
                 className={topTab === "Request provisioning" ? "tab active" : "tab"}
@@ -469,18 +463,14 @@ function AppView({
               <AppsTable
                 rows={appRows}
                 env={activeEnv}
-                onRefreshApps={onRefreshApps}
                 clustersByApp={clustersByApp}
-                availableClusters={availableClusters}
                 selectedApps={selectedApps}
                 onToggleRow={toggleRow}
                 onSelectAll={onSelectAllFromFiltered}
                 onDeleteApp={deleteApp}
                 onViewDetails={(appname) => openNamespaces(appname, true)}
                 onCreateApp={onCreateApp}
-                onUpdateApp={onUpdateApp}
                 showCreate={showCreateApp}
-                onOpenCreate={onOpenCreateApp}
                 onCloseCreate={onCloseCreateApp}
                 requestsChanges={requestsChanges}
                 readonly={readonly}
@@ -516,7 +506,7 @@ function AppView({
                 readonly={readonly}
               />
             ) : view === "l4ingress" ? (
-              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={setL4IngressAddButton} readonly={readonly} />
+              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={onSetL4IngressAddButton} readonly={readonly} />
             ) : (
               <EgressIpTable
                 items={egressIpItems}

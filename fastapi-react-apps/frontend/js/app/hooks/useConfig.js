@@ -12,9 +12,12 @@
 
 /**
  * Custom hook for managing application configuration.
+ * @param {Object} params - Hook parameters
+ * @param {Function} params.setLoading - Loading state setter
+ * @param {Function} params.setError - Error state setter
  * @returns {Object} - Configuration state and operations
  */
-function useConfig() {
+function useConfig({ setLoading, setError }) {
   const [workspace, setWorkspace] = React.useState("");
   const [requestsRepo, setRequestsRepo] = React.useState("");
   const [templatesRepo, setTemplatesRepo] = React.useState("");
@@ -59,44 +62,64 @@ function useConfig() {
    * @returns {Promise<{config: Object, isComplete: boolean}>}
    */
   const saveConfigData = React.useCallback(async () => {
-    const saved = await saveConfig({
-      workspace,
-      requestsRepo,
-      templatesRepo,
-      renderedManifestsRepo,
-      controlRepo,
-    });
+    try {
+      setLoading(true);
+      setError("");
 
-    setWorkspace(saved?.workspace || "");
-    setRequestsRepo(saved?.requestsRepo || "");
-    setTemplatesRepo(saved?.templatesRepo || "");
-    setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
-    setControlRepo(saved?.controlRepo || "");
+      const saved = await saveConfig({
+        workspace,
+        requestsRepo,
+        templatesRepo,
+        renderedManifestsRepo,
+        controlRepo,
+      });
 
-    const isComplete = isConfigComplete(saved);
-    setPersistedConfigComplete(isComplete);
+      setWorkspace(saved?.workspace || "");
+      setRequestsRepo(saved?.requestsRepo || "");
+      setTemplatesRepo(saved?.templatesRepo || "");
+      setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
+      setControlRepo(saved?.controlRepo || "");
 
-    return { config: saved, isComplete };
-  }, [workspace, requestsRepo, templatesRepo, renderedManifestsRepo, controlRepo]);
+      const isComplete = isConfigComplete(saved);
+      setPersistedConfigComplete(isComplete);
+
+      return { config: saved, isComplete };
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [workspace, requestsRepo, templatesRepo, renderedManifestsRepo, controlRepo, setLoading, setError]);
 
   /**
    * Save default configuration values.
    * @returns {Promise<{config: Object, isComplete: boolean}>}
    */
   const saveDefaultConfigData = React.useCallback(async () => {
-    const saved = await saveDefaultConfig();
+    try {
+      setLoading(true);
+      setError("");
 
-    setWorkspace(saved?.workspace || "");
-    setRequestsRepo(saved?.requestsRepo || "");
-    setTemplatesRepo(saved?.templatesRepo || "");
-    setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
-    setControlRepo(saved?.controlRepo || "");
+      const saved = await saveDefaultConfig();
 
-    const isComplete = isConfigComplete(saved);
-    setPersistedConfigComplete(isComplete);
+      setWorkspace(saved?.workspace || "");
+      setRequestsRepo(saved?.requestsRepo || "");
+      setTemplatesRepo(saved?.templatesRepo || "");
+      setRenderedManifestsRepo(saved?.renderedManifestsRepo || "");
+      setControlRepo(saved?.controlRepo || "");
 
-    return { config: saved, isComplete };
-  }, []);
+      const isComplete = isConfigComplete(saved);
+      setPersistedConfigComplete(isComplete);
+
+      return { config: saved, isComplete };
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading, setError]);
 
   /**
    * Load enforcement settings from server.
@@ -152,7 +175,7 @@ function useConfig() {
   }, []);
 
   return {
-    // Config state
+    // Config state (expose setters for form inputs)
     workspace,
     setWorkspace,
     requestsRepo,

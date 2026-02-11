@@ -6,7 +6,6 @@
  * - CRUD operations for namespaces
  * - Namespace details state
  * - Selection state for namespaces
- * - L4 Ingress and Egress IP state
  *
  * Note: Uses global functions from services/namespacesService.js
  */
@@ -15,16 +14,18 @@
  * Custom hook for managing namespaces.
  * @param {Object} params - Hook parameters
  * @param {string} params.activeEnv - Currently active environment
+ * @param {Function} params.setLoading - Loading state setter
+ * @param {Function} params.setError - Error state setter
+ * @param {Function} params.setShowErrorModal - Error modal visibility setter
  * @returns {Object} - Namespaces state and operations
  */
-function useNamespaces({ activeEnv }) {
+function useNamespaces({ activeEnv, setLoading, setError, setShowErrorModal }) {
   const [namespaces, setNamespaces] = React.useState({});
   const [selectedNamespaces, setSelectedNamespaces] = React.useState(() => new Set());
   const [detailAppName, setDetailAppName] = React.useState("");
   const [detailNamespace, setDetailNamespace] = React.useState(null);
   const [detailNamespaceName, setDetailNamespaceName] = React.useState("");
-  const [l4IngressItems, setL4IngressItems] = React.useState([]);
-  const [egressIpItems, setEgressIpItems] = React.useState([]);
+  const [namespaceDetailsHeaderButtons, setNamespaceDetailsHeaderButtons] = React.useState(null);
 
   /**
    * Load namespaces for an application.
@@ -35,6 +36,7 @@ function useNamespaces({ activeEnv }) {
     if (!activeEnv || !appname) return {};
 
     const resp = await loadNamespaces(activeEnv, appname);
+    setDetailAppName(appname);
     setNamespaces(resp || {});
     setSelectedNamespaces(new Set());
 
@@ -47,16 +49,29 @@ function useNamespaces({ activeEnv }) {
    * @param {{namespace: string, clusters?: string[], need_argo?: boolean, egress_nameid?: string}} payload
    */
   const createNamespace = React.useCallback(async (appname, payload) => {
-    if (!appname) throw new Error("No application selected.");
+    if (!appname) {
+      setError("No application selected.");
+      setShowErrorModal(true);
+      return;
+    }
 
-    await createNamespaceApi(activeEnv, appname, payload);
+    try {
+      setLoading(true);
+      setError("");
+      await createNamespaceApi(activeEnv, appname, payload);
 
-    // Refresh namespaces list
-    const resp = await loadNamespaces(activeEnv, appname);
-    setNamespaces(resp || {});
+      // Refresh namespaces list
+      const resp = await loadNamespaces(activeEnv, appname);
+      setNamespaces(resp || {});
 
-    return resp;
-  }, [activeEnv]);
+      return resp;
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, setLoading, setError, setShowErrorModal]);
 
   /**
    * Delete a namespace.
@@ -65,21 +80,34 @@ function useNamespaces({ activeEnv }) {
    * @returns {Promise<boolean>} - Whether deletion was confirmed and completed
    */
   const deleteNamespace = React.useCallback(async (appname, namespaceName) => {
-    if (!appname) throw new Error("No application selected.");
+    if (!appname) {
+      setError("No application selected.");
+      setShowErrorModal(true);
+      return false;
+    }
 
     const confirmMsg = `Are you sure you want to delete namespace "${namespaceName}" from ${appname}?\n\nThis action cannot be undone.`;
     if (!confirm(confirmMsg)) {
       return false;
     }
 
-    await deleteNamespaceApi(activeEnv, appname, namespaceName);
+    try {
+      setLoading(true);
+      setError("");
+      await deleteNamespaceApi(activeEnv, appname, namespaceName);
 
-    // Refresh namespaces list
-    const resp = await loadNamespaces(activeEnv, appname);
-    setNamespaces(resp || {});
+      // Refresh namespaces list
+      const resp = await loadNamespaces(activeEnv, appname);
+      setNamespaces(resp || {});
 
-    return true;
-  }, [activeEnv]);
+      return true;
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, setLoading, setError, setShowErrorModal]);
 
   /**
    * Copy a namespace to another environment.
@@ -88,14 +116,27 @@ function useNamespaces({ activeEnv }) {
    * @param {{from_env: string, to_env: string, to_namespace: string}} payload
    */
   const copyNamespace = React.useCallback(async (appname, fromNamespace, payload) => {
-    if (!appname) throw new Error("No application selected.");
+    if (!appname) {
+      setError("No application selected.");
+      setShowErrorModal(true);
+      return;
+    }
 
-    await copyNamespaceApi(activeEnv, appname, fromNamespace, payload);
+    try {
+      setLoading(true);
+      setError("");
+      await copyNamespaceApi(activeEnv, appname, fromNamespace, payload);
 
-    // Refresh namespaces list
-    const resp = await loadNamespaces(activeEnv, appname);
-    setNamespaces(resp || {});
-  }, [activeEnv]);
+      // Refresh namespaces list
+      const resp = await loadNamespaces(activeEnv, appname);
+      setNamespaces(resp || {});
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, setLoading, setError, setShowErrorModal]);
 
   /**
    * Load namespace details.
@@ -104,17 +145,34 @@ function useNamespaces({ activeEnv }) {
    * @returns {Promise<Object>} - Namespace details
    */
   const loadNamespaceDetailsData = React.useCallback(async (appname, namespaceName) => {
-    if (!appname) throw new Error("No application selected.");
-    if (!namespaceName) throw new Error("No namespace selected.");
+    if (!appname) {
+      setError("No application selected.");
+      setShowErrorModal(true);
+      return null;
+    }
+    if (!namespaceName) {
+      setError("No namespace selected.");
+      setShowErrorModal(true);
+      return null;
+    }
 
-    const details = await loadNamespaceDetails(activeEnv, appname, namespaceName);
+    try {
+      setLoading(true);
+      setError("");
+      const details = await loadNamespaceDetails(activeEnv, appname, namespaceName);
 
-    setDetailAppName(appname);
-    setDetailNamespace(details);
-    setDetailNamespaceName(namespaceName);
+      setDetailAppName(appname);
+      setDetailNamespace(details);
+      setDetailNamespaceName(namespaceName);
 
-    return details;
-  }, [activeEnv]);
+      return details;
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, setLoading, setError, setShowErrorModal]);
 
   /**
    * Update namespace info with complex payload handling.
@@ -124,10 +182,22 @@ function useNamespaces({ activeEnv }) {
    * @returns {Promise<Object>} - Updated namespace
    */
   const updateNamespaceInfo = React.useCallback(async (appname, namespaceName, updates) => {
-    if (!appname) throw new Error("No application selected.");
-    if (!namespaceName) throw new Error("No namespace selected.");
+    if (!appname) {
+      setError("No application selected.");
+      setShowErrorModal(true);
+      return null;
+    }
+    if (!namespaceName) {
+      setError("No namespace selected.");
+      setShowErrorModal(true);
+      return null;
+    }
 
-    const nextUpdates = { ...(updates || {}) };
+    try {
+      setLoading(true);
+      setError("");
+
+      const nextUpdates = { ...(updates || {}) };
     const ni = nextUpdates?.namespace_info ? { ...(nextUpdates.namespace_info || {}) } : null;
     const nextNeedArgo = ni && Object.prototype.hasOwnProperty.call(ni, "need_argo")
       ? Boolean(ni.need_argo)
@@ -265,35 +335,13 @@ function useNamespaces({ activeEnv }) {
     setNamespaces((prev) => ({ ...(prev || {}), [namespaceName]: merged }));
 
     return merged;
-  }, [activeEnv, detailNamespace]);
-
-  /**
-   * Load L4 ingress items for an application.
-   * @param {string} appname - Application name
-   * @returns {Promise<Array>}
-   */
-  const loadL4IngressData = React.useCallback(async (appname) => {
-    if (!activeEnv || !appname) return [];
-
-    const items = await loadL4Ingress(activeEnv, appname);
-    setL4IngressItems(items || []);
-
-    return items || [];
-  }, [activeEnv]);
-
-  /**
-   * Load egress IPs for an application.
-   * @param {string} appname - Application name
-   * @returns {Promise<Array>}
-   */
-  const loadEgressIpsData = React.useCallback(async (appname) => {
-    if (!activeEnv || !appname) return [];
-
-    const items = await loadEgressIps(activeEnv, appname);
-    setEgressIpItems(items || []);
-
-    return items || [];
-  }, [activeEnv]);
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEnv, detailNamespace, setLoading, setError, setShowErrorModal]);
 
   /**
    * Toggle namespace selection.
@@ -328,8 +376,7 @@ function useNamespaces({ activeEnv }) {
     setDetailAppName("");
     setDetailNamespace(null);
     setDetailNamespaceName("");
-    setL4IngressItems([]);
-    setEgressIpItems([]);
+    setNamespaceDetailsHeaderButtons(null);
   }, []);
 
   /**
@@ -338,24 +385,18 @@ function useNamespaces({ activeEnv }) {
   const clearDetailState = React.useCallback(() => {
     setDetailNamespace(null);
     setDetailNamespaceName("");
+    setNamespaceDetailsHeaderButtons(null);
   }, []);
 
   return {
     // State
     namespaces,
-    setNamespaces,
     selectedNamespaces,
-    setSelectedNamespaces,
     detailAppName,
-    setDetailAppName,
     detailNamespace,
-    setDetailNamespace,
     detailNamespaceName,
-    setDetailNamespaceName,
-    l4IngressItems,
-    setL4IngressItems,
-    egressIpItems,
-    setEgressIpItems,
+    namespaceDetailsHeaderButtons,
+    setNamespaceDetailsHeaderButtons,
 
     // Operations
     loadNamespacesData,
@@ -364,8 +405,6 @@ function useNamespaces({ activeEnv }) {
     copyNamespace,
     loadNamespaceDetailsData,
     updateNamespaceInfo,
-    loadL4IngressData,
-    loadEgressIpsData,
 
     // Selection
     toggleNamespace,

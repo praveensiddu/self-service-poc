@@ -24,13 +24,13 @@ async function loadClusters(env) {
 async function createClusterApi(env, payload) {
   if (!env) throw new Error("Environment is required.");
 
-  const clustername = String(payload?.clustername || "").trim();
+  const clustername = safeTrim(payload?.clustername);
   if (!clustername) throw new Error("clustername is required.");
 
   return await postJson(`/api/v1/clusters?env=${encodeURIComponent(env)}`, {
     clustername,
-    purpose: String(payload?.purpose || ""),
-    datacenter: String(payload?.datacenter || ""),
+    purpose: safeTrim(payload?.purpose),
+    datacenter: safeTrim(payload?.datacenter),
     applications: Array.isArray(payload?.applications) ? payload.applications : [],
     l4_ingress_ip_ranges: Array.isArray(payload?.l4_ingress_ip_ranges) ? payload.l4_ingress_ip_ranges : [],
     egress_ip_ranges: Array.isArray(payload?.egress_ip_ranges) ? payload.egress_ip_ranges : [],
@@ -77,6 +77,6 @@ function extractAvailableClusters(clustersByEnv, env) {
   const envKey = String(env || "").toUpperCase();
   const clusters = (clustersByEnv || {})[envKey] || [];
   return clusters
-    .map((r) => String(r?.clustername || "").trim())
+    .map((r) => safeTrim(r?.clustername))
     .filter(Boolean);
 }
