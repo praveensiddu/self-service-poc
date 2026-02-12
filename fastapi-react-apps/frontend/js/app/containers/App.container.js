@@ -23,6 +23,7 @@ function App() {
   const [envKeys, setEnvKeys] = React.useState([]);
   const [activeEnv, setActiveEnv] = React.useState("");
   const [readonly, setReadonly] = React.useState(false);
+  const [envConfigured, setEnvConfigured] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
 
   const [accessRequests, setAccessRequests] = React.useState([]);
@@ -228,6 +229,7 @@ function App() {
         setCurrentUser(String(user?.user || user?.username || user || "unknown"));
         setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
         setReadonly(portalMode?.readonly || false);
+        setEnvConfigured(Boolean(portalMode?.env_configured));
 
         const { isComplete } = await loadConfigData();
         if (cancelled) return;
@@ -513,17 +515,22 @@ function App() {
    * After successful save, loads environment list and navigates to apps view.
    */
   async function onUseDefaults() {
-    const { isComplete } = await saveDefaultConfigData();
+    try {
+      const { isComplete } = await saveDefaultConfigData();
 
-    if (isComplete) {
-      const envList = await fetchJson("/api/v1/envlist");
-      const keys = Object.keys(envList);
-      setEnvKeys(keys);
-      const initialEnv = keys[0] || "";
-      setActiveEnv(initialEnv);
-      setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
-      if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
-      setTopTab("Request provisioning");
+      if (isComplete) {
+        const envList = await fetchJson("/api/v1/envlist");
+        const keys = Object.keys(envList);
+        setEnvKeys(keys);
+        const initialEnv = keys[0] || "";
+        setActiveEnv(initialEnv);
+        setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
+        if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
+        setTopTab("Request provisioning");
+      }
+    } catch (e) {
+      setError(e?.message || String(e));
+      setShowErrorModal(true);
     }
   }
 
@@ -864,6 +871,7 @@ function App() {
       topTab={topTab}
       configComplete={configComplete}
       readonly={readonly}
+      envConfigured={envConfigured}
       allowAdminPages={allowAdminPages}
       onTopTabChange={setTopTabWithUrl}
       accessRequests={accessRequests}

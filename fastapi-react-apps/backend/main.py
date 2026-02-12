@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+import os
 
 # Load environment variables from .env.local
 try:
@@ -95,6 +96,25 @@ async def lifespan(app: FastAPI):
     logger.info(f"📝 API Documentation: http://localhost:8888/api/docs")
     logger.info(f"🔗 Alternative Docs: http://localhost:8888/api/redoc")
     logger.info("=" * 80)
+
+    # Validate env-based configuration (all-or-nothing)
+    repo_env_keys = [
+        "REQUESTS_REPO",
+        "TEMPLATES_REPO",
+        "RENDERED_MANIFESTS_REPO",
+        "CONTROL_REPO",
+    ]
+    present = [k for k in repo_env_keys if str(os.getenv(k, "")).strip()]
+    if present and len(present) != len(repo_env_keys):
+        missing = [k for k in repo_env_keys if k not in present]
+        raise RuntimeError(
+            "Invalid environment configuration: either set all of "
+            f"{', '.join(repo_env_keys)} or set none. Missing: {', '.join(missing)}"
+        )
+    if present and not str(os.getenv("WORKSPACE", "")).strip():
+        raise RuntimeError(
+            "Invalid environment configuration: WORKSPACE must be set when using env-based repo configuration."
+        )
     yield
     # Shutdown
     logger.info("=" * 80)

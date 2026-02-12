@@ -39,6 +39,15 @@ def get_config(service: ConfigService = Depends(get_config_service)):
 @router.post("/config", response_model=KSelfServeConfig)
 def save_config(cfg: KSelfServeConfig, service: ConfigService = Depends(get_config_service)):
     """Save workspace configuration and setup repositories."""
+    env_keys = [
+        "WORKSPACE",
+        "REQUESTS_REPO",
+        "TEMPLATES_REPO",
+        "RENDERED_MANIFESTS_REPO",
+        "CONTROL_REPO",
+    ]
+    if any(str(os.getenv(k, "")).strip() for k in env_keys):
+        raise HTTPException(status_code=403, detail="Config updates are disabled when portal is started with environment-based configuration")
     config = service.save_config(
         workspace=cfg.workspace or "",
         requests_repo=cfg.requestsRepo or "",
@@ -46,6 +55,7 @@ def save_config(cfg: KSelfServeConfig, service: ConfigService = Depends(get_conf
         rendered_manifests_repo=cfg.renderedManifestsRepo or "",
         control_repo=cfg.controlRepo or "",
     )
+    os.environ["DEMO_MODE"] = "true"
     return KSelfServeConfig(**config)
 
 
@@ -124,8 +134,16 @@ def get_demo_users():
 @router.get("/portal-mode")
 def get_portal_mode():
     """Return the portal mode (readonly or not)."""
+    env_keys = [
+        "WORKSPACE",
+        "REQUESTS_REPO",
+        "TEMPLATES_REPO",
+        "RENDERED_MANIFESTS_REPO",
+        "CONTROL_REPO",
+    ]
     return {
-        "readonly": is_readonly()
+        "readonly": is_readonly(),
+        "env_configured": any(str(os.getenv(k, "")).strip() for k in env_keys),
     }
 
 

@@ -23,6 +23,7 @@ function AppView({
   topTab,
   configComplete,
   readonly,
+  envConfigured,
   allowAdminPages,
   onTopTabChange,
   accessRequests,
@@ -289,7 +290,7 @@ function AppView({
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button className="btn" type="button" onClick={onUseDefaults} disabled={loading}>
+                <button className="btn" type="button" onClick={onUseDefaults} disabled={loading || envConfigured}>
                   Use Pre-prepared Samples
                 </button>
                 <button className="btn btn-primary" type="button" onClick={onSaveConfig} disabled={!canSaveConfig || loading}>
