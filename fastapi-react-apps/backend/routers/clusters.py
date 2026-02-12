@@ -14,6 +14,7 @@ from backend.models import (
 )
 from backend.utils.helpers import as_string_list
 from backend.services.cluster_service import ClusterService
+from backend.auth.rbac import require_rbac, get_current_user_context, calculate_resource_permissions
 
 router = APIRouter(tags=["clusters"])
 
@@ -52,29 +53,43 @@ def get_allocated_clusters_for_app(
 def get_clusters(
     env: Optional[str] = None,
     app: Optional[str] = None,
-    service: ClusterService = Depends(get_cluster_service)
+    service: ClusterService = Depends(get_cluster_service),
+    user_context: Dict[str, Any] = Depends(get_current_user_context)
 ):
-    """Get clusters, optionally filtered by environment and/or application.
+    """Get clusters with permissions, optionally filtered by environment and/or application.
+
+    This endpoint is open to all authenticated users. Returns permission flags
+    for manage actions (create/update/delete clusters).
 
     Args:
         env: Environment name (dev, qa, prd)
         app: Application name (if provided, returns clusters allocated to this app)
 
     Returns:
-        Dictionary of clusters by environment, or list of cluster names for an app
+        Dictionary of clusters by environment with permissions, or list of cluster names for an app
     """
+    # Calculate user permissions for cluster management using helper
+    permissions = calculate_resource_permissions(user_context, "/clusters")
+
     clusters_root = get_control_clusters_root()
     if clusters_root is None:
-        return {}
+        return {
+            "clusters": {},
+            "permissions": permissions
+        }
 
     try:
         requests_root = get_requests_root()
     except HTTPException:
         requests_root = None
 
-    # If app is specified, return allocated clusters for that app
+    # If app is specified, return allocated clusters for that app with permissions
     if app is not None:
-        return service.get_allocated_clusters_for_app(str(env or ""), str(app or ""))
+        cluster_names = service.get_allocated_clusters_for_app(str(env or ""), str(app or ""))
+        return {
+            "clusters": cluster_names,
+            "permissions": permissions
+        }
 
     if env is not None and not str(env or "").strip():
         raise HTTPException(status_code=400, detail="Missing required query parameter: env")
@@ -88,16 +103,23 @@ def get_clusters(
         rows = service.get_clusters_for_env(e, clusters_root, requests_root)
         out[str(e).strip().upper()] = rows
 
-    return out
+    # Return with permissions
+    return {
+        "clusters": out,
+        "permissions": permissions
+    }
 
 
 @router.post("/clusters", response_model=ClusterCreateResponse)
 def add_cluster(
     payload: ClusterUpsert,
     env: Optional[str] = None,
-    service: ClusterService = Depends(get_cluster_service)
+    service: ClusterService = Depends(get_cluster_service),
+    _: None = Depends(require_rbac(obj="/clusters", act="POST"))
 ):
     """Create or update a cluster.
+
+    Requires platform_admin role.
 
     Args:
         payload: Cluster data
@@ -105,6 +127,9 @@ def add_cluster(
 
     Returns:
         Created/updated cluster data
+
+    Raises:
+        HTTPException: 403 if user lacks permission to create clusters
     """
     env_key = str(env or "").strip().lower()
     if not env_key:
@@ -144,9 +169,12 @@ def add_cluster(
 def check_cluster_can_delete(
     clustername: str,
     env: Optional[str] = None,
-    service: ClusterService = Depends(get_cluster_service)
+    service: ClusterService = Depends(get_cluster_service),
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act="GET"))
 ):
     """Check if a cluster can be safely deleted.
+
+    Requires platform_admin or viewall role.
 
     Args:
         clustername: Cluster name to check
@@ -154,6 +182,9 @@ def check_cluster_can_delete(
 
     Returns:
         Information about dependencies that would prevent deletion
+
+    Raises:
+        HTTPException: 403 if user lacks permission
     """
     env_key = str(env or "").strip().lower()
     if not env_key:
@@ -189,9 +220,12 @@ def check_cluster_can_delete(
 def delete_cluster(
     clustername: str,
     env: Optional[str] = None,
-    service: ClusterService = Depends(get_cluster_service)
+    service: ClusterService = Depends(get_cluster_service),
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method))
 ):
     """Delete a cluster.
+
+    Requires platform_admin role.
 
     Args:
         clustername: Cluster name to delete
@@ -199,6 +233,10 @@ def delete_cluster(
 
     Returns:
         Deletion result
+
+    Raises:
+        HTTPException: 403 if user lacks permission to delete clusters
+        HTTPException: 409 if cluster is in use and cannot be deleted
     """
     env_key = str(env or "").strip().lower()
     if not env_key:

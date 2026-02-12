@@ -12,6 +12,7 @@ function NamespacesTableView({
   showCreate,
   onCloseCreate,
   readonly,
+  canCreateNamespace,
   newNamespace,
   setNewNamespace,
   newClustersList,
@@ -363,12 +364,22 @@ function NamespacesTableView({
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              {!canCreateNamespace && (
+                <div style={{ fontSize: 12, color: '#dc3545', marginRight: 8, alignSelf: 'center' }}>
+                  You don't have permission to create namespaces
+                </div>
+              )}
               <button
                 className="btn btn-primary"
                 type="button"
                 onClick={handleCreateNamespace}
-                disabled={!canSubmitCreate}
+                disabled={!canSubmitCreate || !canCreateNamespace}
+                title={!canCreateNamespace ? "No permission to create namespaces" : "Create namespace"}
                 data-testid="submit-namespace-btn"
+                style={{
+                  opacity: (!canSubmitCreate || !canCreateNamespace) ? 0.6 : 1,
+                  cursor: (!canSubmitCreate || !canCreateNamespace) ? 'not-allowed' : 'pointer'
+                }}
               >
                 Create
               </button>
@@ -461,44 +472,64 @@ function NamespacesTableView({
               <td colSpan={6} className="muted" data-testid="no-matches-message">No matches.</td>
             </tr>
           ) : (
-            filteredRows.map((r) => (
+            filteredRows.map((r) => {
+              const hasViewPermission = r.permissions?.canView ?? true;
+              const hasManagePermission = r.permissions?.canManage ?? true;
+              const cellOpacity = hasViewPermission ? 1 : 0.4;
+              const isClickable = hasViewPermission;
+
+              return (
               <tr
                 key={r.name}
                 data-testid={`namespace-row-${r.name}`}
-                className="clickable-row"
+                className={isClickable ? "clickable-row" : ""}
                 onClick={(e) => {
                   // Don't trigger row click if clicking on action buttons
                   if (e.target.closest('button')) {
                     return;
                   }
-                  onViewDetails(r.name, r.namespace);
+                  if (isClickable) {
+                    onViewDetails(r.name, r.namespace);
+                  }
                 }}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: isClickable ? 'pointer' : 'default' }}
               >
                 <td
-                  style={
-                    requestsChanges?.namespaces?.has
+                  style={{
+                    opacity: cellOpacity,
+                    ...(requestsChanges?.namespaces?.has
                       ? (requestsChanges.namespaces.has(`${String(env || "").toLowerCase()}/${String(appname || "")}/${String(r.name || "")}`)
                         ? { background: "#fff3cd" }
                         : undefined)
-                      : undefined
-                  }
+                      : undefined)
+                  }}
                 >
                   {r.name}
                 </td>
-                <td>{r.clustersText}</td>
-                <td>{r.egressNameIdText}</td>
-                <td>{r.egressFirewallText}</td>
-                <td>{r.managedByArgo ? "True" : "False"}</td>
+                <td style={{ opacity: cellOpacity }}>{r.clustersText}</td>
+                <td style={{ opacity: cellOpacity }}>{r.egressNameIdText}</td>
+                <td style={{ opacity: cellOpacity }}>{r.egressFirewallText}</td>
+                <td style={{ opacity: cellOpacity }}>{r.managedByArgo ? "True" : "False"}</td>
                 {!readonly && (
                   <td onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
                         className="iconBtn"
-                        onClick={() => openCopyModal(r.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasManagePermission) {
+                            openCopyModal(r.name);
+                          }
+                        }}
                         aria-label={`Copy ${r.name}`}
-                        title="Copy namespace"
+                        title={hasManagePermission ? "Copy namespace" : "No permission to copy"}
                         data-testid={`copy-namespace-${r.name}`}
+                        disabled={!hasManagePermission}
+                        style={{
+                          opacity: hasManagePermission ? 1 : 0.4,
+                          cursor: hasManagePermission ? 'pointer' : 'not-allowed',
+                          pointerEvents: hasManagePermission ? 'auto' : 'none'
+                        }}
                       >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                           <path d="M10 1H2a1 1 0 0 0-1 1v9h1V2h8V1z" />
@@ -507,10 +538,21 @@ function NamespacesTableView({
                       </button>
                       <button
                         className="iconBtn iconBtn-danger"
-                        onClick={() => onDeleteNamespace(r.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasManagePermission) {
+                            onDeleteNamespace(r.name);
+                          }
+                        }}
                         aria-label={`Delete ${r.name}`}
-                        title="Delete namespace"
+                        title={hasManagePermission ? "Delete namespace" : "No permission to delete"}
                         data-testid={`delete-namespace-${r.name}`}
+                        disabled={!hasManagePermission}
+                        style={{
+                          opacity: hasManagePermission ? 1 : 0.4,
+                          cursor: hasManagePermission ? 'pointer' : 'not-allowed',
+                          pointerEvents: hasManagePermission ? 'auto' : 'none'
+                        }}
                       >
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                           <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
@@ -521,7 +563,8 @@ function NamespacesTableView({
                   </td>
                 )}
               </tr>
-            ))
+            );
+            })
           )}
         </tbody>
       </table>

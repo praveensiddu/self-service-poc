@@ -3,6 +3,7 @@ function AppsTable({
   env,
   clustersByApp,
   selectedApps,
+  currentUserContext,
   onToggleRow,
   onSelectAll,
   onDeleteApp,
@@ -13,13 +14,23 @@ function AppsTable({
   requestsChanges,
   readonly,
 }) {
+  const { extractPermissions } = useAuthorization();
+
+  // Add permissions to each row
+  const rowsWithPermissions = React.useMemo(() => {
+    return rows.map(row => ({
+      ...row,
+      permissions: extractPermissions(row),
+    }));
+  }, [rows, extractPermissions]);
+
   // Centralized filtering and sorting
   const {
     sortedRows,
     filters,
     setFilters
   } = useTableFilter({
-    rows,
+    rows: rowsWithPermissions,
     initialFilters: {
       appname: "",
       description: "",

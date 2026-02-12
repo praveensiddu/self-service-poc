@@ -26,9 +26,7 @@ class RoleMgmtImpl:
             "user_global_roles": {},
             "user_groups": {},
         }
-        if self._demo_mode:
-            self._ensure_demo_users_file()
-            self._seed_demo_rbac_if_missing()
+        # Always load from files - never create dummy data
         self._load()
 
     @classmethod
@@ -110,67 +108,6 @@ class RoleMgmtImpl:
                     data = {}
                 path.write_text(yaml.safe_dump(data, sort_keys=False))
 
-    def _ensure_demo_users_file(self) -> None:
-        try:
-            self._rbac_dir.mkdir(parents=True, exist_ok=True)
-            if self._demo_users_path.exists() and self._demo_users_path.is_file():
-                return
-            demo_users: Dict[str, Dict[str, str]] = {
-                "usr_role_admin_only": {"name": "Role Admin Only", "description": "Role management admin (demo)"},
-                "usr_platform_admin": {"name": "Platform Admin", "description": "Platform admin with full access (demo)"},
-                "usr_app1_viewer": {"name": "App1 Viewer", "description": "Viewer for app1 (demo)"},
-                "usr_app1_manager": {"name": "App1 Manager", "description": "Manager for app1 (demo)"},
-                "usr_app2_viewer": {"name": "App2 Viewer", "description": "Viewer for app2 (demo)"},
-                "usr_app2_manager": {"name": "App2 Manager", "description": "Manager for app2 (demo)"},
-                "usr_app3_viewer": {"name": "App3 Viewer", "description": "Viewer for app3 (demo)"},
-                "usr_app3_manager": {"name": "App3 Manager", "description": "Manager for app3 (demo)"},
-                "usr_app4_viewer": {"name": "App4 Viewer", "description": "Viewer for app4 (demo)"},
-                "usr_app4_manager": {"name": "App4 Manager", "description": "Manager for app4 (demo)"},
-            }
-            self._demo_users_path.write_text(yaml.safe_dump(demo_users, sort_keys=False))
-        except Exception:
-            return
-
-    def _seed_demo_rbac_if_missing(self) -> None:
-        try:
-            if any(p.exists() and p.is_file() for p in self._store_paths.values()):
-                return
-
-            group_global_roles: Dict[str, Any] = {"demo_all": ["viewall"]}
-            user_groups: Dict[str, Any] = {
-                "usr_role_admin_only": ["demo_all"],
-                "usr_platform_admin": ["demo_all"],
-                "usr_app1_viewer": ["demo_all", "grp_app1_viewer"],
-                "usr_app1_manager": ["demo_all", "grp_app1_manager"],
-                "usr_app2_viewer": ["demo_all", "grp_app2_viewer"],
-                "usr_app2_manager": ["demo_all", "grp_app2_manager"],
-                "usr_app3_viewer": ["demo_all", "grp_app3_viewer"],
-                "usr_app3_manager": ["demo_all", "grp_app3_manager"],
-                "usr_app4_viewer": ["demo_all", "grp_app4_viewer"],
-                "usr_app4_manager": ["demo_all", "grp_app4_manager"],
-            }
-            user_global_roles: Dict[str, Any] = {
-                "usr_role_admin_only": ["role_mgmt_admin"],
-                "usr_platform_admin": ["platform_admin", "role_mgmt_admin"],
-            }
-            group_app_roles: Dict[str, Any] = {
-                "grp_app1_viewer": {"app1": ["viewer"]},
-                "grp_app1_manager": {"app1": ["manager"]},
-                "grp_app2_viewer": {"app2": ["viewer"]},
-                "grp_app2_manager": {"app2": ["manager"]},
-                "grp_app3_viewer": {"app3": ["viewer"]},
-                "grp_app3_manager": {"app3": ["manager"]},
-                "grp_app4_viewer": {"app4": ["viewer"]},
-                "grp_app4_manager": {"app4": ["manager"]},
-            }
-
-            self._data["group_app_roles"] = group_app_roles
-            self._data["group_global_roles"] = group_global_roles
-            self._data["user_global_roles"] = user_global_roles
-            self._data["user_groups"] = user_groups
-            self._flush()
-        except Exception:
-            return
 
     def _norm(self, s: str | None) -> str:
         return str(s or "").strip()

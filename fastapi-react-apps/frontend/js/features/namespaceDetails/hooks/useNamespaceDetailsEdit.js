@@ -13,11 +13,12 @@
  * @param {Object} params - Hook parameters
  * @param {Object} params.namespace - Namespace data
  * @param {string} params.namespaceName - Namespace name
+ * @param {string} params.appname - Application name
  * @param {Function} params.onUpdateNamespaceInfo - Update handler
  * @param {boolean} params.readonly - Readonly mode
  * @returns {Object} - Edit state and handlers
  */
-function useNamespaceDetailsEdit({ namespace, namespaceName, onUpdateNamespaceInfo, readonly }) {
+function useNamespaceDetailsEdit({ namespace, namespaceName, appname, onUpdateNamespaceInfo, readonly }) {
   // ============================================================================
   // EDIT MODE STATE
   // ============================================================================
@@ -232,9 +233,28 @@ function useNamespaceDetailsEdit({ namespace, namespaceName, onUpdateNamespaceIn
       setEditBlock(null);
     } catch (error) {
       const errorMessage = error?.message || String(error);
-      alert(`Failed to save changes:\n\n${errorMessage}`);
+
+      // Check if it's a permission error
+      const isPermissionError = errorMessage.includes("Access denied") ||
+                                errorMessage.includes("403") ||
+                                errorMessage.includes("Forbidden");
+
+      if (isPermissionError) {
+        // Show user-friendly alert for permission errors
+        alert(
+          `Access Denied: You don't have permission to update namespace configuration in "${appname}". ` +
+          `Please contact your administrator to request manager access.`
+        );
+
+        // Reset edit state and close the modal after alert is dismissed
+        setEditBlock(null);
+        // DO NOT set error in global state - we only showed the alert
+      } else {
+        // For non-permission errors, show the generic error alert
+        alert(`Failed to save changes:\n\n${errorMessage}`);
+      }
     }
-  }, [namespaceName, onUpdateNamespaceInfo, draftBasic, draftEgress, draftRoleBindingsEntries, draftEgressFirewallEntries, draftResources]);
+  }, [namespaceName, appname, onUpdateNamespaceInfo, draftBasic, draftEgress, draftRoleBindingsEntries, draftEgressFirewallEntries, draftResources]);
 
   /**
    * Save basic info block.

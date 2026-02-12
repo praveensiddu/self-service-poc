@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, List, Optional
+from fastapi import APIRouter, HTTPException, Depends, Request
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 import logging
 
@@ -15,7 +15,7 @@ from backend.dependencies import require_env, require_initialized_workspace
 from backend.routers import pull_requests
 from backend.services.namespace_service import NamespaceService
 from backend.repositories.namespace_repository import NamespaceRepository
-from backend.auth.rbac import require_rbac
+from backend.auth.rbac import require_rbac, get_current_user_context, calculate_resource_permissions
 
 router = APIRouter(tags=["namespaces"])
 
@@ -41,24 +41,38 @@ def get_namespace_repo() -> NamespaceRepository:
 # API Endpoints
 # ============================================
 
-@router.get("/apps/{appname}/namespaces", response_model=Dict[str, NamespaceResponse])
+@router.get("/apps/{appname}/namespaces", response_model=Dict[str, Dict[str, Any]])
 def get_namespaces(
+    request: Request,
     appname: str,
     env: Optional[str] = None,
-    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
-    service: NamespaceService = Depends(get_namespace_service)
+    service: NamespaceService = Depends(get_namespace_service),
+    user_context: Dict[str, Any] = Depends(get_current_user_context)
 ):
-    """Get all namespaces for an application.
+    """Get all namespaces for an application with permissions.
+
+    This endpoint is open to users with view permission for the app. Each namespace
+    includes permission flags (canView, canManage) calculated per user.
 
     Args:
         appname: The application name
         env: The environment (dev/qa/prd)
 
     Returns:
-        Dictionary of namespaces keyed by namespace name
+        Dictionary of namespaces keyed by namespace name, each with permissions
     """
     env = require_env(env)
-    return service.get_namespaces_for_app(env, appname)
+    namespaces = service.get_namespaces_for_app(env, appname)
+
+    # Add permissions for each namespace using helper
+    app_context = {"id": appname}
+    resource_path = f"/apps/{appname}/namespaces"
+    permissions = calculate_resource_permissions(user_context, resource_path, app_context)
+
+    for ns_name, ns_data in namespaces.items():
+        ns_data["permissions"] = permissions
+
+    return namespaces
 
 
 @router.post("/apps/{appname}/namespaces", response_model=NamespaceCreateResponse)

@@ -7,7 +7,7 @@ from typing import Dict, List
 
 import yaml
 
-from backend.core.deps import get_current_user
+from backend.dependencies import get_current_user
 from backend.auth.rbac import require_rbac
 from backend.models.access_request import AccessRequest, AppAccessRequest, GlobalAccessRequest
 

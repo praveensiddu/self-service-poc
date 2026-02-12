@@ -2,6 +2,7 @@ function AppView({
   bannerColor,
   bannerTitle,
   currentUser,
+  currentUserContext,
   demoMode,
   showChangeLoginUser,
   demoUsers,
@@ -219,7 +220,6 @@ function AppView({
           ) : null}
         </div>
 
-        {error && !showErrorModal ? <div className="status">Error: {error}</div> : null}
 
         {topTab === "Home" ? (
           <div className="card" style={{ padding: 16 }}>
@@ -595,6 +595,7 @@ function AppView({
                 env={activeEnv}
                 clustersByApp={clustersByApp}
                 selectedApps={selectedApps}
+                currentUserContext={currentUserContext}
                 onToggleRow={toggleRow}
                 onSelectAll={onSelectAllFromFiltered}
                 onDeleteApp={deleteApp}

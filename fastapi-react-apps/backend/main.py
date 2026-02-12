@@ -55,6 +55,9 @@ from backend.routers import (
     ns_limitrange,
     ns_rolebindings,
     ns_egressfirewall,
+
+    # User-related router
+    users,
 )
 from backend.middleware.readonly import ReadOnlyMiddleware
 from backend.middleware.logging import RequestLoggingMiddleware
@@ -166,6 +169,7 @@ register_exception_handlers(app)
 
 # Core system routers
 app.include_router(system.router, prefix=API_PREFIX, tags=["System"])
+app.include_router(users.router, prefix=API_PREFIX, tags=["Users"])
 app.include_router(clusters.router, prefix=API_PREFIX, tags=["Clusters"])
 app.include_router(pull_requests.router, prefix=API_PREFIX, tags=["Pull Requests"])
 

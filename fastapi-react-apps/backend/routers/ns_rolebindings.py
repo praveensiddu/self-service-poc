@@ -12,6 +12,7 @@ from backend.models import (
 )
 from backend.routers import pull_requests
 from backend.services.namespace_details_service import NamespaceDetailsService
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["rolebindings"])
 
@@ -29,9 +30,14 @@ def get_rolebinding_yaml(
     namespace: str,
     payload: RoleBindingYamlRequest,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Generate RoleBinding YAML."""
+    """Generate RoleBinding YAML. Requires viewer or manager role."""
     env = require_env(env)
 
     yaml_text = service.generate_rolebinding_yaml(
@@ -51,9 +57,14 @@ def put_namespace_rolebinding_requests(
     namespace: str,
     payload: NamespaceRoleBindingsUpdate,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="POST",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Update namespace role bindings."""
+    """Update namespace role bindings. Requires manager role."""
     env = require_env(env)
 
     bindings_in = payload.bindings or []
@@ -80,8 +91,13 @@ def get_namespace_rolebinding_requests(
     appname: str,
     namespace: str,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Get namespace role bindings."""
+    """Get namespace role bindings. Requires viewer or manager role."""
     env = require_env(env)
     return service.get_rolebindings(env, appname, namespace)

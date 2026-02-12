@@ -15,6 +15,7 @@ function App() {
   const [deployment, setDeployment] = React.useState(null);
   const [currentUser, setCurrentUser] = React.useState("");
   const [currentUserRoles, setCurrentUserRoles] = React.useState([]);
+  const [currentUserContext, setCurrentUserContext] = React.useState({ roles: [], app_roles: {}, groups: [] });
   const [demoMode, setDemoMode] = React.useState(false);
   const [showChangeLoginUser, setShowChangeLoginUser] = React.useState(false);
   const [demoUsers, setDemoUsers] = React.useState([]);
@@ -228,6 +229,11 @@ function App() {
         setDemoMode(Boolean(deploymentType?.demo_mode));
         setCurrentUser(String(user?.user || user?.username || user || "unknown"));
         setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
+        setCurrentUserContext({
+          roles: Array.isArray(user?.roles) ? user.roles : [],
+          app_roles: typeof user?.app_roles === 'object' ? user.app_roles : {},
+          groups: Array.isArray(user?.groups) ? user.groups : [],
+        });
         setReadonly(portalMode?.readonly || false);
         setEnvConfigured(Boolean(portalMode?.env_configured));
 
@@ -528,6 +534,11 @@ function App() {
           setDemoMode(Boolean(deploymentType?.demo_mode));
           setCurrentUser(String(user?.user || user?.username || user || "unknown"));
           setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
+          setCurrentUserContext({
+            roles: Array.isArray(user?.roles) ? user.roles : [],
+            app_roles: typeof user?.app_roles === 'object' ? user.app_roles : {},
+            groups: Array.isArray(user?.groups) ? user.groups : [],
+          });
         } catch {
           // ignore
         }
@@ -609,10 +620,23 @@ function App() {
   async function openNamespaces(appname, push = true) {
     if (!appname) return;
 
-    const resp = await loadNamespacesData(appname);
-    setView("namespaces");
-    if (push) pushUiUrl({ view: "namespaces", env: activeEnv, appname }, false);
-    return resp;
+    try {
+      const resp = await loadNamespacesData(appname);
+      setView("namespaces");
+      if (push) pushUiUrl({ view: "namespaces", env: activeEnv, appname }, false);
+      return resp;
+    } catch (e) {
+      const errorMessage = e?.message || String(e);
+      // Show alert for access denied errors
+      if (errorMessage.includes("Forbidden") || errorMessage.includes("403")) {
+        alert(`Access Denied: You don't have permission to view "${appname}". Please contact your administrator to request access.`);
+      } else {
+        // For other errors, still show the error message
+        alert(`Failed to load application details: ${errorMessage}`);
+      }
+      // Don't re-throw - error has been handled
+      return null;
+    }
   }
 
   /**
@@ -863,6 +887,7 @@ function App() {
       bannerColor={bannerColor}
       bannerTitle={bannerTitle}
       currentUser={currentUser}
+      currentUserContext={currentUserContext}
       demoMode={demoMode}
       showChangeLoginUser={showChangeLoginUser}
       demoUsers={demoUsers}

@@ -508,151 +508,175 @@ function AppsTableView({
               <td colSpan={8} className="muted" data-testid="no-apps-message">No apps found.</td>
             </tr>
           ) : (
-            filteredRows.map((a) => (
-              <tr
-                key={a.appname}
-                data-testid={`app-row-${a.appname}`}
-                className="clickable-row"
-                onClick={(e) => {
-                  // Don't trigger row click if clicking on checkbox or action buttons
-                  if (e.target.closest('input[type="checkbox"]') || e.target.closest('button')) {
-                    return;
-                  }
-                  onViewDetails(a.appname);
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                <td onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={selectedApps.has(a.appname)}
-                    onChange={(e) => onToggleRow(a.appname, e.target.checked)}
-                    aria-label={`Select ${a.appname}`}
-                    data-testid={`app-checkbox-${a.appname}`}
-                  />
-                </td>
-                <td
-                  style={
-                    requestsChanges?.apps?.has
-                      ? (requestsChanges.apps.has(`${String(env || "").toLowerCase()}/${String(a.appname || "")}`)
-                        ? { background: "#fff3cd" }
-                        : undefined)
-                      : undefined
-                  }
-                >
-                  {a.appname}
-                </td>
-                <td className="muted">{a.description || ""}</td>
-                <td>{a.managedby || ""}</td>
-                <td>{(clustersByApp?.[a.appname] || []).join(", ")}</td>
-                <td>{a.totalns ?? ""}</td>
-                <td>{String(Boolean(a?.argocd))}</td>
-                {!readonly && (
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <>
-                        <button
-                          className="iconBtn iconBtn-primary"
-                          type="button"
-                          onClick={() => openRequestAccess(a)}
-                          aria-label={`Request access for ${a.appname}`}
-                          title="Request access"
-                          data-testid={`request-access-${a.appname}`}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                          </svg>
-                        </button>
-                        <button
-                          className="iconBtn iconBtn-primary"
-                          type="button"
-                          onClick={() => openEditApp(a)}
-                          aria-label={`Edit ${a.appname}`}
-                          title="Edit application"
-                          data-testid={`edit-app-${a.appname}`}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
-                            <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
-                          </svg>
-                        </button>
-                        <button
-                          className="iconBtn iconBtn-primary"
-                          type="button"
-                          onClick={() => openArgoCd(a)}
-                          aria-label={`ArgoCD details for ${a.appname}`}
-                          title="Add ArgoCD details"
-                          data-testid={`argocd-app-${a.appname}`}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
-                            <circle cx="32" cy="32" r="29" fill="#e8f6ff" stroke="#7cc7ff" strokeWidth="3" />
-                            <circle cx="23" cy="20" r="4" fill="#ffffff" opacity="0.8" />
-                            <g>
-                              <path
-                                d="M32 18c-9 0-16 6.3-16 14.1 0 5.4 3.2 9.1 7.2 11.4 2.8 1.6 6.3 2.5 8.8 2.5s6-.9 8.8-2.5c4-2.3 7.2-6 7.2-11.4C48 24.3 41 18 32 18z"
-                                fill="#ff6a3d"
-                              />
-                              <path
-                                d="M18 44c2.5 3.8 6.1 6.8 10.5 8.4 1 .4 2-.4 1.9-1.5-.2-1.8-1.1-3.2-2.1-4.7-.8-1.2-1.7-2.4-2.3-3.9"
-                                fill="none"
-                                stroke="#ff6a3d"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                              />
-                              <path
-                                d="M26 46c.8 4.5 3.6 8.2 7.6 10.5 1 .6 2.3-.1 2.4-1.3.2-2.3-.2-4.2-.7-6.1-.4-1.5-.8-3.1-.8-5"
-                                fill="none"
-                                stroke="#ff6a3d"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                              />
-                              <path
-                                d="M38 46c-.8 4.5-3.6 8.2-7.6 10.5-1 .6-2.3-.1-2.4-1.3-.2-2.3.2-4.2.7-6.1.4-1.5.8-3.1.8-5"
-                                fill="none"
-                                stroke="#ff6a3d"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                              />
-                              <path
-                                d="M46 44c-2.5 3.8-6.1 6.8-10.5 8.4-1 .4-2-.4-1.9-1.5.2-1.8 1.1-3.2 2.1-4.7.8-1.2 1.7-2.4 2.3-3.9"
-                                fill="none"
-                                stroke="#ff6a3d"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                              />
+            filteredRows.map((a) => {
+              const hasViewPermission = a.permissions?.canView ?? true;
+              const hasManagePermission = a.permissions?.canManage ?? true;
+              const cellOpacity = hasViewPermission ? 1 : 0.4;
+              const isDisabled = !hasViewPermission;
 
-                              <circle cx="26" cy="31" r="5" fill="#ffffff" />
-                              <circle cx="38" cy="31" r="5" fill="#ffffff" />
-                              <circle cx="26.5" cy="31.5" r="2" fill="#1a1a1a" />
-                              <circle cx="38.5" cy="31.5" r="2" fill="#1a1a1a" />
-                              <path
-                                d="M28 38c2 2.4 6 2.4 8 0"
-                                fill="none"
-                                stroke="#ffffff"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                              />
-                            </g>
-                          </svg>
-                        </button>
-                        <button
-                          className="iconBtn iconBtn-danger"
-                          onClick={() => onDeleteApp(a.appname)}
-                          aria-label={`Delete ${a.appname}`}
-                          title="Delete application"
-                          data-testid={`delete-app-${a.appname}`}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                            <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                          </svg>
-                        </button>
-                      </>
-                    </div>
+              return (
+                <tr
+                  key={a.appname}
+                  data-testid={`app-row-${a.appname}`}
+                  className={hasViewPermission ? "clickable-row" : ""}
+                  onClick={(e) => {
+                    // Don't trigger row click if clicking on checkbox or action buttons
+                    if (e.target.closest('input[type="checkbox"]') || e.target.closest('button')) {
+                      return;
+                    }
+                    // Only allow navigation if user has view permission
+                    if (hasViewPermission) {
+                      onViewDetails(a.appname);
+                    }
+                  }}
+                  style={{
+                    cursor: hasViewPermission ? 'pointer' : 'default',
+                  }}
+                >
+                  <td onClick={(e) => e.stopPropagation()} style={{ opacity: cellOpacity }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedApps.has(a.appname)}
+                      onChange={(e) => onToggleRow(a.appname, e.target.checked)}
+                      aria-label={`Select ${a.appname}`}
+                      data-testid={`app-checkbox-${a.appname}`}
+                      disabled={isDisabled}
+                    />
                   </td>
-                )}
-              </tr>
-            ))
+                  <td
+                    style={{
+                      opacity: cellOpacity,
+                      ...(requestsChanges?.apps?.has
+                        ? (requestsChanges.apps.has(`${String(env || "").toLowerCase()}/${String(a.appname || "")}`)
+                          ? { background: "#fff3cd" }
+                          : undefined)
+                        : undefined)
+                    }}
+                  >
+                    {a.appname}
+                  </td>
+                  <td className="muted" style={{ opacity: cellOpacity }}>{a.description || ""}</td>
+                  <td style={{ opacity: cellOpacity }}>{a.managedby || ""}</td>
+                  <td style={{ opacity: cellOpacity }}>{(clustersByApp?.[a.appname] || []).join(", ")}</td>
+                  <td style={{ opacity: cellOpacity }}>{a.totalns ?? ""}</td>
+                  <td style={{ opacity: cellOpacity }}>{String(Boolean(a?.argocd))}</td>
+                  {!readonly && (
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <>
+                          {/* Request Access button is always enabled - users can request access to any app */}
+                          <button
+                            className="iconBtn iconBtn-primary"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRequestAccess(a);
+                            }}
+                            aria-label={`Request access for ${a.appname}`}
+                            title="Request access"
+                            data-testid={`request-access-${a.appname}`}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="iconBtn iconBtn-primary"
+                            type="button"
+                            onClick={() => openEditApp(a)}
+                            aria-label={`Edit ${a.appname}`}
+                            title={hasManagePermission ? "Edit application" : "You don't have permission to edit this application"}
+                            data-testid={`edit-app-${a.appname}`}
+                            disabled={!hasManagePermission}
+                            style={{ opacity: hasManagePermission ? 1 : 0.5, cursor: hasManagePermission ? 'pointer' : 'not-allowed' }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
+                              <path d="M14.096 4.475 11.525 1.904a.5.5 0 0 0-.707 0L1 11.722V15.5a.5.5 0 0 0 .5.5h3.778l9.818-9.818a.5.5 0 0 0 0-.707zM2 12.207 10.818 3.389l1.793 1.793L3.793 14H2v-1.793z"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="iconBtn iconBtn-primary"
+                            type="button"
+                            onClick={() => openArgoCd(a)}
+                            aria-label={`ArgoCD details for ${a.appname}`}
+                            title={hasManagePermission ? "Add ArgoCD details" : "You don't have permission to manage ArgoCD for this application"}
+                            data-testid={`argocd-app-${a.appname}`}
+                            disabled={!hasManagePermission}
+                            style={{ opacity: hasManagePermission ? 1 : 0.5, cursor: hasManagePermission ? 'pointer' : 'not-allowed' }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true">
+                              <circle cx="32" cy="32" r="29" fill="#e8f6ff" stroke="#7cc7ff" strokeWidth="3" />
+                              <circle cx="23" cy="20" r="4" fill="#ffffff" opacity="0.8" />
+                              <g>
+                                <path
+                                  d="M32 18c-9 0-16 6.3-16 14.1 0 5.4 3.2 9.1 7.2 11.4 2.8 1.6 6.3 2.5 8.8 2.5s6-.9 8.8-2.5c4-2.3 7.2-6 7.2-11.4C48 24.3 41 18 32 18z"
+                                  fill="#ff6a3d"
+                                />
+                                <path
+                                  d="M18 44c2.5 3.8 6.1 6.8 10.5 8.4 1 .4 2-.4 1.9-1.5-.2-1.8-1.1-3.2-2.1-4.7-.8-1.2-1.7-2.4-2.3-3.9"
+                                  fill="none"
+                                  stroke="#ff6a3d"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  d="M26 46c.8 4.5 3.6 8.2 7.6 10.5 1 .6 2.3-.1 2.4-1.3.2-2.3-.2-4.2-.7-6.1-.4-1.5-.8-3.1-.8-5"
+                                  fill="none"
+                                  stroke="#ff6a3d"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  d="M38 46c-.8 4.5-3.6 8.2-7.6 10.5-1 .6-2.3-.1-2.4-1.3-.2-2.3.2-4.2.7-6.1.4-1.5.8-3.1.8-5"
+                                  fill="none"
+                                  stroke="#ff6a3d"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  d="M46 44c-2.5 3.8-6.1 6.8-10.5 8.4-1 .4-2-.4-1.9-1.5.2-1.8 1.1-3.2 2.1-4.7.8-1.2 1.7-2.4 2.3-3.9"
+                                  fill="none"
+                                  stroke="#ff6a3d"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                />
+
+                                <circle cx="26" cy="31" r="5" fill="#ffffff" />
+                                <circle cx="38" cy="31" r="5" fill="#ffffff" />
+                                <circle cx="26.5" cy="31.5" r="2" fill="#1a1a1a" />
+                                <circle cx="38.5" cy="31.5" r="2" fill="#1a1a1a" />
+                                <path
+                                  d="M28 38c2 2.4 6 2.4 8 0"
+                                  fill="none"
+                                  stroke="#ffffff"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                />
+                              </g>
+                            </svg>
+                          </button>
+                          <button
+                            className="iconBtn iconBtn-danger"
+                            onClick={() => onDeleteApp(a.appname)}
+                            aria-label={`Delete ${a.appname}`}
+                            title={hasManagePermission ? "Delete application" : "You don't have permission to delete this application"}
+                            data-testid={`delete-app-${a.appname}`}
+                            disabled={!hasManagePermission}
+                            style={{ opacity: hasManagePermission ? 1 : 0.5, cursor: hasManagePermission ? 'pointer' : 'not-allowed' }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                              <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                            </svg>
+                          </button>
+                        </>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

@@ -1,19 +1,16 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from pathlib import Path
 import logging
 import os
-import yaml
 
 from backend.config.settings import is_readonly
 from backend.models import KSelfServeConfig
 from backend.services.config_service import ConfigService
 from backend.utils.enforcement import EnforcementSettings
 from backend.dependencies import get_workspace_path
-
-from backend.core.deps import get_current_user
+from backend.auth.rbac import require_rbac
 from backend.auth.role_mgmt_impl import RoleMgmtImpl
-from backend.auth.rbac import get_current_user_context, require_rbac
 router = APIRouter(tags=["system"])
 
 logger = logging.getLogger("uvicorn.error")
@@ -37,8 +34,14 @@ def get_config(service: ConfigService = Depends(get_config_service)):
 
 
 @router.post("/config", response_model=KSelfServeConfig)
-def save_config(cfg: KSelfServeConfig, service: ConfigService = Depends(get_config_service)):
-    """Save workspace configuration and setup repositories."""
+def save_config(
+    cfg: KSelfServeConfig,
+    service: ConfigService = Depends(get_config_service)
+):
+    """Save workspace configuration and setup repositories.
+
+    This endpoint is open to all authenticated users for initial configuration.
+    """
     env_keys = [
         "WORKSPACE",
         "REQUESTS_REPO",
@@ -81,55 +84,6 @@ def get_deployment_type():
             "live": "#2563EB",
         },
     }
-
-
-@router.get("/current-user")
-def get_user_api(request: Request):
-    """Get current user information."""
-    ctx = get_current_user_context(request)
-    return {
-        "user": ctx.get("username") or "",
-        "roles": ctx.get("roles") or [],
-        "groups": ctx.get("groups") or [],
-        "app_roles": ctx.get("app_roles") or {},
-    }
-
-
-@router.put("/current-user")
-def put_user_api(payload: dict):
-    if os.getenv("DEMO_MODE", "").lower() != "true":
-        raise HTTPException(status_code=403, detail="Not supported")
-
-    user = str((payload or {}).get("user") or "").strip()
-    if not user:
-        raise HTTPException(status_code=400, detail="user is required")
-
-    os.environ["CURRENT_USER"] = user
-    RoleMgmtImpl.get_instance().update_roles(force=True)
-    return {"status": "success", "user": user}
-
-
-@router.get("/demo-users")
-def get_demo_users():
-    if os.getenv("DEMO_MODE", "").lower() != "true":
-        return {"rows": []}
-
-    p = Path.home() / "workspace" / "kselfserv" / "cloned-repositories" / "control" / "rbac" / "demo_mode" / "demo_users.yaml"
-    if not p.exists() or not p.is_file():
-        return {"rows": []}
-    raw = yaml.safe_load(p.read_text())
-    if not isinstance(raw, dict):
-        return {"rows": []}
-    rows = []
-    for user, meta in raw.items():
-        if not isinstance(user, str) or not isinstance(meta, dict):
-            continue
-        rows.append({
-            "user": user,
-            "name": str(meta.get("name") or user),
-            "description": str(meta.get("description") or ""),
-        })
-    return {"rows": rows}
 
 
 @router.get("/portal-mode")

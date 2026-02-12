@@ -11,6 +11,7 @@ from backend.models import (
 )
 from backend.routers import pull_requests
 from backend.services.namespace_details_service import NamespaceDetailsService
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["limitrange"])
 
@@ -28,14 +29,36 @@ def get_limitrange_yaml(
     namespace: str,
     payload: NamespaceResourcesYamlRequest,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Generate LimitRange YAML."""
+    """Generate LimitRange YAML. Requires viewer or manager role."""
     env = require_env(env)
 
     limits = payload.resources.limits if payload and payload.resources is not None else None
     yaml_text = service.generate_limitrange_yaml(namespace, limits)
     return Response(content=yaml_text, media_type="text/yaml")
+
+
+@router.get("/apps/{appname}/namespaces/{namespace}/resources/limitrange")
+def get_namespace_limitrange(
+    appname: str,
+    namespace: str,
+    env: Optional[str] = None,
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
+):
+    """Get namespace limit range. Requires viewer or manager role."""
+    env = require_env(env)
+    return service.get_limitrange(env, appname, namespace)
 
 
 @router.put("/apps/{appname}/namespaces/{namespace}/resources/limitrange")
@@ -44,9 +67,14 @@ def put_namespace_limitrange(
     namespace: str,
     payload: NamespaceLimitRangeUpdate,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="POST",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Update namespace limit range."""
+    """Update namespace limit range. Requires manager role."""
     env = require_env(env)
 
     result = service.update_limitrange(env, appname, namespace, payload.limits)
@@ -57,15 +85,3 @@ def put_namespace_limitrange(
         logger.error("Failed to ensure PR for %s/%s: %s", str(env), str(appname), str(e))
 
     return result
-
-
-@router.get("/apps/{appname}/namespaces/{namespace}/resources/limitrange")
-def get_namespace_limitrange(
-    appname: str,
-    namespace: str,
-    env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
-):
-    """Get namespace limit range."""
-    env = require_env(env)
-    return service.get_limitrange(env, appname, namespace)

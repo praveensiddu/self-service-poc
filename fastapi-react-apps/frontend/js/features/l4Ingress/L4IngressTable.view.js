@@ -6,6 +6,7 @@ function L4IngressTableView({
   onEditRow,
   onAllocateRow,
   readonly,
+  canManage,
   renderAddButton,
   onOpenAdd,
   addOpen,
@@ -36,7 +37,7 @@ function L4IngressTableView({
 }) {
   return (
     <>
-      {typeof renderAddButton !== 'function' && !readonly && (
+      {typeof renderAddButton !== 'function' && !readonly && canManage && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <button className="btn btn-primary" type="button" onClick={onOpenAdd}>
             + Add
@@ -146,9 +147,20 @@ function L4IngressTableView({
                         <button
                           type="button"
                           className="iconBtn iconBtn-primary"
-                          onClick={() => onEditRow(r)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (canManage) {
+                              onEditRow(r);
+                            }
+                          }}
                           aria-label="Edit"
-                          title="Edit"
+                          title={canManage ? "Edit" : "No permission to edit"}
+                          disabled={!canManage}
+                          style={{
+                            opacity: canManage ? 1 : 0.4,
+                            cursor: canManage ? 'pointer' : 'not-allowed',
+                            pointerEvents: canManage ? 'auto' : 'none'
+                          }}
                         >
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z" />
@@ -158,10 +170,20 @@ function L4IngressTableView({
                         <button
                           type="button"
                           className="iconBtn iconBtn-primary"
-                          onClick={() => onAllocateRow(r)}
-                          disabled={!(Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (canManage && Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange) {
+                              onAllocateRow(r);
+                            }
+                          }}
+                          disabled={!canManage || !(Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange)}
                           aria-label="Allocate"
-                          title="Allocate"
+                          title={!canManage ? "No permission to allocate" : "Allocate"}
+                          style={{
+                            opacity: (canManage && Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange) ? 1 : 0.4,
+                            cursor: (canManage && Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange) ? 'pointer' : 'not-allowed',
+                            pointerEvents: (canManage && Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange) ? 'auto' : 'none'
+                          }}
                         >
                           <svg
                             className="allocateIcon"

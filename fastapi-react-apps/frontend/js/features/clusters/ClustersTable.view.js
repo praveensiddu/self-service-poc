@@ -16,6 +16,7 @@ function ClustersTableView({
   allSelected,
   onSelectAll,
   readonly,
+  hasManagePermission,
   apps,
 }) {
   const [showAppConfirmModal, setShowAppConfirmModal] = React.useState(false);
@@ -123,7 +124,7 @@ function ClustersTableView({
       </div>
 
       <div className="actions" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-        {!readonly && (
+        {!readonly && hasManagePermission && (
           <button
             className="btn btn-primary"
             type="button"
@@ -249,11 +250,21 @@ function ClustersTableView({
                         <button
                           className="iconBtn iconBtn-primary"
                           type="button"
-                          onClick={() => handleEditCluster(r)}
-                          disabled={loading || !(r?.clustername || "").trim()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasManagePermission && !loading && (r?.clustername || "").trim()) {
+                              handleEditCluster(r);
+                            }
+                          }}
+                          disabled={!hasManagePermission || loading || !(r?.clustername || "").trim()}
                           aria-label={`Edit ${r?.clustername}`}
-                          title="Edit cluster"
+                          title={hasManagePermission ? "Edit cluster" : "No permission to edit"}
                           data-testid={`edit-cluster-${r?.clustername}`}
+                          style={{
+                            opacity: hasManagePermission ? 1 : 0.4,
+                            cursor: hasManagePermission ? 'pointer' : 'not-allowed',
+                            pointerEvents: hasManagePermission ? 'auto' : 'none'
+                          }}
                         >
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M15.502 1.94a.5.5 0 0 1 0 .706l-1 1a.5.5 0 0 1-.707 0L12.5 2.354a.5.5 0 0 1 0-.707l1-1a.5.5 0 0 1 .707 0l1.295 1.293z"/>
@@ -263,11 +274,21 @@ function ClustersTableView({
                         <button
                           className="iconBtn iconBtn-danger"
                           type="button"
-                          onClick={() => onDeleteCluster(r?.clustername || "")}
-                          disabled={loading || !(r?.clustername || "").trim()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasManagePermission && !loading && (r?.clustername || "").trim()) {
+                              onDeleteCluster(r?.clustername || "");
+                            }
+                          }}
+                          disabled={!hasManagePermission || loading || !(r?.clustername || "").trim()}
                           aria-label={`Delete ${r?.clustername}`}
-                          title="Delete cluster"
+                          title={hasManagePermission ? "Delete cluster" : "No permission to delete"}
                           data-testid={`delete-cluster-${r?.clustername}`}
+                          style={{
+                            opacity: hasManagePermission ? 1 : 0.4,
+                            cursor: hasManagePermission ? 'pointer' : 'not-allowed',
+                            pointerEvents: hasManagePermission ? 'auto' : 'none'
+                          }}
                         >
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>

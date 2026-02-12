@@ -17,6 +17,14 @@
  * @param {Function} props.renderHeaderButtons - Callback to render header buttons
  */
 function NamespaceDetails({ namespace, namespaceName, appname, env, onUpdateNamespaceInfo, readonly, renderHeaderButtons }) {
+  const { canManage } = useAuthorization();
+
+  // Check if user has manage permission
+  const hasManagePermission = canManage(namespace);
+
+  // Combine readonly mode with permission check - if user doesn't have manage permission, treat as readonly
+  const effectiveReadonly = readonly || !hasManagePermission;
+
   // Cluster picker state
   const [clusterQuery, setClusterQuery] = React.useState("");
   const [clusterPickerOpen, setClusterPickerOpen] = React.useState(false);
@@ -55,8 +63,9 @@ function NamespaceDetails({ namespace, namespaceName, appname, env, onUpdateName
   } = useNamespaceDetailsEdit({
     namespace,
     namespaceName,
+    appname,
     onUpdateNamespaceInfo,
-    readonly,
+    readonly: effectiveReadonly,
   });
 
   // Use API hook

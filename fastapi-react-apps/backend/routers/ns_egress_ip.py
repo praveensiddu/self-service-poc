@@ -13,6 +13,7 @@ from backend.services.namespace_details_service import NamespaceDetailsService
 from backend.utils.yaml_utils import read_yaml_dict
 from backend.services.cluster_service import ClusterService
 from backend.repositories.cluster_repository import ClusterRepository
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["egress"])
 
@@ -84,9 +85,14 @@ def put_namespace_info_egress(
     namespace: str,
     payload: NamespaceInfoEgressRequest,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="POST",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Update egress information for a namespace."""
+    """Update egress information for a namespace. Requires manager role."""
     env = require_env(env)
 
     ni = payload.namespace_info
@@ -162,8 +168,32 @@ def get_namespace_info_egress(
     appname: str,
     namespace: str,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Get egress information for a namespace."""
+    """Get egress information for a namespace. Requires viewer or manager role."""
     env = require_env(env)
     return service.get_egress_info(env, appname, namespace)
+
+
+@router.get("/apps/{appname}/namespaces/{namespace}/egress_ip")
+def get_namespace_egress_info(
+    appname: str,
+    namespace: str,
+    env: Optional[str] = None,
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
+):
+    """Get egress IP information for a namespace. Requires viewer or manager role."""
+    env = require_env(env)
+    return service.get_egress_info(env, appname, namespace)
+
+

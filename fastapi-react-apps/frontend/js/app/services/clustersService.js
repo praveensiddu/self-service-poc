@@ -8,11 +8,20 @@
 /**
  * Load clusters for an environment.
  * @param {string} env - Environment name
- * @returns {Promise<Object>} - Object with environment keys and cluster arrays
+ * @returns {Promise<Object>} - Object with clusters and permissions
  */
 async function loadClusters(env) {
   const q = env ? `?env=${encodeURIComponent(env)}` : "";
-  return await fetchJson(`/api/v1/clusters${q}`);
+  const response = await fetchJson(`/api/v1/clusters${q}`);
+
+  // Return full response (with clusters and permissions)
+  // For backward compatibility, if it's old format (no permissions), wrap it
+  if (response && !response.clusters && !response.permissions) {
+    // Old format - just cluster data
+    return { clusters: response, permissions: { canView: true, canManage: true } };
+  }
+
+  return response || { clusters: {}, permissions: { canView: true, canManage: true } };
 }
 
 /**

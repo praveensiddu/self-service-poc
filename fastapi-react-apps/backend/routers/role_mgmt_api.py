@@ -1,18 +1,53 @@
 #!/usr/bin/env python3
 
 import logging
-from fastapi import APIRouter, UploadFile, Form, HTTPException, Body, Request, Depends
-
-from backend.auth.role_mgmt_impl import RoleMgmtImpl
-from pydantic import BaseModel, Field
-from fastapi import HTTPException, status
 from typing import Any, Callable
 
+from fastapi import APIRouter, HTTPException, Depends, Request, status
+from pydantic import BaseModel
 
-from backend.core.deps import get_current_user
+from backend.auth.role_mgmt_impl import RoleMgmtImpl
+from backend.dependencies import get_current_user
 
 
 rolemgmtimpl = RoleMgmtImpl.get_instance()
+
+
+def execute_role_operation(operation: Callable[[], None], operation_name: str) -> dict[str, Any]:
+    """Execute a role management operation with standardized error handling.
+
+    This helper handles common error patterns:
+    - Success -> Returns success response
+    - ValueError -> 400 Bad Request (validation/business rule errors)
+    - Exception -> 500 Internal Server Error (unexpected failures)
+
+    Args:
+        operation: The operation to execute (callable with no args)
+        operation_name: Human-readable operation name for error messages (e.g., "assigned", "unassigned")
+
+    Returns:
+        Success response dict with status and message
+
+    Raises:
+        HTTPException: On validation or server errors
+    """
+    try:
+        operation()
+        return {
+            "status": "success",
+            "message": f"Role {operation_name} successfully",
+        }
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"status": "error", "message": str(ve)},
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "message": f"Internal server error while {operation_name.replace('ed', 'ing')} role"},
+        )
+
 
 def create_rolemgmt_router(
     *,
@@ -61,7 +96,7 @@ def create_rolemgmt_router(
             )
 
     @router.get("/role-management/app")
-    def list_applicationservice_roles() -> dict():
+    def list_applicationservice_roles() -> dict[str, Any]:
         rows = rolemgmtimpl.get_grp2apps2roles()
         return {"rows": rows}
 
@@ -70,78 +105,26 @@ def create_rolemgmt_router(
     def assign_role(payload: RoleAssignmentRequest,
                     grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
-        enforce(user_context, f"/role-management/app/assign", "POST", {})
-        try:
-            rolemgmtimpl.add_grp2apps2roles(
-                grantor,
-                payload.group,
-                payload.app,
-                payload.role,
-            )
-            return {
-                "status": "success",
-                "message": "Role assigned successfully",
-            }
-
-        except ValueError as ve:
-            # Validation / business rule errors → UI-friendly
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "status": "error",
-                    "message": str(ve),
-                },
-            )
-
-        except Exception as e:
-            # Unexpected failures
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "status": "error",
-                    "message": "Internal server error while assigning role",
-                },
-            )
+        enforce(user_context, "/role-management/app/assign", "POST", {})
+        return execute_role_operation(
+            lambda: rolemgmtimpl.add_grp2apps2roles(grantor, payload.group, payload.app, payload.role),
+            "assigned"
+        )
 
 
     @router.post("/role-management/app/unassign")
     def unassign_role(payload: RoleAssignmentRequest,
                       grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
-        enforce(user_context, f"/role-management/app/unassign", "POST", {})
-        try:
-            rolemgmtimpl.del_grp2apps2roles(
-                grantor,
-                payload.group,
-                payload.app,
-                payload.role,
-            )
-            return {
-                "status": "success",
-                "message": "Role unassigned successfully",
-            }
-
-        except ValueError as ve:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "status": "error",
-                    "message": str(ve),
-                },
-            )
-
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "status": "error",
-                    "message": "Internal server error while unassigning role",
-                },
-            )
+        enforce(user_context, "/role-management/app/unassign", "POST", {})
+        return execute_role_operation(
+            lambda: rolemgmtimpl.del_grp2apps2roles(grantor, payload.group, payload.app, payload.role),
+            "unassigned"
+        )
 
 
     @router.get("/role-management/groupglobal")
-    def list_groupglobal_roles() -> dict():
+    def list_groupglobal_roles() -> dict[str, Any]:
         rows = rolemgmtimpl.get_grps2globalroles()
         return {"rows": rows}
 
@@ -156,38 +139,11 @@ def create_rolemgmt_router(
     def assign_groupglobal_role(payload: GlobalRoleAssignmentRequest,
                                 grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
-
-        enforce(user_context, f"/role-management/groupglobal/assign", "POST", {})
-        try:
-            rolemgmtimpl.add_grps2globalroles(
-                grantor,
-                payload.group,
-                payload.role,
-            )
-            return {
-                "status": "success",
-                "message": "Role assigned successfully",
-            }
-
-        except ValueError as ve:
-            # Validation / business rule errors → UI-friendly
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "status": "error",
-                    "message": str(ve),
-                },
-            )
-
-        except Exception as e:
-            # Unexpected failures
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "status": "error",
-                    "message": "Internal server error while assigning role",
-                },
-            )
+        enforce(user_context, "/role-management/groupglobal/assign", "POST", {})
+        return execute_role_operation(
+            lambda: rolemgmtimpl.add_grps2globalroles(grantor, payload.group, payload.role),
+            "assigned"
+        )
 
 
     @router.post("/role-management/groupglobal/unassign",
@@ -200,42 +156,17 @@ def create_rolemgmt_router(
     def unassign_groupglobal_role(payload: GlobalRoleAssignmentRequest,
                                   grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
-
-        enforce(user_context, f"/role-management/groupglobal/unassign", "POST", {})
-        try:
-            rolemgmtimpl.del_grps2globalroles(
-                grantor,
-                payload.group,
-                payload.role,
-            )
-            return {
-                "status": "success",
-                "message": "Role unassigned successfully",
-            }
-
-        except ValueError as ve:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "status": "error",
-                    "message": str(ve),
-                },
-            )
-
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "status": "error",
-                    "message": "Internal server error while unassigning role",
-                },
-            )
+        enforce(user_context, "/role-management/groupglobal/unassign", "POST", {})
+        return execute_role_operation(
+            lambda: rolemgmtimpl.del_grps2globalroles(grantor, payload.group, payload.role),
+            "unassigned"
+        )
 
 
     @router.get("/role-management/userglobal",
                  summary="Get the list of roles that govern user access across the portal",
                  description="""""")
-    def list_userglobal_roles() -> dict():
+    def list_userglobal_roles() -> dict[str, Any]:
         rows = rolemgmtimpl.get_users2globalroles()
         return {"rows": rows}
 
@@ -250,38 +181,11 @@ def create_rolemgmt_router(
     def assign_userglobal_role(payload: UserGlobalRoleAssignmentRequest,
                                grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
-
-        enforce(user_context, f"/role-management/userglobal/assign", "POST", {})
-        try:
-            rolemgmtimpl.add_users2globalroles(
-                grantor,
-                payload.user,
-                payload.role,
-            )
-            return {
-                "status": "success",
-                "message": "Role assigned successfully",
-            }
-
-        except ValueError as ve:
-            # Validation / business rule errors → UI-friendly
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "status": "error",
-                    "message": str(ve),
-                },
-            )
-
-        except Exception as e:
-            # Unexpected failures
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "status": "error",
-                    "message": "Internal server error while assigning role",
-                },
-            )
+        enforce(user_context, "/role-management/userglobal/assign", "POST", {})
+        return execute_role_operation(
+            lambda: rolemgmtimpl.add_users2globalroles(grantor, payload.user, payload.role),
+            "assigned"
+        )
 
 
     @router.post("/role-management/userglobal/unassign",
@@ -294,36 +198,11 @@ def create_rolemgmt_router(
     def unassign_userglobal_role(payload: UserGlobalRoleAssignmentRequest,
                                  grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
-
-        enforce(user_context, f"/role-management/userglobal/unassign", "POST", {})
-        try:
-            rolemgmtimpl.del_users2globalroles(
-                grantor,
-                payload.user,
-                payload.role,
-            )
-            return {
-                "status": "success",
-                "message": "Role unassigned successfully",
-            }
-
-        except ValueError as ve:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "status": "error",
-                    "message": str(ve),
-                },
-            )
-
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "status": "error",
-                    "message": "Internal server error while unassigning role",
-                },
-            )
+        enforce(user_context, "/role-management/userglobal/unassign", "POST", {})
+        return execute_role_operation(
+            lambda: rolemgmtimpl.del_users2globalroles(grantor, payload.user, payload.role),
+            "unassigned"
+        )
 
 
     return router
