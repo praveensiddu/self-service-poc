@@ -19,16 +19,63 @@ body {
   justify-content: space-between;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
+  position: relative;
 }
 
 .title {
   font-weight: 650;
   letter-spacing: 0.2px;
+  color: #ffffff;
 }
 
 .user {
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 14px;
+}
+
+.topbarCenter {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.demoMode {
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 50;
+}
+
+.modalCard {
+  width: min(760px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .container {

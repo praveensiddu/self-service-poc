@@ -15,6 +15,16 @@ function AppsTableView({
   onCloseCreate,
   requestsChanges,
   readonly,
+  showRequestAccess,
+  requestAccessAppName,
+  requestAccessRole,
+  setRequestAccessRole,
+  requestAccessUsrOrGrp,
+  setRequestAccessUsrOrGrp,
+  canSubmitRequestAccess,
+  openRequestAccess,
+  closeRequestAccess,
+  onSubmitRequestAccess,
   newAppName,
   setNewAppName,
   newDescription,
@@ -54,6 +64,80 @@ function AppsTableView({
 
   return (
     <div className="card">
+
+      {showRequestAccess ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeRequestAccess();
+          }}
+          data-testid="request-access-overlay"
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: "92vw",
+              width: 520,
+              padding: 16,
+              overflow: "visible",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="request-access-panel"
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>{`Request access for ${requestAccessAppName || ""}`}</div>
+              <button className="btn" type="button" onClick={closeRequestAccess} data-testid="close-request-access-btn">
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>AccessType</div>
+                <select
+                  className="filterInput"
+                  value={requestAccessRole}
+                  onChange={(e) => setRequestAccessRole(e.target.value)}
+                  data-testid="request-access-role"
+                >
+                  <option value="viewer">viewer</option>
+                  <option value="manager">manager</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Userid or Group</div>
+                <input
+                  className="filterInput"
+                  value={requestAccessUsrOrGrp}
+                  onChange={(e) => setRequestAccessUsrOrGrp(e.target.value)}
+                  data-testid="request-access-usr-or-grp"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={onSubmitRequestAccess}
+                disabled={!canSubmitRequestAccess}
+                data-testid="submit-request-access-btn"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showCreate ? (
         <div
@@ -467,6 +551,18 @@ function AppsTableView({
                   <td onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <>
+                        <button
+                          className="iconBtn iconBtn-primary"
+                          type="button"
+                          onClick={() => openRequestAccess(a)}
+                          aria-label={`Request access for ${a.appname}`}
+                          title="Request access"
+                          data-testid={`request-access-${a.appname}`}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                          </svg>
+                        </button>
                         <button
                           className="iconBtn iconBtn-primary"
                           type="button"

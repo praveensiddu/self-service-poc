@@ -36,6 +36,10 @@ from backend.routers import (
     namespaces,
     pull_requests,
 
+    access_request_api,
+
+    role_mgmt_api,
+
     # Application-level routers
     app_argocd,
     app_l4_ingress,
@@ -54,6 +58,7 @@ from backend.routers import (
 from backend.middleware.readonly import ReadOnlyMiddleware
 from backend.middleware.logging import RequestLoggingMiddleware
 from backend.exceptions import register_exception_handlers
+from backend.auth.rbac import enforce_request, get_current_user_context
 
 # Constants
 API_PREFIX = "/api/v1"
@@ -135,7 +140,6 @@ app.add_middleware(ReadOnlyMiddleware)
 
 register_exception_handlers(app)
 
-
 # ============================================
 # Router Registration
 # ============================================
@@ -144,6 +148,16 @@ register_exception_handlers(app)
 app.include_router(system.router, prefix=API_PREFIX, tags=["System"])
 app.include_router(clusters.router, prefix=API_PREFIX, tags=["Clusters"])
 app.include_router(pull_requests.router, prefix=API_PREFIX, tags=["Pull Requests"])
+
+# Access request routers
+app.include_router(access_request_api.router, prefix=API_PREFIX, tags=["Access Requests"])
+
+# Role management router
+app.include_router(
+    role_mgmt_api.create_rolemgmt_router(enforce=enforce_request, get_current_user_context=get_current_user_context),
+    prefix=API_PREFIX,
+    tags=["RoleManagement"],
+)
 
 # Application routers
 app.include_router(apps.router, prefix=API_PREFIX, tags=["Applications"])

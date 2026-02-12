@@ -15,6 +15,7 @@ from backend.dependencies import require_env, require_initialized_workspace
 from backend.routers import pull_requests
 from backend.services.namespace_service import NamespaceService
 from backend.repositories.namespace_repository import NamespaceRepository
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["namespaces"])
 
@@ -44,6 +45,7 @@ def get_namespace_repo() -> NamespaceRepository:
 def get_namespaces(
     appname: str,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: NamespaceService = Depends(get_namespace_service)
 ):
     """Get all namespaces for an application.
@@ -64,6 +66,7 @@ def create_namespace(
     appname: str,
     payload: NamespaceCreate,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: NamespaceService = Depends(get_namespace_service)
 ):
     """Create a new namespace for an application.
@@ -96,6 +99,7 @@ def delete_namespaces(
     appname: str,
     env: Optional[str] = None,
     namespaces: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: NamespaceService = Depends(get_namespace_service)
 ):
     """Delete specific namespaces from an application.
@@ -130,6 +134,7 @@ def copy_namespace(
     namespace: str,
     payload: NamespaceCopyRequest,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: NamespaceService = Depends(get_namespace_service)
 ):
     """Copy a namespace to another environment or with a new name.

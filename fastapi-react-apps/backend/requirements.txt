@@ -4,3 +4,4 @@ pydantic
 PyYAML
 requests
 python-dotenv
+casbin

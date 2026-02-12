@@ -14,10 +14,19 @@
 function App() {
   const [deployment, setDeployment] = React.useState(null);
   const [currentUser, setCurrentUser] = React.useState("");
+  const [currentUserRoles, setCurrentUserRoles] = React.useState([]);
+  const [demoMode, setDemoMode] = React.useState(false);
+  const [showChangeLoginUser, setShowChangeLoginUser] = React.useState(false);
+  const [demoUsers, setDemoUsers] = React.useState([]);
+  const [demoUsersLoading, setDemoUsersLoading] = React.useState(false);
+  const [demoUsersError, setDemoUsersError] = React.useState("");
   const [envKeys, setEnvKeys] = React.useState([]);
   const [activeEnv, setActiveEnv] = React.useState("");
   const [readonly, setReadonly] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
+
+  const [accessRequests, setAccessRequests] = React.useState([]);
+  const [accessRequestStatusByKey, setAccessRequestStatusByKey] = React.useState({});
 
   // Use global error hook for centralized error and loading state
   const {
@@ -128,6 +137,13 @@ function App() {
     setShowErrorModal,
   });
 
+  const argocdEnabled = React.useMemo(() => {
+    const appKey = String(detailAppName || "").trim();
+    if (!appKey) return false;
+    const row = (apps || {})[appKey];
+    return Boolean(row?.argocd);
+  }, [apps, detailAppName]);
+
   // Use L4 Ingress hook for L4 Ingress management
   const {
     l4IngressItems,
@@ -162,6 +178,11 @@ function App() {
   } = useModals();
 
   // Use UI routing hook for navigation and history
+  const allowAdminPages = React.useMemo(() => {
+    const roles = Array.isArray(currentUserRoles) ? currentUserRoles : [];
+    return roles.includes("platform_admin") || roles.includes("role_mgmt_admin");
+  }, [currentUserRoles]);
+
   const {
     pendingRoute,
     setPendingRoute,
@@ -171,6 +192,7 @@ function App() {
     initializeRouting,
   } = useUiRouting({
     configComplete,
+    allowAdminPages,
     envKeys,
     activeEnv,
     setActiveEnv,
@@ -202,7 +224,9 @@ function App() {
         if (cancelled) return;
 
         setDeployment(deploymentType);
-        setCurrentUser(user.user || "");
+        setDemoMode(Boolean(deploymentType?.demo_mode));
+        setCurrentUser(String(user?.user || user?.username || user || "unknown"));
+        setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
         setReadonly(portalMode?.readonly || false);
 
         const { isComplete } = await loadConfigData();
@@ -248,6 +272,39 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  async function onOpenChangeLoginUser() {
+    setDemoUsersError("");
+    setDemoUsers([]);
+    setShowChangeLoginUser(true);
+    setDemoUsersLoading(true);
+    try {
+      const res = await fetchJson("/api/v1/demo-users");
+      const rows = Array.isArray(res?.rows) ? res.rows : [];
+      setDemoUsers(rows);
+    } catch (e) {
+      setDemoUsersError(e?.message || String(e));
+    } finally {
+      setDemoUsersLoading(false);
+    }
+  }
+
+  function onCloseChangeLoginUser() {
+    setShowChangeLoginUser(false);
+  }
+
+  async function onSelectDemoUser(user) {
+    const u = String(user || "").trim();
+    if (!u) return;
+
+    try {
+      await putJson("/api/v1/current-user", { user: u });
+      setCurrentUser(u);
+      window.location.reload();
+    } catch (e) {
+      setDemoUsersError(e?.message || String(e));
+    }
+  }
 
   // Redirect to Home if config is incomplete
   React.useEffect(() => {
@@ -363,6 +420,71 @@ function App() {
     })();
   }, [topTab, configComplete, activeEnv, envKeys, refreshClusters]);
 
+  // Load access requests when on Access Requests tab
+  React.useEffect(() => {
+    if (!configComplete) return;
+    if (topTab !== "Access Requests") return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await loadAccessRequests();
+        if (!cancelled) setAccessRequests(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!cancelled) setError(e?.message || String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [topTab, configComplete, setLoading, setError]);
+
+  function getAccessRequestKey(r, idx) {
+    const requestedAt = r?.requested_at || "";
+    const requestor = r?.requestor || "";
+    const type = r?.type || "";
+    if (requestedAt && requestor && type) return `${requestedAt}:${requestor}:${type}`;
+    return `${requestedAt}:${idx}`;
+  }
+
+  async function onGrantAccessRequest(r, idx) {
+    const key = getAccessRequestKey(r, idx);
+
+    try {
+      setAccessRequestStatusByKey((prev) => ({
+        ...(prev || {}),
+        [key]: { state: "granting", message: "Granting…" },
+      }));
+
+      const t = String(r?.type || "");
+      const payload = r?.payload || {};
+
+      if (t === "app_access") {
+        await grantAppAccessRequest(payload);
+      } else if (t === "global_access") {
+        await grantGlobalAccessRequest(payload);
+      } else {
+        throw new Error(`Unsupported access request type: ${t}`);
+      }
+
+      setAccessRequestStatusByKey((prev) => ({
+        ...(prev || {}),
+        [key]: { state: "granted", message: "Granted" },
+      }));
+    } catch (e) {
+      setAccessRequestStatusByKey((prev) => ({
+        ...(prev || {}),
+        [key]: { state: "error", message: e?.message || String(e) },
+      }));
+    }
+  }
+
   // ============================================================================
   // CONFIG HANDLERS
   // ============================================================================
@@ -405,9 +527,16 @@ function App() {
     }
   }
 
-  // ============================================================================
-  // APP HANDLERS
-  // ============================================================================
+  /**
+   * Save enforcement settings (egress firewall / egress IP).
+   */
+  async function onSaveEnforcementSettings() {
+    try {
+      await saveEnforcementSettingsData();
+    } catch (e) {
+      setError(e?.message || String(e));
+    }
+  }
 
   /**
    * Get the application name from either detail view or selected app.
@@ -430,6 +559,21 @@ function App() {
       // Ignore errors, still open modal
     }
     openCreateApp();
+  }
+
+  /**
+   * Create a new app and refresh the apps list.
+   * @param {Object} payload - App creation payload
+   */
+  async function onCreateApp(payload) {
+    try {
+      await createApp(payload);
+      closeCreateApp();
+      await refreshApps();
+    } catch (e) {
+      setError(e?.message || String(e));
+      setShowErrorModal(true);
+    }
   }
 
   // ============================================================================
@@ -509,6 +653,15 @@ function App() {
   async function copyNamespace(fromNamespace, payload) {
     await copyNamespaceFromHook(detailAppName, fromNamespace, payload);
     await refreshApps();
+  }
+
+  async function onCopyNamespace(fromNamespace, payload) {
+    try {
+      await copyNamespace(fromNamespace, payload);
+    } catch (e) {
+      setError(e?.message || String(e));
+      setShowErrorModal(true);
+    }
   }
 
   /**
@@ -683,14 +836,21 @@ function App() {
   // Derive values from state
   const deploymentEnv = deployment?.deployment_env || "";
   const bannerTitle = deployment?.title?.[deploymentEnv] || "OCP App Provisioning Portal";
-  const bannerColor = deployment?.headerColor?.[deploymentEnv] || "#384454";
-  const selectedAppArgocdEnabled = Boolean(detailAppName && apps?.[detailAppName]?.argocd);
+  const bannerColor = deployment?.headerColor?.[deploymentEnv] || deployment?.headerColor?.live || "#2563EB";
 
   return (
     <AppView
       bannerColor={bannerColor}
       bannerTitle={bannerTitle}
       currentUser={currentUser}
+      demoMode={demoMode}
+      showChangeLoginUser={showChangeLoginUser}
+      demoUsers={demoUsers}
+      demoUsersLoading={demoUsersLoading}
+      demoUsersError={demoUsersError}
+      onOpenChangeLoginUser={onOpenChangeLoginUser}
+      onCloseChangeLoginUser={onCloseChangeLoginUser}
+      onSelectDemoUser={onSelectDemoUser}
       envKeys={envKeys}
       activeEnv={activeEnv}
       loading={loading}
@@ -704,9 +864,13 @@ function App() {
       topTab={topTab}
       configComplete={configComplete}
       readonly={readonly}
+      allowAdminPages={allowAdminPages}
       onTopTabChange={setTopTabWithUrl}
+      accessRequests={accessRequests}
+      accessRequestStatusByKey={accessRequestStatusByKey}
+      onGrantAccessRequest={onGrantAccessRequest}
       clustersByEnv={clustersByEnv}
-      onAddCluster={onAddCluster}
+      onAddCluster={addCluster}
       onDeleteCluster={onDeleteCluster}
       showCreateCluster={showCreateCluster}
       onOpenCreateCluster={openCreateCluster}
@@ -728,7 +892,7 @@ function App() {
       setDraftEnforcementSettings={setDraftEnforcementSettings}
       enforcementSettingsError={enforcementSettingsError}
       enforcementSettingsLoading={enforcementSettingsLoading}
-      onSaveEnforcementSettings={saveEnforcementSettingsData}
+      onSaveEnforcementSettings={onSaveEnforcementSettings}
       onEnvClick={onEnvClick}
       onViewL4Ingress={onViewL4Ingress}
       onViewEgressIps={onViewEgressIps}
@@ -743,6 +907,10 @@ function App() {
       onSelectAllFromFiltered={onSelectAllFromFiltered}
       deleteApp={deleteApp}
       openNamespaces={openNamespaces}
+      onCreateApp={onCreateApp}
+      showCreateApp={showCreateApp}
+      onOpenCreateApp={onOpenCreateApp}
+      onCloseCreateApp={closeCreateApp}
       detailNamespace={detailNamespace}
       detailNamespaceName={detailNamespaceName}
       namespaces={namespaces}
@@ -750,19 +918,15 @@ function App() {
       toggleNamespace={toggleNamespace}
       onSelectAllNamespaces={onSelectAllNamespaces}
       deleteNamespace={deleteNamespace}
-      onCopyNamespace={copyNamespace}
+      onCopyNamespace={onCopyNamespace}
       viewNamespaceDetails={viewNamespaceDetails}
       onUpdateNamespaceInfo={onUpdateNamespaceInfo}
-      onCreateApp={createApp}
-      showCreateApp={showCreateApp}
-      onOpenCreateApp={onOpenCreateApp}
-      onCloseCreateApp={closeCreateApp}
       onCreateNamespace={onCreateNamespace}
       showCreateNamespace={showCreateNamespace}
       onOpenCreateNamespace={openCreateNamespace}
       onCloseCreateNamespace={closeCreateNamespace}
       detailAppName={detailAppName}
-      argocdEnabled={selectedAppArgocdEnabled}
+      argocdEnabled={argocdEnabled}
       requestsChanges={requestsChanges}
       l4IngressItems={l4IngressItems}
       egressIpItems={egressIpItems}

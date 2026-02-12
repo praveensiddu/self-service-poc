@@ -97,6 +97,15 @@ function isClustersPath() {
 }
 
 /**
+ * Check if the current path is the Access Requests page.
+ * @returns {boolean}
+ */
+function isAccessRequestsPath() {
+  const path = (window.location.pathname || "/").toLowerCase();
+  return path === "/access-requests" || path === "/access-requests/";
+}
+
+/**
  * Build a clusters URL with optional environment query parameter.
  * @param {string} [env] - Environment name
  * @returns {string} - Clusters URL
@@ -104,4 +113,12 @@ function isClustersPath() {
 function clustersUrlWithEnv(env) {
   const q = env ? `?env=${encodeURIComponent(env)}` : "";
   return `/clusters${q}`;
+}
+
+/**
+ * Build an access requests URL.
+ * @returns {string}
+ */
+function accessRequestsUrl() {
+  return "/access-requests";
 }

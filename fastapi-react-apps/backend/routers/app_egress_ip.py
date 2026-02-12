@@ -1,16 +1,21 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from typing import Any, Dict, List, Optional
 
 import yaml
 
 from backend.dependencies import require_env, get_workspace_path
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["egress_ip"])
 
 
 
 @router.get("/apps/{appname}/egress_ips")
-def get_egress_ips(appname: str, env: Optional[str] = None):
+def get_egress_ips(
+    appname: str,
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
+):
     env = require_env(env)
 
     workspace_path = get_workspace_path()

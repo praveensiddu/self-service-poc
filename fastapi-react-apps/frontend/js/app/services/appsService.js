@@ -68,6 +68,54 @@ async function deleteAppApi(env, appname) {
 }
 
 /**
+ * Create an access request for an application.
+ * @param {{application: string, role: "viewer"|"manager", usr_or_grp: string}} payload
+ * @returns {Promise<Object>} - Created access request
+ */
+async function createAppAccessRequest(payload) {
+  const application = safeTrim(payload?.application);
+  const role = safeTrim(payload?.role);
+  const usr_or_grp = safeTrim(payload?.usr_or_grp);
+  if (!application) throw new Error("Application is required.");
+  if (!role) throw new Error("Role is required.");
+  if (!usr_or_grp) throw new Error("Userid or Group is required.");
+
+  return await postJson("/api/v1/app_access", {
+    application,
+    role,
+    usr_or_grp,
+  });
+}
+
+/**
+ * Load access requests.
+ * @returns {Promise<Array>} - List of access requests
+ */
+async function loadAccessRequests() {
+  return await fetchJson("/api/v1/access_requests");
+}
+
+async function grantAppAccessRequest(payload) {
+  const group = safeTrim(payload?.usr_or_grp);
+  const app = safeTrim(payload?.application);
+  const role = safeTrim(payload?.role);
+  if (!group) throw new Error("Userid or Group is required.");
+  if (!app) throw new Error("Application is required.");
+  if (!role) throw new Error("Role is required.");
+
+  return await postJson("/api/v1/role-management/app/assign", { group, app, role });
+}
+
+async function grantGlobalAccessRequest(payload) {
+  const group = safeTrim(payload?.usr_or_grp);
+  const role = safeTrim(payload?.role);
+  if (!group) throw new Error("Userid or Group is required.");
+  if (!role) throw new Error("Role is required.");
+
+  return await postJson("/api/v1/role-management/groupglobal/assign", { group, role });
+}
+
+/**
  * Load requests/changes for an environment.
  * @param {string} env - Environment name
  * @returns {Promise<{apps: string[], namespaces: string[]}>}

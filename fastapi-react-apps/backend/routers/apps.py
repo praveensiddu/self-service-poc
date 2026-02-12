@@ -8,6 +8,7 @@ from backend.dependencies import require_env, require_initialized_workspace
 from backend.models import AppCreate, AppResponse, AppDeleteResponse
 from backend.services.application_service import ApplicationService
 from backend.services.cluster_service import ClusterService
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["apps"])
 
@@ -54,6 +55,7 @@ def list_apps(
 def create_app(
     payload: AppCreate,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj="/apps", act="POST")),
     service: ApplicationService = Depends(get_app_service)
 ):
     """Create a new application.
@@ -84,6 +86,7 @@ def update_app(
     appname: str,
     payload: AppCreate,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: ApplicationService = Depends(get_app_service)
 ):
     """Update an existing application.
@@ -119,6 +122,7 @@ def update_app(
 def delete_app(
     appname: str,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: ApplicationService = Depends(get_app_service)
 ):
     """Delete an application and all its associated data.

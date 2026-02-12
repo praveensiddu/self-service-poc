@@ -74,6 +74,48 @@ function AppsTable({
     return isNonEmptyString(argoCdGitUrl);
   }, [argoCdGitUrl]);
 
+  const [showRequestAccess, setShowRequestAccess] = React.useState(false);
+  const [requestAccessAppName, setRequestAccessAppName] = React.useState("");
+  const [requestAccessRole, setRequestAccessRole] = React.useState("viewer");
+  const [requestAccessUsrOrGrp, setRequestAccessUsrOrGrp] = React.useState("");
+
+  function openRequestAccess(row) {
+    const r = row || {};
+    const name = safeTrim(r?.appname);
+    setRequestAccessAppName(name);
+    setRequestAccessRole("viewer");
+    setRequestAccessUsrOrGrp("");
+    setShowRequestAccess(true);
+  }
+
+  function closeRequestAccess() {
+    setShowRequestAccess(false);
+  }
+
+  const canSubmitRequestAccess = React.useMemo(() => {
+    return isNonEmptyString(requestAccessAppName)
+      && isNonEmptyString(requestAccessRole)
+      && isNonEmptyString(requestAccessUsrOrGrp);
+  }, [requestAccessAppName, requestAccessRole, requestAccessUsrOrGrp]);
+
+  async function onSubmitRequestAccess() {
+    try {
+      const application = safeTrim(requestAccessAppName);
+      const role = safeTrim(requestAccessRole);
+      const usr_or_grp = safeTrim(requestAccessUsrOrGrp);
+      if (!application) throw new Error("Application is required.");
+      if (!role) throw new Error("Role is required.");
+      if (!usr_or_grp) throw new Error("Userid or Group is required.");
+
+      await createAppAccessRequest({ application, role, usr_or_grp });
+
+      setShowRequestAccess(false);
+      alert(`Access request submitted for ${application} (${role}).`);
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
+
   async function openArgoCd(row) {
     const r = row || {};
     const name = safeTrim(r?.appname);
@@ -254,6 +296,17 @@ function AppsTable({
       closeArgoCd={closeArgoCd}
       onSubmitArgoCd={onSubmitArgoCd}
       onDeleteArgoCd={onDeleteArgoCd}
+
+      showRequestAccess={showRequestAccess}
+      requestAccessAppName={requestAccessAppName}
+      requestAccessRole={requestAccessRole}
+      setRequestAccessRole={setRequestAccessRole}
+      requestAccessUsrOrGrp={requestAccessUsrOrGrp}
+      setRequestAccessUsrOrGrp={setRequestAccessUsrOrGrp}
+      canSubmitRequestAccess={canSubmitRequestAccess}
+      openRequestAccess={openRequestAccess}
+      closeRequestAccess={closeRequestAccess}
+      onSubmitRequestAccess={onSubmitRequestAccess}
     />
   );
 }
