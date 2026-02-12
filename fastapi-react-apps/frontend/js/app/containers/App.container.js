@@ -519,6 +519,19 @@ function App() {
       const { isComplete } = await saveDefaultConfigData();
 
       if (isComplete) {
+        try {
+          const [deploymentType, user] = await Promise.all([
+            fetchJson("/api/v1/deployment_type"),
+            fetchJson("/api/v1/current-user"),
+          ]);
+          setDeployment(deploymentType);
+          setDemoMode(Boolean(deploymentType?.demo_mode));
+          setCurrentUser(String(user?.user || user?.username || user || "unknown"));
+          setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
+        } catch {
+          // ignore
+        }
+
         const envList = await fetchJson("/api/v1/envlist");
         const keys = Object.keys(envList);
         setEnvKeys(keys);

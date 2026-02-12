@@ -16,16 +16,10 @@ class RoleMgmtImpl:
         self._lock = RLock()
         self._rbac_dir = Path.home() / "workspace" / "kselfserv" / "cloned-repositories" / "control" / "rbac"
         self._demo_mode = os.getenv("DEMO_MODE", "").lower() == "true"
-        if self._demo_mode:
-            self._rbac_dir = self._rbac_dir / "demo_mode"
         self._legacy_store_path = self._rbac_dir / "role_assignments.yaml"
-        self._store_paths: Dict[str, Path] = {
-            "group_app_roles": self._rbac_dir / "group_app_roles.yaml",
-            "group_global_roles": self._rbac_dir / "group_global_roles.yaml",
-            "user_global_roles": self._rbac_dir / "user_global_roles.yaml",
-            "user_groups": self._rbac_dir / "user_groups.yaml",
-        }
+        self._store_paths: Dict[str, Path] = {}
         self._demo_users_path = self._rbac_dir / "demo_users.yaml"
+        self._refresh_paths()
         self._data: Dict[str, Any] = {
             "group_app_roles": {},
             "group_global_roles": {},
@@ -46,7 +40,33 @@ class RoleMgmtImpl:
 
     def update_roles(self, *, force: bool = False) -> None:
         if force:
+            self._refresh_paths()
             self._load()
+
+    def _refresh_paths(self) -> None:
+        demo_mode = os.getenv("DEMO_MODE", "").lower() == "true"
+
+        workspace_raw = str(os.getenv("WORKSPACE", "")).strip()
+        if workspace_raw:
+            workspace = Path(workspace_raw).expanduser()
+        else:
+            workspace = Path.home() / "workspace"
+
+        rbac_dir = workspace / "kselfserv" / "cloned-repositories" / "control" / "rbac"
+        if demo_mode:
+            rbac_dir = rbac_dir / "demo_mode"
+
+        with self._lock:
+            self._demo_mode = demo_mode
+            self._rbac_dir = rbac_dir
+            self._legacy_store_path = self._rbac_dir / "role_assignments.yaml"
+            self._store_paths = {
+                "group_app_roles": self._rbac_dir / "group_app_roles.yaml",
+                "group_global_roles": self._rbac_dir / "group_global_roles.yaml",
+                "user_global_roles": self._rbac_dir / "user_global_roles.yaml",
+                "user_groups": self._rbac_dir / "user_groups.yaml",
+            }
+            self._demo_users_path = self._rbac_dir / "demo_users.yaml"
 
     def _load(self) -> None:
         with self._lock:

@@ -56,6 +56,7 @@ def save_config(cfg: KSelfServeConfig, service: ConfigService = Depends(get_conf
         control_repo=cfg.controlRepo or "",
     )
     os.environ["DEMO_MODE"] = "true"
+    RoleMgmtImpl.get_instance().update_roles(force=True)
     return KSelfServeConfig(**config)
 
 
