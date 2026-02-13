@@ -7,10 +7,16 @@ import shutil
 import logging
 
 import yaml
-from fastapi import HTTPException
 
 from backend.dependencies import get_requests_root
 from backend.services.cluster_service import ClusterService
+from backend.exceptions.custom import (
+    ValidationError,
+    NotFoundError,
+    AlreadyExistsError,
+    NotInitializedError,
+    AppError,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -31,13 +37,13 @@ class ApplicationService:
             Dictionary of app data keyed by app name
 
         Raises:
-            HTTPException: If environment is not initialized
+            NotInitializedError: If environment is not initialized
         """
         requests_root = get_requests_root()
         env_dir = requests_root / env
 
         if not env_dir.exists() or not env_dir.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
+            raise NotInitializedError(f"environment '{env}'")
 
         try:
             clusters_by_app = self.cluster_service.get_clusters_by_app(env)
@@ -136,23 +142,26 @@ class ApplicationService:
             Created app data
 
         Raises:
-            HTTPException: If validation fails or app already exists
+            ValidationError: If validation fails
+            NotInitializedError: If environment not initialized
+            AlreadyExistsError: If app already exists
+            AppError: If creation fails
         """
         appname = str(appname or "").strip()
         if not appname:
-            raise HTTPException(status_code=400, detail="appname is required")
+            raise ValidationError("appname", "is required")
         if not re.match(r"^[A-Za-z0-9_.-]+$", appname):
-            raise HTTPException(status_code=400, detail="Invalid appname")
+            raise ValidationError("appname", "Invalid appname format")
 
         requests_root = get_requests_root()
         env_dir = requests_root / env
 
         if not env_dir.exists() or not env_dir.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
+            raise NotInitializedError(f"environment '{env}'")
 
         app_dir = env_dir / appname
         if app_dir.exists():
-            raise HTTPException(status_code=409, detail=f"App already exists: {appname}")
+            raise AlreadyExistsError("Application", appname)
 
         try:
             app_dir.mkdir(parents=True, exist_ok=False)
@@ -161,10 +170,11 @@ class ApplicationService:
                 "managedby": str(managedby or ""),
             }
             (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
-        except HTTPException:
+        except (ValidationError, AlreadyExistsError, NotInitializedError):
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create app: {e}")
+            logger.error("Failed to create app: %s", e, exc_info=True)
+            raise AppError(f"Failed to create app: {e}")
 
         clusters_by_app = {}
         try:
@@ -199,21 +209,24 @@ class ApplicationService:
             Updated app data
 
         Raises:
-            HTTPException: If app not found
+            ValidationError: If validation fails
+            NotInitializedError: If environment not initialized
+            NotFoundError: If app not found
+            AppError: If update fails
         """
         target_appname = str(appname or "").strip()
         if not target_appname:
-            raise HTTPException(status_code=400, detail="appname is required")
+            raise ValidationError("appname", "is required")
 
         requests_root = get_requests_root()
         env_dir = requests_root / env
 
         if not env_dir.exists() or not env_dir.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
+            raise NotInitializedError(f"environment '{env}'")
 
         app_dir = env_dir / target_appname
         if not app_dir.exists() or not app_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"App not found: {target_appname}")
+            raise NotFoundError("Application", target_appname)
 
         try:
             appinfo = {
@@ -222,7 +235,8 @@ class ApplicationService:
             }
             (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to update app: {e}")
+            logger.error("Failed to update app: %s", e, exc_info=True)
+            raise AppError(f"Failed to update app: {e}")
 
         totalns = self._count_namespaces(app_dir)
 
@@ -251,13 +265,14 @@ class ApplicationService:
             Deletion result data
 
         Raises:
-            HTTPException: If app not found or deletion fails
+            NotFoundError: If app not found
+            AppError: If deletion fails
         """
         requests_root = get_requests_root()
         app_dir = requests_root / env / appname
 
         if not app_dir.exists() or not app_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+            raise NotFoundError("Application", f"{env}/{appname}")
 
         deleted_data = {
             "appname": appname,
@@ -271,6 +286,7 @@ class ApplicationService:
             deleted_data["removed"]["folder"] = True
             deleted_data["deleted"] = True
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to delete app folder {app_dir}: {e}")
+            logger.error("Failed to delete app folder %s: %s", app_dir, e, exc_info=True)
+            raise AppError(f"Failed to delete app folder {app_dir}: {e}")
 
         return deleted_data

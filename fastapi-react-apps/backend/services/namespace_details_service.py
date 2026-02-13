@@ -9,8 +9,6 @@ from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 import yaml
 
-from fastapi import HTTPException
-
 from backend.models import (
     NamespaceResourcesCpuMem,
     NamespaceResourcesQuotaLimits,
@@ -23,6 +21,11 @@ from backend.utils.helpers import is_set, as_trimmed_str
 from backend.utils.yaml_utils import read_yaml_dict, read_yaml_list
 from backend.utils.enforcement import load_enforcement_settings
 from backend.config.logging_config import get_logger
+from backend.exceptions.custom import (
+    ValidationError,
+    NotFoundError,
+    AppError,
+)
 
 logger = get_logger(__name__)
 
@@ -57,10 +60,8 @@ class NamespaceDetailsService:
         try:
             parsed = yaml.safe_load(rolebinding_path.read_text())
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to read RoleBinding: {e}"
-            )
+            logger.error("Failed to read RoleBinding: %s", e, exc_info=True)
+            raise AppError(f"Failed to read RoleBinding: {e}")
 
         if parsed is None:
             return {"bindings": []}
@@ -101,7 +102,8 @@ class NamespaceDetailsService:
             Dictionary with updated bindings
 
         Raises:
-            HTTPException: If validation fails
+            ValidationError: If validation fails
+            AppError: If write fails
         """
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
         rolebinding_path = ns_dir / "rolebinding_requests.yaml"
@@ -122,11 +124,8 @@ class NamespaceDetailsService:
                 f"Successfully wrote {len(rolebindings_data)} role binding(s) to {rolebinding_path}"
             )
         except Exception as e:
-            logger.error(f"Failed to write RoleBinding to {rolebinding_path}: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to write RoleBinding: {e}"
-            )
+            logger.error(f"Failed to write RoleBinding to {rolebinding_path}: {e}", exc_info=True)
+            raise AppError(f"Failed to write RoleBinding: {e}")
 
         return {"bindings": rolebindings_data}
 
@@ -145,28 +144,28 @@ class NamespaceDetailsService:
             Validated binding dictionary
 
         Raises:
-            HTTPException: If validation fails
+            ValidationError: If validation fails
         """
         roleref = binding.get("roleRef", {})
         roleref_kind = str(roleref.get("kind", "")).strip() if roleref else ""
         roleref_name = str(roleref.get("name", "")).strip() if roleref else ""
 
         if not roleref_kind:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Role Binding #{idx + 1}: Role Type is mandatory and cannot be empty"
+            raise ValidationError(
+                f"roleBinding[{idx}].roleRef.kind",
+                f"Role Binding #{idx + 1}: Role Type is mandatory and cannot be empty"
             )
         if not roleref_name:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Role Binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
+            raise ValidationError(
+                f"roleBinding[{idx}].roleRef.name",
+                f"Role Binding #{idx + 1}: Role Reference is mandatory and cannot be empty"
             )
 
         subjects = binding.get("subjects", [])
         if not subjects or len(subjects) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Role Binding #{idx + 1}: At least one subject is required"
+            raise ValidationError(
+                f"roleBinding[{idx}].subjects",
+                f"Role Binding #{idx + 1}: At least one subject is required"
             )
 
         validated_subjects = []
@@ -175,14 +174,14 @@ class NamespaceDetailsService:
             subject_name = str(subject.get("name", "")).strip()
 
             if not subject_kind:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Kind is mandatory and cannot be empty"
+                raise ValidationError(
+                    f"roleBinding[{idx}].subjects[{sub_idx}].kind",
+                    f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Kind is mandatory and cannot be empty"
                 )
             if not subject_name:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Name is mandatory and cannot be empty"
+                raise ValidationError(
+                    f"roleBinding[{idx}].subjects[{sub_idx}].name",
+                    f"Role Binding #{idx + 1}, Subject #{sub_idx + 1}: Subject Name is mandatory and cannot be empty"
                 )
 
             validated_subjects.append({
@@ -219,21 +218,21 @@ class NamespaceDetailsService:
             YAML string
 
         Raises:
-            HTTPException: If validation fails
+            ValidationError: If validation fails
         """
         roleref_kind = str(role_ref.kind).strip() if role_ref and role_ref.kind is not None else ""
         roleref_name = str(role_ref.name).strip() if role_ref and role_ref.name is not None else ""
 
         if not roleref_kind or not roleref_name:
-            raise HTTPException(
-                status_code=400,
-                detail="roleRef.kind and roleRef.name are required"
+            raise ValidationError(
+                "roleRef",
+                "roleRef.kind and roleRef.name are required"
             )
 
         if not subjects or len(subjects) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="At least one subject is required"
+            raise ValidationError(
+                "subjects",
+                "At least one subject is required"
             )
 
         # Validate and format subjects
@@ -243,9 +242,9 @@ class NamespaceDetailsService:
             subject_name = str(subject.name).strip() if subject and subject.name is not None else ""
 
             if not subject_kind or not subject_name:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Each subject must have kind and name"
+                raise ValidationError(
+                    "subject",
+                    "Each subject must have kind and name"
                 )
 
             formatted_subjects.append({
@@ -335,7 +334,7 @@ class NamespaceDetailsService:
             Dictionary with updated requests and quota_limits
 
         Raises:
-            HTTPException: If update fails
+            AppError: If update fails
         """
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
         resourcequota_path = ns_dir / "resourcequota.yaml"
@@ -344,10 +343,8 @@ class NamespaceDetailsService:
             rq_obj = self._build_resourcequota_file_obj(requests, quota_limits)
             resourcequota_path.write_text(yaml.safe_dump(rq_obj, sort_keys=False))
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to write resourcequota.yaml: {e}"
-            )
+            logger.error("Failed to write resourcequota.yaml: %s", e, exc_info=True)
+            raise AppError(f"Failed to write resourcequota.yaml: {e}")
 
         return {
             "requests": {
@@ -548,7 +545,7 @@ class NamespaceDetailsService:
             Dictionary with updated limits
 
         Raises:
-            HTTPException: If update fails
+            AppError: If update fails
         """
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
         limitrange_path = ns_dir / "limitrange.yaml"
@@ -557,10 +554,8 @@ class NamespaceDetailsService:
             lr_obj = self._build_limitrange_file_obj(namespace, limits)
             limitrange_path.write_text(yaml.safe_dump(lr_obj, sort_keys=False))
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to write limitrange.yaml: {e}"
-            )
+            logger.error("Failed to write limitrange.yaml: %s", e, exc_info=True)
+            raise AppError(f"Failed to write limitrange.yaml: {e}")
 
         return {
             "limits": {
@@ -769,15 +764,16 @@ class NamespaceDetailsService:
             Dictionary with updated rules
 
         Raises:
-            HTTPException: If validation fails or enforcement is disabled
+            ValidationError: If validation fails or enforcement is disabled
+            AppError: If write/delete fails
         """
         enforcement = load_enforcement_settings()
         egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
 
         if not egress_firewall_enforced:
-            raise HTTPException(
-                status_code=400,
-                detail="Egress firewall enforcement is disabled"
+            raise ValidationError(
+                "egressFirewall",
+                "Egress firewall enforcement is disabled"
             )
 
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
@@ -791,14 +787,14 @@ class NamespaceDetailsService:
             egress_value = str(r.get("egressValue", "")).strip()
 
             if egress_type not in {"dnsName", "cidrSelector"}:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Egress rule #{idx + 1}: egressType must be dnsName or cidrSelector"
+                raise ValidationError(
+                    f"egressRule[{idx}].egressType",
+                    f"Egress rule #{idx + 1}: egressType must be dnsName or cidrSelector"
                 )
             if not egress_value:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Egress rule #{idx + 1}: egressValue is required"
+                raise ValidationError(
+                    f"egressRule[{idx}].egressValue",
+                    f"Egress rule #{idx + 1}: egressValue is required"
                 )
 
             rule_out: Dict[str, Any] = {
@@ -811,21 +807,21 @@ class NamespaceDetailsService:
                 for pidx, p in enumerate(r.get("ports", [])):
                     protocol = str(p.get("protocol", "")).strip()
                     if not protocol:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Egress rule #{idx + 1} port #{pidx + 1}: protocol is required"
+                        raise ValidationError(
+                            f"egressRule[{idx}].ports[{pidx}].protocol",
+                            f"Egress rule #{idx + 1} port #{pidx + 1}: protocol is required"
                         )
                     if p.get("port") is None:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Egress rule #{idx + 1} port #{pidx + 1}: port is required"
+                        raise ValidationError(
+                            f"egressRule[{idx}].ports[{pidx}].port",
+                            f"Egress rule #{idx + 1} port #{pidx + 1}: port is required"
                         )
                     try:
                         port_int = int(p.get("port"))
                     except Exception:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Egress rule #{idx + 1} port #{pidx + 1}: port must be an integer"
+                        raise ValidationError(
+                            f"egressRule[{idx}].ports[{pidx}].port",
+                            f"Egress rule #{idx + 1} port #{pidx + 1}: port must be an integer"
                         )
                     ports_out.append({"protocol": protocol, "port": port_int})
 
@@ -841,10 +837,8 @@ class NamespaceDetailsService:
                 try:
                     path.unlink()
                 except Exception as e:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to delete egress_firewall_requests.yaml: {e}"
-                    )
+                    logger.error("Failed to delete egress_firewall_requests.yaml: %s", e, exc_info=True)
+                    raise AppError(f"Failed to delete egress_firewall_requests.yaml: {e}")
             return {"rules": []}
 
         try:
@@ -852,10 +846,8 @@ class NamespaceDetailsService:
                 yaml.safe_dump(out_egress_entries, sort_keys=False, default_flow_style=False)
             )
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to write egress_firewall_requests.yaml: {e}"
-            )
+            logger.error("Failed to write egress_firewall_requests.yaml: %s", e, exc_info=True)
+            raise AppError(f"Failed to write egress_firewall_requests.yaml: {e}")
 
         return {"rules": out_rules}
 
@@ -876,15 +868,16 @@ class NamespaceDetailsService:
             Dictionary with deletion status
 
         Raises:
-            HTTPException: If enforcement is disabled or deletion fails
+            ValidationError: If enforcement is disabled
+            AppError: If deletion fails
         """
         enforcement = load_enforcement_settings()
         egress_firewall_enforced = str(enforcement.enforce_egress_firewall or "yes").strip().lower() != "no"
 
         if not egress_firewall_enforced:
-            raise HTTPException(
-                status_code=400,
-                detail="Egress firewall enforcement is disabled"
+            raise ValidationError(
+                "egressFirewall",
+                "Egress firewall enforcement is disabled"
             )
 
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
@@ -894,10 +887,8 @@ class NamespaceDetailsService:
             try:
                 path.unlink()
             except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to delete egress_firewall_requests.yaml: {e}"
-                )
+                logger.error("Failed to delete egress_firewall_requests.yaml: %s", e, exc_info=True)
+                raise AppError(f"Failed to delete egress_firewall_requests.yaml: {e}")
 
         return {"deleted": True, "rules": []}
 
@@ -1126,7 +1117,7 @@ class NamespaceDetailsService:
             Updated egress information
 
         Raises:
-            HTTPException: If update fails
+            AppError: If update fails
         """
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
         ns_info_path = ns_dir / "namespace_info.yaml"
@@ -1145,10 +1136,8 @@ class NamespaceDetailsService:
 
             ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to update namespace_info.yaml: {e}"
-            )
+            logger.error("Failed to update namespace_info.yaml: %s", e, exc_info=True)
+            raise AppError(f"Failed to update namespace_info.yaml: {e}")
 
         from backend.utils.helpers import parse_bool
 
@@ -1224,7 +1213,7 @@ class NamespaceDetailsService:
             Updated ArgoCD configuration
 
         Raises:
-            HTTPException: If update fails
+            AppError: If update fails
         """
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
         cfg_path = ns_dir / "nsargocd.yaml"
@@ -1244,10 +1233,8 @@ class NamespaceDetailsService:
         try:
             cfg_path.write_text(yaml.safe_dump(out, sort_keys=False))
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to write nsargocd.yaml: {e}"
-            )
+            logger.error("Failed to write nsargocd.yaml: %s", e, exc_info=True)
+            raise AppError(f"Failed to write nsargocd.yaml: {e}")
 
         from backend.utils.helpers import parse_bool
 
@@ -1274,7 +1261,7 @@ class NamespaceDetailsService:
             Dictionary with deletion status
 
         Raises:
-            HTTPException: If deletion fails
+            AppError: If deletion fails
         """
         ns_dir = self.repo.get_namespace_dir(env, appname, namespace)
         cfg_path = ns_dir / "nsargocd.yaml"
@@ -1289,10 +1276,8 @@ class NamespaceDetailsService:
             try:
                 cfg_path.unlink()
             except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to delete nsargocd.yaml: {e}"
-                )
+                logger.error("Failed to delete nsargocd.yaml: %s", e, exc_info=True)
+                raise AppError(f"Failed to delete nsargocd.yaml: {e}")
 
         return {"deleted": existed}
 

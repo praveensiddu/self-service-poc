@@ -116,7 +116,17 @@ def put_namespace_info_basic(
 
         ni = payload.namespace_info
         if ni.clusters is not None:
-            existing["clusters"] = [str(c) for c in ni.clusters if c is not None and str(c).strip()]
+            # Flatten any nested lists and convert to strings
+            flattened = []
+            for item in ni.clusters:
+                if isinstance(item, list):
+                    # Handle nested lists by flattening them
+                    for sub_item in item:
+                        if sub_item is not None and str(sub_item).strip():
+                            flattened.append(str(sub_item).strip())
+                elif item is not None and str(item).strip():
+                    flattened.append(str(item).strip())
+            existing["clusters"] = flattened
         if ni.egress_nameid is not None:
             existing["egress_nameid"] = str(ni.egress_nameid)
 

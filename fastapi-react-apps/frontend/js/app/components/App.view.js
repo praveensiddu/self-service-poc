@@ -56,6 +56,7 @@ function AppView({
   setDraftEnforcementSettings,
   enforcementSettingsError,
   enforcementSettingsLoading,
+  enforcementSettingsSuccess,
   onSaveEnforcementSettings,
   onEnvClick,
   onViewL4Ingress,
@@ -311,7 +312,24 @@ function AppView({
           <div className="card" style={{ padding: 16 }}>
             <div style={{ display: "grid", gap: 16, maxWidth: 720 }}>
               {enforcementSettingsError ? (
-                <div className="status">Error: {enforcementSettingsError}</div>
+                <div className="error" style={{ padding: 12, borderRadius: 4 }}>
+                  <strong>Error:</strong> {enforcementSettingsError}
+                </div>
+              ) : null}
+
+              {enforcementSettingsSuccess ? (
+                <div
+                  className="success"
+                  style={{
+                    padding: 12,
+                    borderRadius: 4,
+                    background: '#d4edda',
+                    border: '1px solid #c3e6cb',
+                    color: '#155724'
+                  }}
+                >
+                  <strong>Success!</strong> Enforcement settings have been saved.
+                </div>
               ) : null}
 
               <div>
@@ -324,10 +342,14 @@ function AppView({
               </div>
 
               <div>
-                <div className="muted" style={{ fontWeight: 700, marginBottom: 4 }}>
-                  enforce_egress_firewall
+                <label htmlFor="enforce-egress-firewall" className="muted" style={{ fontWeight: 700, marginBottom: 4, display: 'block' }}>
+                  Enforce Egress Firewall
+                </label>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                  Controls whether egress firewall rules are enforced for namespaces
                 </div>
                 <select
+                  id="enforce-egress-firewall"
                   className="filterInput"
                   value={String(draftEnforcementSettings?.enforce_egress_firewall || "yes")}
                   disabled={readonly || enforcementSettingsLoading}
@@ -338,16 +360,20 @@ function AppView({
                     })
                   }
                 >
-                  <option value="yes">yes</option>
-                  <option value="no">no</option>
+                  <option value="yes">Yes (Enabled)</option>
+                  <option value="no">No (Disabled)</option>
                 </select>
               </div>
 
               <div>
-                <div className="muted" style={{ fontWeight: 700, marginBottom: 4 }}>
-                  enforce_egress_ip
+                <label htmlFor="enforce-egress-ip" className="muted" style={{ fontWeight: 700, marginBottom: 4, display: 'block' }}>
+                  Enforce Egress IP
+                </label>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                  Controls whether egress IP allocation is enforced for applications
                 </div>
                 <select
+                  id="enforce-egress-ip"
                   className="filterInput"
                   value={String(draftEnforcementSettings?.enforce_egress_ip || "yes")}
                   disabled={readonly || enforcementSettingsLoading}
@@ -358,19 +384,19 @@ function AppView({
                     })
                   }
                 >
-                  <option value="yes">yes</option>
-                  <option value="no">no</option>
+                  <option value="yes">Yes (Enabled)</option>
+                  <option value="no">No (Disabled)</option>
                 </select>
               </div>
 
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   className="btn btn-primary"
                   type="button"
                   disabled={readonly || enforcementSettingsLoading || !hasUnsavedEnforcementSettings}
                   onClick={() => onSaveEnforcementSettings()}
                 >
-                  Save
+                  {enforcementSettingsLoading ? "Saving..." : "Save Changes"}
                 </button>
                 <button
                   className="btn"
@@ -381,7 +407,6 @@ function AppView({
                   Cancel
                 </button>
                 {readonly ? <span className="muted">Read-only mode enabled.</span> : null}
-                {enforcementSettingsLoading ? <span className="muted">Loading…</span> : null}
               </div>
             </div>
           </div>

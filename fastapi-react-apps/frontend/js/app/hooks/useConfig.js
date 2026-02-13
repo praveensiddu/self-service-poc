@@ -35,6 +35,7 @@ function useConfig({ setLoading, setError }) {
   });
   const [enforcementSettingsError, setEnforcementSettingsError] = React.useState("");
   const [enforcementSettingsLoading, setEnforcementSettingsLoading] = React.useState(false);
+  const [enforcementSettingsSuccess, setEnforcementSettingsSuccess] = React.useState(false);
 
   const configComplete = persistedConfigComplete;
 
@@ -150,6 +151,7 @@ function useConfig({ setLoading, setError }) {
   const saveEnforcementSettingsData = React.useCallback(async () => {
     setEnforcementSettingsLoading(true);
     setEnforcementSettingsError("");
+    setEnforcementSettingsSuccess(false);
     try {
       const saved = await saveEnforcementSettings(draftEnforcementSettings);
       const next = {
@@ -158,6 +160,13 @@ function useConfig({ setLoading, setError }) {
       };
       setEnforcementSettings(next);
       setDraftEnforcementSettings(next);
+      setEnforcementSettingsSuccess(true);
+
+      // Auto-dismiss success message after 3 seconds
+      setTimeout(() => {
+        setEnforcementSettingsSuccess(false);
+      }, 3000);
+
       return next;
     } catch (e) {
       setEnforcementSettingsError(e?.message || String(e));
@@ -263,6 +272,7 @@ function useConfig({ setLoading, setError }) {
     setDraftEnforcementSettings,
     enforcementSettingsError,
     enforcementSettingsLoading,
+    enforcementSettingsSuccess,
 
     // Enforcement settings operations
     loadEnforcementSettingsData,

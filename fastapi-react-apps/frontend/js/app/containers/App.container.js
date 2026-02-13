@@ -78,6 +78,7 @@ function App() {
     setDraftEnforcementSettings,
     enforcementSettingsError,
     enforcementSettingsLoading,
+    enforcementSettingsSuccess,
     loadEnforcementSettingsData,
     saveEnforcementSettingsWithErrorHandling,
   } = useConfig({
@@ -793,6 +794,7 @@ function App() {
       setDraftEnforcementSettings={setDraftEnforcementSettings}
       enforcementSettingsError={enforcementSettingsError}
       enforcementSettingsLoading={enforcementSettingsLoading}
+      enforcementSettingsSuccess={enforcementSettingsSuccess}
       onSaveEnforcementSettings={onSaveEnforcementSettings}
       onEnvClick={onEnvClick}
       onViewL4Ingress={onViewL4Ingress}
