@@ -115,7 +115,7 @@ def add_cluster(
     payload: ClusterUpsert,
     env: Optional[str] = None,
     service: ClusterService = Depends(get_cluster_service),
-    _: None = Depends(require_rbac(obj="/clusters", act="POST"))
+    _: None = Depends(require_rbac(obj="/clusters", act="POST")),
 ):
     """Create or update a cluster.
 
