@@ -7,6 +7,7 @@ function AppsTable({
   onToggleRow,
   onSelectAll,
   onDeleteApp,
+  onUpdateApp,
   onViewDetails,
   onCreateApp,
   showCreate,
@@ -24,6 +25,23 @@ function AppsTable({
     }));
   }, [rows, extractPermissions]);
 
+  // Memoize fieldMapping to ensure it updates when clustersByApp changes
+  const fieldMapping = React.useCallback((app) => ({
+    appname: safeTrim(app?.appname),
+    description: safeTrim(app?.description),
+    managedby: safeTrim(app?.managedby),
+    clusters: (clustersByApp?.[app?.appname] || []).join(", "),
+    namespaces: String(app?.totalns || ""),
+    argocd: String(Boolean(app?.argocd)),
+  }), [clustersByApp]);
+
+  // Memoize sortBy function
+  const sortBy = React.useCallback((a, b) => {
+    const an = safeTrim(a?.appname).toLowerCase();
+    const bn = safeTrim(b?.appname).toLowerCase();
+    return an.localeCompare(bn);
+  }, []);
+
   // Centralized filtering and sorting
   const {
     sortedRows,
@@ -39,19 +57,8 @@ function AppsTable({
       namespaces: "",
       argocd: "",
     },
-    fieldMapping: (app) => ({
-      appname: safeTrim(app?.appname),
-      description: safeTrim(app?.description),
-      managedby: safeTrim(app?.managedby),
-      clusters: (clustersByApp?.[app?.appname] || []).join(", "),
-      namespaces: String(app?.totalns || ""),
-      argocd: String(Boolean(app?.argocd)),
-    }),
-    sortBy: (a, b) => {
-      const an = safeTrim(a?.appname).toLowerCase();
-      const bn = safeTrim(b?.appname).toLowerCase();
-      return an.localeCompare(bn);
-    },
+    fieldMapping,
+    sortBy,
   });
 
   const allSelected = React.useMemo(() => {

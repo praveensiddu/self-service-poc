@@ -30,6 +30,7 @@ function AppView({
   accessRequests,
   accessRequestStatusByKey,
   onGrantAccessRequest,
+  getAccessRequestKey,
   clustersByEnv,
   onAddCluster,
   onDeleteCluster,
@@ -67,6 +68,7 @@ function AppView({
   toggleRow,
   onSelectAllFromFiltered,
   deleteApp,
+  updateApp,
   openNamespaces,
   onCreateApp,
   showCreateApp,
@@ -90,7 +92,9 @@ function AppView({
   argocdEnabled,
   requestsChanges,
   l4IngressItems,
+  l4IngressAppName,
   egressIpItems,
+  egressIpsAppName,
   namespaceDetailsHeaderButtons,
   onSetNamespaceDetailsHeaderButtons,
   l4IngressAddButton,
@@ -406,65 +410,12 @@ function AppView({
             />
           </>
         ) : topTab === "Access Requests" ? (
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>Access Requests</div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Requested At</th>
-                  <th>Requestor</th>
-                  <th>Type</th>
-                  <th>Application</th>
-                  <th>AccessType</th>
-                  <th>Userid or Group</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(accessRequests || []).length === 0 ? (
-                  <tr>
-                    <td className="muted" colSpan={8}>No access requests found.</td>
-                  </tr>
-                ) : (
-                  (accessRequests || []).map((r, idx) => (
-                    <tr key={`${r?.requested_at || ""}:${idx}`}>
-                      <td className="muted">{r?.requested_at || ""}</td>
-                      <td>{r?.requestor || ""}</td>
-                      <td>{r?.type || ""}</td>
-                      <td>{r?.payload?.application || ""}</td>
-                      <td>{r?.payload?.role || ""}</td>
-                      <td>{r?.payload?.usr_or_grp || ""}</td>
-                      <td>
-                        {(() => {
-                          const key = `${r?.requested_at || ""}:${r?.requestor || ""}:${r?.type || ""}`;
-                          const s = (accessRequestStatusByKey || {})[key];
-                          if (!s) return "Pending";
-                          if (s?.state === "error") return `Error: ${s?.message || ""}`;
-                          return s?.message || s?.state || "";
-                        })()}
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          onClick={() => onGrantAccessRequest && onGrantAccessRequest(r, idx)}
-                          disabled={(() => {
-                            const key = `${r?.requested_at || ""}:${r?.requestor || ""}:${r?.type || ""}`;
-                            const s = (accessRequestStatusByKey || {})[key];
-                            return s?.state === "granting" || s?.state === "granted";
-                          })()}
-                        >
-                          Grant
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <AccessRequestsTable
+            accessRequests={accessRequests}
+            accessRequestStatusByKey={accessRequestStatusByKey}
+            onGrantAccessRequest={onGrantAccessRequest}
+            getAccessRequestKey={getAccessRequestKey}
+          />
         ) : (
           <>
             <div className="row">
@@ -558,7 +509,7 @@ function AppView({
                   </div>
                   <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 0 }}>
                     <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd", whiteSpace: "nowrap" }}>
-                      {`${detailAppName} - L4 Ingress IPs`}
+                      {`${l4IngressAppName} - L4 Ingress IPs`}
                     </h2>
                   </div>
                   <div style={{ zIndex: 1 }}>
@@ -580,7 +531,7 @@ function AppView({
                   </div>
                   <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 0 }}>
                     <h2 style={{ margin: 0, fontSize: "28px", fontWeight: "600", color: "#0d6efd", whiteSpace: "nowrap" }}>
-                      {`${detailAppName} - Egress IPs`}
+                      {`${egressIpsAppName} - Egress IPs`}
                     </h2>
                   </div>
                   <div style={{ zIndex: 1 }}>
@@ -599,6 +550,7 @@ function AppView({
                 onToggleRow={toggleRow}
                 onSelectAll={onSelectAllFromFiltered}
                 onDeleteApp={deleteApp}
+                onUpdateApp={updateApp}
                 onViewDetails={(appname) => openNamespaces(appname, true)}
                 onCreateApp={onCreateApp}
                 showCreate={showCreateApp}

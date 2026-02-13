@@ -15,6 +15,7 @@
 
     <!-- 1. Services - API interaction layer (load first) -->
     <script type="text/babel" data-presets="react" src="/static/js/app/services/apiClient.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/services/userService.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/configService.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/appsService.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/services/argocdService.js"></script>
@@ -35,6 +36,7 @@
 
     <!-- 4. App hooks - Application-specific hooks -->
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useGlobalError.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useUsers.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useConfig.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useAuthorization.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useApps.js"></script>
@@ -42,6 +44,7 @@
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useL4Ingress.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useEgressIps.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useClusters.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useAccessRequests.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useUiRouting.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/app/hooks/useModals.js"></script>
 
@@ -73,6 +76,7 @@
     <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/NamespaceDetails.view.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/features/l4Ingress/L4IngressTable.view.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/features/egressIp/EgressIpTable.view.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/accessRequests/AccessRequestsTable.view.js"></script>
 
     <!-- 8. Feature containers -->
     <script type="text/babel" data-presets="react" src="/static/js/features/clusters/ClustersTable.container.js"></script>
@@ -81,6 +85,7 @@
     <script type="text/babel" data-presets="react" src="/static/js/features/namespaceDetails/NamespaceDetails.container.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/features/l4Ingress/L4IngressTable.container.js"></script>
     <script type="text/babel" data-presets="react" src="/static/js/features/egressIp/EgressIpTable.container.js"></script>
+    <script type="text/babel" data-presets="react" src="/static/js/features/accessRequests/AccessRequestsTable.container.js"></script>
 
     <!-- 9. App containers (top-level orchestration) -->
     <script type="text/babel" data-presets="react" src="/static/js/app/components/App.view.js"></script>

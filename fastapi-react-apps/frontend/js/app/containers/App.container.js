@@ -12,23 +12,12 @@
  */
 
 function App() {
-  const [deployment, setDeployment] = React.useState(null);
-  const [currentUser, setCurrentUser] = React.useState("");
-  const [currentUserRoles, setCurrentUserRoles] = React.useState([]);
-  const [currentUserContext, setCurrentUserContext] = React.useState({ roles: [], app_roles: {}, groups: [] });
-  const [demoMode, setDemoMode] = React.useState(false);
-  const [showChangeLoginUser, setShowChangeLoginUser] = React.useState(false);
-  const [demoUsers, setDemoUsers] = React.useState([]);
-  const [demoUsersLoading, setDemoUsersLoading] = React.useState(false);
-  const [demoUsersError, setDemoUsersError] = React.useState("");
   const [envKeys, setEnvKeys] = React.useState([]);
   const [activeEnv, setActiveEnv] = React.useState("");
   const [readonly, setReadonly] = React.useState(false);
   const [envConfigured, setEnvConfigured] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
 
-  const [accessRequests, setAccessRequests] = React.useState([]);
-  const [accessRequestStatusByKey, setAccessRequestStatusByKey] = React.useState({});
 
   // Use global error hook for centralized error and loading state
   const {
@@ -46,6 +35,27 @@ function App() {
     closeDeleteWarningModal,
   } = useGlobalError();
 
+  // Use users hook for user state and demo mode management
+  const {
+    currentUser,
+    currentUserRoles,
+    currentUserContext,
+    demoMode,
+    bannerTitle,
+    bannerColor,
+    showChangeLoginUser,
+    demoUsers,
+    demoUsersLoading,
+    demoUsersError,
+    loadUserData,
+    reloadUserData,
+    openChangeLoginUser,
+    closeChangeLoginUser,
+    selectDemoUser,
+  } = useUsers({
+    setError,
+  });
+
   // Use config hook for configuration management
   const {
     workspace,
@@ -62,6 +72,8 @@ function App() {
     loadConfigData,
     saveConfigData,
     saveDefaultConfigData,
+    saveConfigAndInitialize,
+    useDefaultConfigAndInitialize,
     markConfigIncomplete,
     enforcementSettings,
     draftEnforcementSettings,
@@ -70,6 +82,7 @@ function App() {
     enforcementSettingsLoading,
     loadEnforcementSettingsData,
     saveEnforcementSettingsData,
+    saveEnforcementSettingsWithErrorHandling,
   } = useConfig({
     setLoading,
     setError,
@@ -85,11 +98,14 @@ function App() {
     loadAppsData,
     refreshApps,
     createApp,
+    updateApp,
     deleteApp,
     refreshRequestsChangesData,
     toggleRow,
     onSelectAllFromFiltered,
     requireExactlyOneSelectedApp,
+    openCreateAppWithClusters,
+    createAppAndRefresh,
   } = useApps({
     activeEnv,
     setLoading,
@@ -111,6 +127,7 @@ function App() {
     setShowErrorModal,
     setShowDeleteWarningModal,
     setDeleteWarningData,
+    onRefreshApps: refreshApps,
   });
 
   // Use namespaces hook for namespace management
@@ -151,6 +168,7 @@ function App() {
     l4IngressItems,
     l4IngressAddButton,
     setL4IngressAddButton,
+    detailAppName: l4IngressAppName,
     loadL4IngressData,
     resetL4IngressState,
   } = useL4Ingress({
@@ -160,10 +178,23 @@ function App() {
   // Use Egress IPs hook for Egress IPs management
   const {
     egressIpItems,
+    detailAppName: egressIpsAppName,
     loadEgressIpsData,
     resetEgressIpsState,
   } = useEgressIps({
     activeEnv,
+  });
+
+  // Use access requests hook for access requests management
+  const {
+    accessRequests,
+    accessRequestStatusByKey,
+    loadAccessRequestsData,
+    grantAccessRequest,
+    getAccessRequestKey,
+  } = useAccessRequests({
+    setLoading,
+    setError,
   });
 
   // Use modals hook for modal visibility
@@ -217,23 +248,13 @@ function App() {
         setLoading(true);
         setError("");
 
-        const [deploymentType, user, portalMode] = await Promise.all([
-          fetchJson("/api/v1/deployment_type"),
-          fetchJson("/api/v1/current-user"),
-          fetchJson("/api/v1/portal-mode"),
+        const [, portalMode] = await Promise.all([
+          loadUserData(),
+          loadPortalMode(),
         ]);
 
         if (cancelled) return;
 
-        setDeployment(deploymentType);
-        setDemoMode(Boolean(deploymentType?.demo_mode));
-        setCurrentUser(String(user?.user || user?.username || user || "unknown"));
-        setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
-        setCurrentUserContext({
-          roles: Array.isArray(user?.roles) ? user.roles : [],
-          app_roles: typeof user?.app_roles === 'object' ? user.app_roles : {},
-          groups: Array.isArray(user?.groups) ? user.groups : [],
-        });
         setReadonly(portalMode?.readonly || false);
         setEnvConfigured(Boolean(portalMode?.env_configured));
 
@@ -248,7 +269,7 @@ function App() {
         if (isComplete) {
           let envList;
           try {
-            envList = await fetchJson("/api/v1/envlist");
+            envList = await loadEnvList();
           } catch {
             if (cancelled) return;
             markConfigIncomplete();
@@ -279,40 +300,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  async function onOpenChangeLoginUser() {
-    setDemoUsersError("");
-    setDemoUsers([]);
-    setShowChangeLoginUser(true);
-    setDemoUsersLoading(true);
-    try {
-      const res = await fetchJson("/api/v1/demo-users");
-      const rows = Array.isArray(res?.rows) ? res.rows : [];
-      setDemoUsers(rows);
-    } catch (e) {
-      setDemoUsersError(e?.message || String(e));
-    } finally {
-      setDemoUsersLoading(false);
-    }
-  }
-
-  function onCloseChangeLoginUser() {
-    setShowChangeLoginUser(false);
-  }
-
-  async function onSelectDemoUser(user) {
-    const u = String(user || "").trim();
-    if (!u) return;
-
-    try {
-      await putJson("/api/v1/current-user", { user: u });
-      setCurrentUser(u);
-      window.location.reload();
-    } catch (e) {
-      setDemoUsersError(e?.message || String(e));
-    }
-  }
+  }, [loadUserData]);
 
   // Redirect to Home if config is incomplete
   React.useEffect(() => {
@@ -437,61 +425,16 @@ function App() {
 
     (async () => {
       try {
-        setLoading(true);
-        setError("");
-        const data = await loadAccessRequests();
-        if (!cancelled) setAccessRequests(Array.isArray(data) ? data : []);
+        await loadAccessRequestsData();
       } catch (e) {
-        if (!cancelled) setError(e?.message || String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
+        // Error already handled by hook
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [topTab, configComplete, setLoading, setError]);
-
-  function getAccessRequestKey(r, idx) {
-    const requestedAt = r?.requested_at || "";
-    const requestor = r?.requestor || "";
-    const type = r?.type || "";
-    if (requestedAt && requestor && type) return `${requestedAt}:${requestor}:${type}`;
-    return `${requestedAt}:${idx}`;
-  }
-
-  async function onGrantAccessRequest(r, idx) {
-    const key = getAccessRequestKey(r, idx);
-
-    try {
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "granting", message: "Granting…" },
-      }));
-
-      const t = String(r?.type || "");
-      const payload = r?.payload || {};
-
-      if (t === "app_access") {
-        await grantAppAccessRequest(payload);
-      } else if (t === "global_access") {
-        await grantGlobalAccessRequest(payload);
-      } else {
-        throw new Error(`Unsupported access request type: ${t}`);
-      }
-
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "granted", message: "Granted" },
-      }));
-    } catch (e) {
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "error", message: e?.message || String(e) },
-      }));
-    }
-  }
+  }, [topTab, configComplete, loadAccessRequestsData]);
 
   // ============================================================================
   // CONFIG HANDLERS
@@ -502,13 +445,10 @@ function App() {
    * After successful save, loads environment list and navigates to apps view.
    */
   async function onSaveConfig() {
-    const { isComplete } = await saveConfigData();
+    const { isComplete, envKeys: keys, initialEnv } = await saveConfigAndInitialize();
 
     if (isComplete) {
-      const envList = await fetchJson("/api/v1/envlist");
-      const keys = Object.keys(envList);
       setEnvKeys(keys);
-      const initialEnv = keys[0] || "";
       setActiveEnv(initialEnv);
       setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
       if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
@@ -522,38 +462,16 @@ function App() {
    */
   async function onUseDefaults() {
     try {
-      const { isComplete } = await saveDefaultConfigData();
+      const { isComplete, envKeys: keys, initialEnv } = await useDefaultConfigAndInitialize(reloadUserData);
 
       if (isComplete) {
-        try {
-          const [deploymentType, user] = await Promise.all([
-            fetchJson("/api/v1/deployment_type"),
-            fetchJson("/api/v1/current-user"),
-          ]);
-          setDeployment(deploymentType);
-          setDemoMode(Boolean(deploymentType?.demo_mode));
-          setCurrentUser(String(user?.user || user?.username || user || "unknown"));
-          setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
-          setCurrentUserContext({
-            roles: Array.isArray(user?.roles) ? user.roles : [],
-            app_roles: typeof user?.app_roles === 'object' ? user.app_roles : {},
-            groups: Array.isArray(user?.groups) ? user.groups : [],
-          });
-        } catch {
-          // ignore
-        }
-
-        const envList = await fetchJson("/api/v1/envlist");
-        const keys = Object.keys(envList);
         setEnvKeys(keys);
-        const initialEnv = keys[0] || "";
         setActiveEnv(initialEnv);
         setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
         if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
         setTopTab("Request provisioning");
       }
     } catch (e) {
-      setError(e?.message || String(e));
       setShowErrorModal(true);
     }
   }
@@ -561,13 +479,7 @@ function App() {
   /**
    * Save enforcement settings (egress firewall / egress IP).
    */
-  async function onSaveEnforcementSettings() {
-    try {
-      await saveEnforcementSettingsData();
-    } catch (e) {
-      setError(e?.message || String(e));
-    }
-  }
+  const onSaveEnforcementSettings = saveEnforcementSettingsWithErrorHandling;
 
   /**
    * Get the application name from either detail view or selected app.
@@ -584,12 +496,7 @@ function App() {
    * Refreshes cluster list before opening to ensure latest data.
    */
   async function onOpenCreateApp() {
-    try {
-      await refreshClusters(activeEnv);
-    } catch {
-      // Ignore errors, still open modal
-    }
-    openCreateApp();
+    await openCreateAppWithClusters(refreshClusters, openCreateApp);
   }
 
   /**
@@ -597,14 +504,7 @@ function App() {
    * @param {Object} payload - App creation payload
    */
   async function onCreateApp(payload) {
-    try {
-      await createApp(payload);
-      closeCreateApp();
-      await refreshApps();
-    } catch (e) {
-      setError(e?.message || String(e));
-      setShowErrorModal(true);
-    }
+    await createAppAndRefresh(payload, closeCreateApp);
   }
 
   // ============================================================================
@@ -812,21 +712,19 @@ function App() {
 
   /**
    * Add a new cluster to the environment.
-   * Refreshes the apps list after successful addition.
-   * @param {Object} payload - Cluster creation payload
+   * The useClusters hook handles both cluster creation and app list refresh.
    */
-  async function onAddCluster(payload) {
-    await addCluster(payload, refreshApps);
-  }
+  const onAddCluster = addCluster;
 
   /**
    * Delete a cluster from the environment.
-   * Refreshes apps list and view-specific data after successful deletion.
-   * @param {string} clustername - Name of cluster to delete
+   * The useClusters hook handles cluster deletion and app list refresh.
+   * This wrapper additionally refreshes view-specific data if viewing app details.
    */
-  async function onDeleteCluster(clustername) {
-    const result = await deleteCluster(clustername, refreshApps);
+  const onDeleteCluster = React.useCallback(async (clustername) => {
+    const result = await deleteCluster(clustername);
 
+    // If deletion didn't complete (user cancelled or dependencies exist), exit
     if (!result?.deleted) {
       return;
     }
@@ -848,7 +746,7 @@ function App() {
         setError(e?.message || String(e));
       }
     }
-  }
+  }, [deleteCluster, detailAppName, view, detailNamespaceName, loadNamespacesData, viewNamespaceDetails, loadL4IngressData, loadEgressIpsData, setError]);
 
   // ============================================================================
   // NAVIGATION HANDLERS
@@ -877,11 +775,6 @@ function App() {
     pushUiUrl({ view: "apps", env: activeEnv, appname: "" }, false);
   }
 
-  // Derive values from state
-  const deploymentEnv = deployment?.deployment_env || "";
-  const bannerTitle = deployment?.title?.[deploymentEnv] || "OCP App Provisioning Portal";
-  const bannerColor = deployment?.headerColor?.[deploymentEnv] || deployment?.headerColor?.live || "#2563EB";
-
   return (
     <AppView
       bannerColor={bannerColor}
@@ -893,9 +786,9 @@ function App() {
       demoUsers={demoUsers}
       demoUsersLoading={demoUsersLoading}
       demoUsersError={demoUsersError}
-      onOpenChangeLoginUser={onOpenChangeLoginUser}
-      onCloseChangeLoginUser={onCloseChangeLoginUser}
-      onSelectDemoUser={onSelectDemoUser}
+      onOpenChangeLoginUser={openChangeLoginUser}
+      onCloseChangeLoginUser={closeChangeLoginUser}
+      onSelectDemoUser={selectDemoUser}
       envKeys={envKeys}
       activeEnv={activeEnv}
       loading={loading}
@@ -914,9 +807,10 @@ function App() {
       onTopTabChange={setTopTabWithUrl}
       accessRequests={accessRequests}
       accessRequestStatusByKey={accessRequestStatusByKey}
-      onGrantAccessRequest={onGrantAccessRequest}
+      onGrantAccessRequest={grantAccessRequest}
+      getAccessRequestKey={getAccessRequestKey}
       clustersByEnv={clustersByEnv}
-      onAddCluster={addCluster}
+      onAddCluster={onAddCluster}
       onDeleteCluster={onDeleteCluster}
       showCreateCluster={showCreateCluster}
       onOpenCreateCluster={openCreateCluster}
@@ -952,6 +846,7 @@ function App() {
       toggleRow={toggleRow}
       onSelectAllFromFiltered={onSelectAllFromFiltered}
       deleteApp={deleteApp}
+      updateApp={updateApp}
       openNamespaces={openNamespaces}
       onCreateApp={onCreateApp}
       showCreateApp={showCreateApp}
@@ -975,7 +870,9 @@ function App() {
       argocdEnabled={argocdEnabled}
       requestsChanges={requestsChanges}
       l4IngressItems={l4IngressItems}
+      l4IngressAppName={l4IngressAppName}
       egressIpItems={egressIpItems}
+      egressIpsAppName={egressIpsAppName}
       namespaceDetailsHeaderButtons={namespaceDetailsHeaderButtons}
       onSetNamespaceDetailsHeaderButtons={setNamespaceDetailsHeaderButtons}
       l4IngressAddButton={l4IngressAddButton}

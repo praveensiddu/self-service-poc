@@ -227,7 +227,9 @@ function useNamespaceDetailsApi({ env, appname, namespaceName, editBlock }) {
           throw new Error(`${res.status} ${res.statusText}: ${text}`);
         }
         const data = await res.json();
-        const list = Array.isArray(data) ? data.map(String) : [];
+        // Backend returns {clusters: [...], permissions: {...}}
+        const clustersList = Array.isArray(data?.clusters) ? data.clusters : (Array.isArray(data) ? data : []);
+        const list = clustersList.map(String);
         if (!mounted) return;
         setClusterOptions(list);
       } catch {
