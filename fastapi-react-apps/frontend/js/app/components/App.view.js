@@ -446,7 +446,7 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  {!readonly && (
+                  {!readonly && canCreateApps(currentUserContext) && (
                     <button className="btn btn-primary" type="button" onClick={onOpenCreateApp} data-testid="add-app-btn">
                       Add App
                     </button>
