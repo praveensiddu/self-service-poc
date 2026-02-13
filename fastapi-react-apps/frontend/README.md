@@ -10,14 +10,43 @@ frontend/
 ├── css/                    # Stylesheets
 │   └── styles.css         # Global styles
 ├── js/                     # JavaScript modules
-│   ├── app/               # Application root components
-│   │   └── App.container.js
+│   ├── app/               # Application core
+│   │   ├── containers/    # Main app container
+│   │   │   └── App.container.js
+│   │   ├── components/    # App-level components
+│   │   │   └── App.view.js
+│   │   ├── services/      # API service layer
+│   │   │   ├── apiClient.js        # HTTP client utilities
+│   │   │   ├── userService.js      # User & auth APIs
+│   │   │   ├── configService.js    # Configuration APIs
+│   │   │   ├── appsService.js      # Application APIs
+│   │   │   ├── namespacesService.js # Namespace APIs
+│   │   │   ├── clustersService.js  # Cluster APIs
+│   │   │   └── argocdService.js    # ArgoCD APIs
+│   │   ├── hooks/         # Application-level hooks
+│   │   │   ├── useGlobalError.js    # Error/loading state
+│   │   │   ├── useUsers.js          # User state & demo mode
+│   │   │   ├── useConfig.js         # Configuration management
+│   │   │   ├── useApps.js           # Apps state & operations
+│   │   │   ├── useNamespaces.js     # Namespaces state
+│   │   │   ├── useClusters.js       # Clusters state
+│   │   │   ├── useL4Ingress.js      # L4 Ingress state
+│   │   │   ├── useEgressIps.js      # Egress IPs state
+│   │   │   ├── useAccessRequests.js # Access requests
+│   │   │   ├── useUiRouting.js      # URL routing
+│   │   │   ├── useModals.js         # Modal visibility
+│   │   │   └── useAuthorization.js  # RBAC helpers
+│   │   └── utils/         # Utility functions
+│   │       ├── url.js     # URL/routing helpers
+│   │       ├── helpers.js # General utilities
+│   │       └── ...
 │   ├── features/          # Feature modules (by domain)
 │   │   ├── apps/          # Applications management
 │   │   ├── clusters/      # Cluster management
 │   │   ├── egressIp/      # Egress IP management
 │   │   ├── l4Ingress/     # L4 Ingress management
 │   │   ├── namespaces/    # Namespace list management
+│   │   ├── accessRequests/ # Access request management
 │   │   └── namespaceDetails/  # Namespace details (refactored)
 │   │       ├── NamespaceDetails.container.js
 │   │       ├── NamespaceDetails.view.js
@@ -28,7 +57,7 @@ frontend/
 │   │       │   ├── LimitRangeBlock.js
 │   │       │   ├── ResourceQuotaBlock.js
 │   │       │   └── RoleBindingsBlock.js
-│   │       └── hooks/     # Custom React hooks
+│   │       └── hooks/     # Feature-specific hooks
 │   │           ├── useNamespaceDetailsApi.js
 │   │           ├── useNamespaceDetailsEdit.js
 │   │           └── useNamespaceDetailsLogic.js
@@ -40,6 +69,9 @@ frontend/
 │       │   ├── HelpIconButton.js
 │       │   └── IpRangeInput.js
 │       └── hooks/         # Shared custom hooks
+│           ├── useFilters.js
+│           ├── useSelection.js
+│           └── useTableFilter.js
 ├── help/                  # Help documentation (HTML)
 └── e2e/                   # End-to-end tests (Playwright)
     ├── tests/
@@ -53,7 +85,36 @@ frontend/
 
 This application follows modern React best practices with clear separation of concerns:
 
-#### 1. **Container/View Pattern**
+#### 1. **Service Layer Pattern**
+Services encapsulate all API calls and provide a consistent interface:
+
+- **apiClient.js**: Core HTTP utilities (`fetchJson`, `postJson`, `putJson`, `deleteJson`)
+- **userService.js**: User authentication and demo mode
+  ```javascript
+  loadCurrentUser()       // Get current user info
+  loadDeploymentType()    // Get deployment config
+  loadDemoUsers()         // Get demo users list
+  updateCurrentUser(user) // Switch demo user
+  ```
+- **configService.js**: Application configuration
+  ```javascript
+  loadConfig()            // Get workspace config
+  saveConfig(config)      // Save workspace config
+  loadEnvList()           // Get environment list
+  loadEnforcementSettings() // Get enforcement settings
+  ```
+- **appsService.js**: Application CRUD operations
+- **namespacesService.js**: Namespace operations
+- **clustersService.js**: Cluster management
+- **argocdService.js**: ArgoCD integration
+
+**Benefits:**
+- ✅ Single source of truth for API endpoints
+- ✅ Easy to mock for testing
+- ✅ Consistent error handling
+- ✅ Reusable across components
+
+#### 2. **Container/View Pattern**
 - **Container** (`*.container.js`): Manages state, side effects, and business logic
 - **View** (`*.view.js`): Pure presentational components, no business logic
 
@@ -74,8 +135,15 @@ function NamespaceDetailsView({ displayValues, ... }) {
 }
 ```
 
-#### 2. **Custom Hooks Pattern**
-Custom hooks encapsulate reusable logic:
+#### 3. **Custom Hooks Pattern**
+Custom hooks encapsulate reusable logic and consume services:
+
+- **State Management Hooks**: Manage domain state
+  ```javascript
+  useApps({ activeEnv, setLoading, setError })
+  useNamespaces({ activeEnv, setLoading, setError })
+  useClusters({ activeEnv, envKeys, ... })
+  ```
 
 - **API Hooks**: API calls and data fetching
   ```javascript
@@ -92,7 +160,21 @@ Custom hooks encapsulate reusable logic:
   useNamespaceDetailsLogic({ namespace, draftStates })
   ```
 
-#### 3. **Feature-Based Organization**
+- **UI Hooks**: Modal visibility, routing, global errors
+  ```javascript
+  useModals()           // Modal visibility state
+  useUiRouting({ ... }) // URL routing and history
+  useGlobalError()      // Centralized error handling
+  ```
+
+**Hook Responsibilities:**
+- ✅ Call service functions (not direct fetch)
+- ✅ Manage local state
+- ✅ Handle loading/error states
+- ✅ Provide clean API to components
+- ✅ Use `React.useCallback` for stable references
+
+#### 4. **Feature-Based Organization**
 Each feature is self-contained with:
 - Container and View components
 - Feature-specific hooks (co-located)
