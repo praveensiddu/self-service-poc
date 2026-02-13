@@ -26,6 +26,8 @@ function AppView({
   readonly,
   envConfigured,
   allowAdminPages,
+  canUserCreateApps,
+  canUserCreateNamespaces,
   onTopTabChange,
   accessRequests,
   accessRequestStatusByKey,
@@ -125,12 +127,11 @@ function AppView({
           {demoMode ? <div className="demoMode">DEMO MODE</div> : null}
         </div>
         <div className="user">
-          {demoMode ? (
-            <button className="btn" type="button" onClick={() => onOpenChangeLoginUser && onOpenChangeLoginUser()}>
-              Change Login User
-            </button>
-          ) : null}
-          {currentUser ? `Logged in as ${currentUser}` : ""}
+          <UserProfileMenu
+            currentUser={currentUser}
+            demoMode={demoMode}
+            onOpenChangeLoginUser={onOpenChangeLoginUser}
+          />
         </div>
       </div>
 
@@ -446,7 +447,7 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  {!readonly && (
+                  {!readonly && canUserCreateApps && (
                     <button className="btn btn-primary" type="button" onClick={onOpenCreateApp} data-testid="add-app-btn">
                       Add App
                     </button>
@@ -487,7 +488,7 @@ function AppView({
                     </h2>
                   </div>
                   <div style={{ zIndex: 1 }}>
-                    {!readonly && (
+                    {!readonly && canUserCreateNamespaces && (
                       <button className="btn btn-primary" type="button" onClick={onOpenCreateNamespace} data-testid="add-namespace-btn">
                         Add Namespace
                       </button>

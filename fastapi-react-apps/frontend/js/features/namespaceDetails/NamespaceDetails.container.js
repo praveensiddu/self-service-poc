@@ -18,22 +18,16 @@
  * @param {Function} props.renderHeaderButtons - Callback to render header buttons
  */
 function NamespaceDetails({ namespace, namespaceName, appname, env, currentUserContext, onUpdateNamespaceInfo, readonly, renderHeaderButtons }) {
-  const { canManage } = useAuthorization();
 
-  // Check if user has manage permission
+  // Use centralized permissions hook
+  const { canManageApp } = usePermissions({ currentUserContext, appName: appname });
+
+  // Check if user has manage permission - prefer backend flag, fallback to hook
   const namespacePermissions = namespace?.permissions;
   const hasBackendManageFlag = typeof namespacePermissions?.canManage === "boolean";
-  const hasManagePermission = React.useMemo(() => {
-    if (hasBackendManageFlag) return Boolean(namespacePermissions?.canManage);
-    if (typeof window !== 'undefined' && typeof window.canManageApp === 'function') {
-      return window.canManageApp(appname, currentUserContext);
-    }
-    const roles = currentUserContext?.roles || [];
-    if (Array.isArray(roles) && roles.includes('platform_admin')) return true;
-    const appRoles = currentUserContext?.app_roles || {};
-    const appSpecificRoles = appRoles?.[appname] || [];
-    return Array.isArray(appSpecificRoles) && appSpecificRoles.includes('manager');
-  }, [hasBackendManageFlag, namespacePermissions?.canManage, appname, currentUserContext]);
+  const hasManagePermission = hasBackendManageFlag
+    ? Boolean(namespacePermissions?.canManage)
+    : canManageApp(appname);
 
   // Cluster picker state
   const [clusterQuery, setClusterQuery] = React.useState("");
