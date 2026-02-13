@@ -59,9 +59,10 @@ def create_rolemgmt_router(
     logger = logging.getLogger("RoleManagementAPI")
 
     class RoleAssignmentRequest(BaseModel):
-        group: str
         app: str
         role: str
+        userid: str | None = None
+        group: str | None = None
 
 
     class GlobalRoleAssignmentRequest(BaseModel):
@@ -106,8 +107,17 @@ def create_rolemgmt_router(
                     grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
         enforce(user_context, "/role-management/app/assign", "POST", {})
+        userid = str(payload.userid or "").strip()
+        group = str(payload.group or "").strip()
+        if bool(userid) == bool(group):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"status": "error", "message": "Exactly one of userid or group is required"},
+            )
         return execute_role_operation(
-            lambda: rolemgmtimpl.add_grp2apps2roles(grantor, payload.group, payload.app, payload.role),
+            (lambda: rolemgmtimpl.add_user2apps2roles(grantor, userid, payload.app, payload.role))
+            if userid
+            else (lambda: rolemgmtimpl.add_grp2apps2roles(grantor, group, payload.app, payload.role)),
             "assigned"
         )
 
@@ -117,8 +127,17 @@ def create_rolemgmt_router(
                       grantor: str | None = Depends(get_grantor),
                     user_context: dict[str, Any] = Depends(get_current_user_context)) -> dict[str, Any]:
         enforce(user_context, "/role-management/app/unassign", "POST", {})
+        userid = str(payload.userid or "").strip()
+        group = str(payload.group or "").strip()
+        if bool(userid) == bool(group):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"status": "error", "message": "Exactly one of userid or group is required"},
+            )
         return execute_role_operation(
-            lambda: rolemgmtimpl.del_grp2apps2roles(grantor, payload.group, payload.app, payload.role),
+            (lambda: rolemgmtimpl.del_user2apps2roles(grantor, userid, payload.app, payload.role))
+            if userid
+            else (lambda: rolemgmtimpl.del_grp2apps2roles(grantor, group, payload.app, payload.role)),
             "unassigned"
         )
 

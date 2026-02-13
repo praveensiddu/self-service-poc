@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import os
@@ -139,6 +140,21 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+
+
+@app.get("/docs", include_in_schema=False)
+def redirect_docs():
+    return RedirectResponse(url="/api/docs")
+
+
+@app.get("/redoc", include_in_schema=False)
+def redirect_redoc():
+    return RedirectResponse(url="/api/redoc")
+
+
+@app.get("/openapi.json", include_in_schema=False)
+def redirect_openapi():
+    return RedirectResponse(url="/api/openapi.json")
 
 
 # ============================================

@@ -69,21 +69,23 @@ async function deleteAppApi(env, appname) {
 
 /**
  * Create an access request for an application.
- * @param {{application: string, role: "viewer"|"manager", usr_or_grp: string}} payload
+ * @param {{application: string, role: "viewer"|"manager", userid?: string, group?: string}} payload
  * @returns {Promise<Object>} - Created access request
  */
 async function createAppAccessRequest(payload) {
   const application = safeTrim(payload?.application);
   const role = safeTrim(payload?.role);
-  const usr_or_grp = safeTrim(payload?.usr_or_grp);
+  const userid = safeTrim(payload?.userid);
+  const group = safeTrim(payload?.group);
   if (!application) throw new Error("Application is required.");
   if (!role) throw new Error("Role is required.");
-  if (!usr_or_grp) throw new Error("Userid or Group is required.");
+  if (Boolean(userid) === Boolean(group)) throw new Error("Exactly one of Userid or Group is required.");
 
   return await postJson("/api/v1/app_access", {
     application,
     role,
-    usr_or_grp,
+    userid: userid || undefined,
+    group: group || undefined,
   });
 }
 
@@ -96,14 +98,15 @@ async function loadAccessRequests() {
 }
 
 async function grantAppAccessRequest(payload) {
-  const group = safeTrim(payload?.usr_or_grp);
+  const userid = safeTrim(payload?.userid);
+  const group = safeTrim(payload?.group);
   const app = safeTrim(payload?.application);
   const role = safeTrim(payload?.role);
-  if (!group) throw new Error("Userid or Group is required.");
+  if (Boolean(userid) === Boolean(group)) throw new Error("Exactly one of Userid or Group is required.");
   if (!app) throw new Error("Application is required.");
   if (!role) throw new Error("Role is required.");
 
-  return await postJson("/api/v1/role-management/app/assign", { group, app, role });
+  return await postJson("/api/v1/role-management/app/assign", { userid: userid || undefined, group: group || undefined, app, role });
 }
 
 async function grantGlobalAccessRequest(payload) {

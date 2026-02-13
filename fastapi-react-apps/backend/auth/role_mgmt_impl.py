@@ -24,6 +24,7 @@ class RoleMgmtImpl:
         self._refresh_paths()
         self._data: Dict[str, Any] = {
             "group_app_roles": {},
+            "user_app_roles": {},
             "group_global_roles": {},
             "user_global_roles": {},
             "user_groups": {},
@@ -62,6 +63,7 @@ class RoleMgmtImpl:
             self._legacy_store_path = self._rbac_dir / "role_assignments.yaml"
             self._store_paths = {
                 "group_app_roles": self._rbac_dir / "group_app_roles.yaml",
+                "user_app_roles": self._rbac_dir / "userid_app_roles.yaml",
                 "group_global_roles": self._rbac_dir / "group_global_roles.yaml",
                 "user_global_roles": self._rbac_dir / "user_global_roles.yaml",
                 "user_groups": self._rbac_dir / "user_groups.yaml",
@@ -71,7 +73,7 @@ class RoleMgmtImpl:
     def _load(self) -> None:
         with self._lock:
             try:
-                keys = ["group_app_roles", "group_global_roles", "user_global_roles", "user_groups"]
+                keys = ["group_app_roles", "user_app_roles", "group_global_roles", "user_global_roles", "user_groups"]
                 loaded_any = False
                 for key in keys:
                     p = self._store_paths.get(key)
@@ -117,6 +119,44 @@ class RoleMgmtImpl:
     def get_grp2apps2roles(self) -> dict:
         with self._lock:
             return dict(self._data.get("group_app_roles") or {})
+
+    def get_user2apps2roles(self) -> dict:
+        with self._lock:
+            return dict(self._data.get("user_app_roles") or {})
+
+    def add_user2apps2roles(self, grantor: str | None, user: str, app: str, role: str) -> None:
+        user = self._norm(user)
+        app = self._norm(app)
+        role = self._norm(role)
+        if not user or not app or not role:
+            raise ValueError("user, app, and role are required")
+
+        with self._lock:
+            umap = self._data.setdefault("user_app_roles", {})
+            amap = umap.setdefault(user, {})
+            roles = amap.setdefault(app, [])
+            if role not in roles:
+                roles.append(role)
+            self._flush()
+
+    def del_user2apps2roles(self, grantor: str | None, user: str, app: str, role: str) -> None:
+        user = self._norm(user)
+        app = self._norm(app)
+        role = self._norm(role)
+        if not user or not app or not role:
+            raise ValueError("user, app, and role are required")
+
+        with self._lock:
+            umap = self._data.get("user_app_roles") or {}
+            amap = (umap.get(user) or {})
+            roles = (amap.get(app) or [])
+            if role in roles:
+                roles.remove(role)
+            if not roles and app in amap:
+                amap.pop(app, None)
+            if not amap and user in umap:
+                umap.pop(user, None)
+            self._flush()
 
     def add_grp2apps2roles(self, grantor: str | None, group: str, app: str, role: str) -> None:
         group = self._norm(group)
@@ -251,9 +291,24 @@ class RoleMgmtImpl:
                 out.append(r)
         return out
 
-    def get_app_roles(self, groups: List[str]) -> Dict[str, List[str]]:
+    def get_app_roles(self, groups: List[str], user_id: str | None = None) -> Dict[str, List[str]]:
         app_roles: Dict[str, List[str]] = {}
         with self._lock:
+            if user_id:
+                umap = self._data.get("user_app_roles") or {}
+                uamap = umap.get(self._norm(user_id))
+                if isinstance(uamap, dict):
+                    for app, roles in uamap.items():
+                        if not isinstance(roles, list):
+                            continue
+                        for r in roles:
+                            rr = self._norm(r)
+                            if not rr:
+                                continue
+                            app_roles.setdefault(str(app), [])
+                            if rr not in app_roles[str(app)]:
+                                app_roles[str(app)].append(rr)
+
             gmap = self._data.get("group_app_roles") or {}
             for g in groups or []:
                 amap = gmap.get(g)

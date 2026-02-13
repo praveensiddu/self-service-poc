@@ -139,7 +139,7 @@ def get_user_context(user_id: str) -> dict[str, Any]:
         "username": user_id,
         "groups": groups,
         "roles": roles,
-        "app_roles": rolemgmtimpl.get_app_roles(groups),
+        "app_roles": rolemgmtimpl.get_app_roles(groups, user_id),
     }
 
 

@@ -9,6 +9,7 @@ import yaml
 
 from backend.dependencies import get_current_user
 from backend.auth.rbac import require_rbac
+from backend.auth.role_mgmt_impl import RoleMgmtImpl
 from backend.models.access_request import AccessRequest, AppAccessRequest, GlobalAccessRequest
 
 
@@ -102,9 +103,10 @@ def list_requests(
 
 @router.post("/app_access", response_model=AccessRequest)
 def create_app_access_request(payload: AppAccessRequest, request: Request):
-    usr_or_grp = (payload.usr_or_grp or "").strip()
-    if not usr_or_grp:
-        raise HTTPException(status_code=400, detail="usr_or_grp is required")
+    userid = (payload.userid or "").strip()
+    group = (payload.group or "").strip()
+    if bool(userid) == bool(group):
+        raise HTTPException(status_code=400, detail="Exactly one of userid or group is required")
 
     requestor = get_current_user(request) or "unknown"
     item = AccessRequest(
@@ -114,7 +116,8 @@ def create_app_access_request(payload: AppAccessRequest, request: Request):
         payload={
             "role": payload.role,
             "application": payload.application,
-            "usr_or_grp": usr_or_grp,
+            **({"userid": userid} if userid else {}),
+            **({"group": group} if group else {}),
         },
     )
     accessrequestimpl.request_access(item)
@@ -122,18 +125,27 @@ def create_app_access_request(payload: AppAccessRequest, request: Request):
 
 @router.post("/global_access", response_model=AccessRequest)
 def create_global_request(payload: GlobalAccessRequest, request: Request):
-    usr_or_grp = (payload.usr_or_grp or "").strip()
-    if not usr_or_grp:
-        raise HTTPException(status_code=400, detail="usr_or_grp is required")
+    userid = (payload.userid or "").strip()
+    group = (payload.group or "").strip()
+    if bool(userid) == bool(group):
+        raise HTTPException(status_code=400, detail="Exactly one of userid or group is required")
 
     requestor = get_current_user(request) or "unknown"
+
+    rolemgmtimpl = RoleMgmtImpl.get_instance()
+    if userid:
+        rolemgmtimpl.add_users2globalroles(requestor, userid, payload.role)
+    else:
+        rolemgmtimpl.add_grps2globalroles(requestor, group, payload.role)
+
     item = AccessRequest(
         requestor=requestor,
         requested_at=datetime.now().astimezone().isoformat(),
         type="global_access",
         payload={
             "role": payload.role,
-            "usr_or_grp": usr_or_grp,
+            **({"userid": userid} if userid else {}),
+            **({"group": group} if group else {}),
         },
     )
     accessrequestimpl.request_access(item)

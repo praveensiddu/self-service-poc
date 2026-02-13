@@ -19,8 +19,10 @@ function AppsTableView({
   requestAccessAppName,
   requestAccessRole,
   setRequestAccessRole,
-  requestAccessUsrOrGrp,
-  setRequestAccessUsrOrGrp,
+  requestAccessUserid,
+  setRequestAccessUserid,
+  requestAccessGroup,
+  setRequestAccessGroup,
   canSubmitRequestAccess,
   openRequestAccess,
   closeRequestAccess,
@@ -114,12 +116,22 @@ function AppsTableView({
               </div>
 
               <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Userid or Group</div>
+                <div className="muted" style={{ marginBottom: 4 }}>Userid</div>
                 <input
                   className="filterInput"
-                  value={requestAccessUsrOrGrp}
-                  onChange={(e) => setRequestAccessUsrOrGrp(e.target.value)}
-                  data-testid="request-access-usr-or-grp"
+                  value={requestAccessUserid}
+                  onChange={(e) => setRequestAccessUserid(e.target.value)}
+                  data-testid="request-access-userid"
+                />
+              </div>
+
+              <div>
+                <div className="muted" style={{ marginBottom: 4 }}>Group</div>
+                <input
+                  className="filterInput"
+                  value={requestAccessGroup}
+                  onChange={(e) => setRequestAccessGroup(e.target.value)}
+                  data-testid="request-access-group"
                 />
               </div>
             </div>

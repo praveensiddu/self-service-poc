@@ -6,12 +6,14 @@ from pydantic import BaseModel
 class AppAccessRequest(BaseModel):
     role: Literal["viewer", "manager"]
     application: str
-    usr_or_grp: str
+    userid: str | None = None
+    group: str | None = None
 
 
 class GlobalAccessRequest(BaseModel):
     role: Literal["viewall"]
-    usr_or_grp: str
+    userid: str | None = None
+    group: str | None = None
 
 
 AccessReqType = Literal["app_access", "global_access"]
