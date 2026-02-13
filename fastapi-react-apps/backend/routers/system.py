@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 import os
 
-from backend.config.settings import is_readonly
+from backend.config.settings import is_readonly, is_demo_mode, persist_demo_mode
 from backend.models import KSelfServeConfig
 from backend.services.config_service import ConfigService
 from backend.utils.enforcement import EnforcementSettings
@@ -58,7 +58,8 @@ def save_config(
         rendered_manifests_repo=cfg.renderedManifestsRepo or "",
         control_repo=cfg.controlRepo or "",
     )
-    os.environ["DEMO_MODE"] = "true"
+   
+    persist_demo_mode(True)
     RoleMgmtImpl.get_instance().update_roles(force=True)
     return KSelfServeConfig(**config)
 
@@ -74,7 +75,7 @@ def get_deployment_type():
     """Get deployment type and environment information."""
     return {
         "deployment_env": "live",
-        "demo_mode": os.getenv("DEMO_MODE", "").lower() == "true",
+        "demo_mode": is_demo_mode(),
         "title": {
             "test": "Kubernetes Self Server Provisioning Tool (Test)",
             "live": "Kubernetes Self Server Provisioning Tool",

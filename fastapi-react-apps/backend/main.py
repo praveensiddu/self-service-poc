@@ -29,6 +29,8 @@ setup_logging()
 
 logger = get_logger(__name__)
 
+from backend.config.settings import ensure_demo_mode_env_from_config
+
 from backend.routers import (
     # Core routers
     system,
@@ -99,6 +101,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"📝 API Documentation: http://localhost:8888/api/docs")
     logger.info(f"🔗 Alternative Docs: http://localhost:8888/api/redoc")
     logger.info("=" * 80)
+
+    ensure_demo_mode_env_from_config()
 
     # Validate env-based configuration (all-or-nothing)
     repo_env_keys = [

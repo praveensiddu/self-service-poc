@@ -7,6 +7,8 @@ from typing import Any, Dict, List
 
 import yaml
 
+from backend.config.settings import is_demo_mode
+
 
 class RoleMgmtImpl:
     _instance: "RoleMgmtImpl | None" = None
@@ -42,7 +44,7 @@ class RoleMgmtImpl:
             self._load()
 
     def _refresh_paths(self) -> None:
-        demo_mode = os.getenv("DEMO_MODE", "").lower() == "true"
+        demo_mode = is_demo_mode()
 
         workspace_raw = str(os.getenv("WORKSPACE", "")).strip()
         if workspace_raw:
