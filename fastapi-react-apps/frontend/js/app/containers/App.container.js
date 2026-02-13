@@ -70,8 +70,6 @@ function App() {
     setControlRepo,
     configComplete,
     loadConfigData,
-    saveConfigData,
-    saveDefaultConfigData,
     saveConfigAndInitialize,
     useDefaultConfigAndInitialize,
     markConfigIncomplete,
@@ -81,7 +79,6 @@ function App() {
     enforcementSettingsError,
     enforcementSettingsLoading,
     loadEnforcementSettingsData,
-    saveEnforcementSettingsData,
     saveEnforcementSettingsWithErrorHandling,
   } = useConfig({
     setLoading,
@@ -97,7 +94,6 @@ function App() {
     appRows,
     loadAppsData,
     refreshApps,
-    createApp,
     updateApp,
     deleteApp,
     refreshRequestsChangesData,
@@ -210,11 +206,15 @@ function App() {
     closeCreateCluster,
   } = useModals();
 
-  // Use UI routing hook for navigation and history
-  const allowAdminPages = React.useMemo(() => {
-    const roles = Array.isArray(currentUserRoles) ? currentUserRoles : [];
-    return roles.includes("platform_admin") || roles.includes("role_mgmt_admin");
-  }, [currentUserRoles]);
+  // Use centralized permissions hook for UI controls
+  const {
+    canCreateApps: canUserCreateApps,
+    canCreateNamespaces: canUserCreateNamespaces,
+    canAccessAdminSettings: allowAdminPages,
+  } = usePermissions({
+    currentUserContext,
+    appName: detailAppName,
+  });
 
   const {
     pendingRoute,
@@ -311,22 +311,8 @@ function App() {
 
   // Load enforcement settings when on Settings tab
   React.useEffect(() => {
-    if (!configComplete) return;
-    if (topTab !== "Settings") return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        await loadEnforcementSettingsData();
-      } catch {
-        // Error already handled by hook
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    if (!configComplete || topTab !== "Settings") return;
+    loadEnforcementSettingsData();
   }, [configComplete, topTab, loadEnforcementSettingsData]);
 
   // Load apps when environment changes
@@ -383,16 +369,7 @@ function App() {
   // Load requests/changes when environment changes
   React.useEffect(() => {
     if (!activeEnv) return;
-
-    let cancelled = false;
-
-    (async () => {
-      await refreshRequestsChangesData();
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    refreshRequestsChangesData();
   }, [activeEnv, refreshRequestsChangesData]);
 
   // Load clusters when on Clusters tab
@@ -418,22 +395,8 @@ function App() {
 
   // Load access requests when on Access Requests tab
   React.useEffect(() => {
-    if (!configComplete) return;
-    if (topTab !== "Access Requests") return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        await loadAccessRequestsData();
-      } catch (e) {
-        // Error already handled by hook
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    if (!configComplete || topTab !== "Access Requests") return;
+    loadAccessRequestsData();
   }, [topTab, configComplete, loadAccessRequestsData]);
 
   // ============================================================================
@@ -594,14 +557,10 @@ function App() {
    * @param {string} payload.to_env - Target environment
    * @param {string} payload.to_namespace - Target namespace name
    */
-  async function copyNamespace(fromNamespace, payload) {
-    await copyNamespaceFromHook(detailAppName, fromNamespace, payload);
-    await refreshApps();
-  }
-
   async function onCopyNamespace(fromNamespace, payload) {
     try {
-      await copyNamespace(fromNamespace, payload);
+      await copyNamespaceFromHook(detailAppName, fromNamespace, payload);
+      await refreshApps();
     } catch (e) {
       setError(e?.message || String(e));
       setShowErrorModal(true);
@@ -637,8 +596,8 @@ function App() {
    * @param {Object} updates - Update payload
    * @returns {Promise<Object>} - Updated namespace data
    */
-  async function onUpdateNamespaceInfo(namespaceName, updates) {
-    return await updateNamespaceInfoFromHook(detailAppName, namespaceName, updates);
+  function onUpdateNamespaceInfo(namespaceName, updates) {
+    return updateNamespaceInfoFromHook(detailAppName, namespaceName, updates);
   }
 
   /**
@@ -804,6 +763,8 @@ function App() {
       readonly={readonly}
       envConfigured={envConfigured}
       allowAdminPages={allowAdminPages}
+      canUserCreateApps={canUserCreateApps}
+      canUserCreateNamespaces={canUserCreateNamespaces}
       onTopTabChange={setTopTabWithUrl}
       accessRequests={accessRequests}
       accessRequestStatusByKey={accessRequestStatusByKey}
