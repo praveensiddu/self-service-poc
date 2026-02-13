@@ -72,6 +72,8 @@ function App() {
     loadConfigData,
     saveConfigData,
     saveDefaultConfigData,
+    saveConfigAndInitialize,
+    useDefaultConfigAndInitialize,
     markConfigIncomplete,
     enforcementSettings,
     draftEnforcementSettings,
@@ -80,6 +82,7 @@ function App() {
     enforcementSettingsLoading,
     loadEnforcementSettingsData,
     saveEnforcementSettingsData,
+    saveEnforcementSettingsWithErrorHandling,
   } = useConfig({
     setLoading,
     setError,
@@ -101,6 +104,8 @@ function App() {
     toggleRow,
     onSelectAllFromFiltered,
     requireExactlyOneSelectedApp,
+    openCreateAppWithClusters,
+    createAppAndRefresh,
   } = useApps({
     activeEnv,
     setLoading,
@@ -245,7 +250,7 @@ function App() {
 
         const [, portalMode] = await Promise.all([
           loadUserData(),
-          fetchJson("/api/v1/portal-mode"),
+          loadPortalMode(),
         ]);
 
         if (cancelled) return;
@@ -264,7 +269,7 @@ function App() {
         if (isComplete) {
           let envList;
           try {
-            envList = await fetchJson("/api/v1/envlist");
+            envList = await loadEnvList();
           } catch {
             if (cancelled) return;
             markConfigIncomplete();
@@ -440,13 +445,10 @@ function App() {
    * After successful save, loads environment list and navigates to apps view.
    */
   async function onSaveConfig() {
-    const { isComplete } = await saveConfigData();
+    const { isComplete, envKeys: keys, initialEnv } = await saveConfigAndInitialize();
 
     if (isComplete) {
-      const envList = await fetchJson("/api/v1/envlist");
-      const keys = Object.keys(envList);
       setEnvKeys(keys);
-      const initialEnv = keys[0] || "";
       setActiveEnv(initialEnv);
       setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
       if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
@@ -460,26 +462,16 @@ function App() {
    */
   async function onUseDefaults() {
     try {
-      const { isComplete } = await saveDefaultConfigData();
+      const { isComplete, envKeys: keys, initialEnv } = await useDefaultConfigAndInitialize(reloadUserData);
 
       if (isComplete) {
-        try {
-          await reloadUserData();
-        } catch {
-          // ignore
-        }
-
-        const envList = await fetchJson("/api/v1/envlist");
-        const keys = Object.keys(envList);
         setEnvKeys(keys);
-        const initialEnv = keys[0] || "";
         setActiveEnv(initialEnv);
         setPendingRoute({ env: initialEnv, view: "apps", appname: "", ns: "" });
         if (initialEnv) pushUiUrl({ view: "apps", env: initialEnv, appname: "", ns: "" }, false);
         setTopTab("Request provisioning");
       }
     } catch (e) {
-      setError(e?.message || String(e));
       setShowErrorModal(true);
     }
   }
@@ -487,13 +479,7 @@ function App() {
   /**
    * Save enforcement settings (egress firewall / egress IP).
    */
-  async function onSaveEnforcementSettings() {
-    try {
-      await saveEnforcementSettingsData();
-    } catch (e) {
-      setError(e?.message || String(e));
-    }
-  }
+  const onSaveEnforcementSettings = saveEnforcementSettingsWithErrorHandling;
 
   /**
    * Get the application name from either detail view or selected app.
@@ -510,12 +496,7 @@ function App() {
    * Refreshes cluster list before opening to ensure latest data.
    */
   async function onOpenCreateApp() {
-    try {
-      await refreshClusters(activeEnv);
-    } catch {
-      // Ignore errors, still open modal
-    }
-    openCreateApp();
+    await openCreateAppWithClusters(refreshClusters, openCreateApp);
   }
 
   /**
@@ -523,14 +504,7 @@ function App() {
    * @param {Object} payload - App creation payload
    */
   async function onCreateApp(payload) {
-    try {
-      await createApp(payload);
-      closeCreateApp();
-      await refreshApps();
-    } catch (e) {
-      setError(e?.message || String(e));
-      setShowErrorModal(true);
-    }
+    await createAppAndRefresh(payload, closeCreateApp);
   }
 
   // ============================================================================

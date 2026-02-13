@@ -168,6 +168,66 @@ function useConfig({ setLoading, setError }) {
   }, [draftEnforcementSettings]);
 
   /**
+   * Save enforcement settings to server (with error handling).
+   * @returns {Promise<void>}
+   */
+  const saveEnforcementSettingsWithErrorHandling = React.useCallback(async () => {
+    try {
+      await saveEnforcementSettingsData();
+    } catch (e) {
+      setError(e?.message || String(e));
+    }
+  }, [saveEnforcementSettingsData, setError]);
+
+  /**
+   * Save configuration and initialize environment.
+   * After successful save, loads environment list and returns initialization data.
+   * @returns {Promise<{isComplete: boolean, envKeys: string[], initialEnv: string}>}
+   */
+  const saveConfigAndInitialize = React.useCallback(async () => {
+    const { isComplete } = await saveConfigData();
+
+    if (isComplete) {
+      const envList = await loadEnvList();
+      const keys = Object.keys(envList);
+      const initialEnv = keys[0] || "";
+      return { isComplete, envKeys: keys, initialEnv };
+    }
+
+    return { isComplete, envKeys: [], initialEnv: "" };
+  }, [saveConfigData]);
+
+  /**
+   * Use default configuration and initialize environment.
+   * After successful save, reloads user data, loads environment list and returns initialization data.
+   * @param {Function} reloadUserData - Function to reload user data
+   * @returns {Promise<{isComplete: boolean, envKeys: string[], initialEnv: string}>}
+   */
+  const useDefaultConfigAndInitialize = React.useCallback(async (reloadUserData) => {
+    try {
+      const { isComplete } = await saveDefaultConfigData();
+
+      if (isComplete) {
+        try {
+          await reloadUserData();
+        } catch {
+          // ignore
+        }
+
+        const envList = await loadEnvList();
+        const keys = Object.keys(envList);
+        const initialEnv = keys[0] || "";
+        return { isComplete, envKeys: keys, initialEnv };
+      }
+
+      return { isComplete, envKeys: [], initialEnv: "" };
+    } catch (e) {
+      setError(e?.message || String(e));
+      throw e;
+    }
+  }, [saveDefaultConfigData, setError]);
+
+  /**
    * Mark config as incomplete (e.g., when envlist fetch fails).
    */
   const markConfigIncomplete = React.useCallback(() => {
@@ -193,6 +253,8 @@ function useConfig({ setLoading, setError }) {
     loadConfigData,
     saveConfigData,
     saveDefaultConfigData,
+    saveConfigAndInitialize,
+    useDefaultConfigAndInitialize,
     markConfigIncomplete,
 
     // Enforcement settings state
@@ -205,5 +267,6 @@ function useConfig({ setLoading, setError }) {
     // Enforcement settings operations
     loadEnforcementSettingsData,
     saveEnforcementSettingsData,
+    saveEnforcementSettingsWithErrorHandling,
   };
 }

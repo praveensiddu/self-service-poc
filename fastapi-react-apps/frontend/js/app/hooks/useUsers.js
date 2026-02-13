@@ -7,7 +7,7 @@
  * - Demo user management (fetching, switching users)
  * - User initialization and loading
  *
- * Note: Uses global functions from services/apiClient.js (fetchJson, putJson)
+ * Note: Uses global functions from services/userService.js
  */
 
 /**
@@ -43,8 +43,8 @@ function useUsers({ setError }) {
   const loadUserData = React.useCallback(async () => {
     try {
       const [deploymentType, user] = await Promise.all([
-        fetchJson("/api/v1/deployment_type"),
-        fetchJson("/api/v1/current-user"),
+        loadDeploymentType(),
+        loadCurrentUser(),
       ]);
 
       setDeployment(deploymentType);
@@ -75,7 +75,7 @@ function useUsers({ setError }) {
     setDemoUsersLoading(true);
 
     try {
-      const res = await fetchJson("/api/v1/demo-users");
+      const res = await loadDemoUsers();
       const rows = Array.isArray(res?.rows) ? res.rows : [];
       setDemoUsers(rows);
     } catch (e) {
@@ -101,7 +101,7 @@ function useUsers({ setError }) {
     if (!u) return;
 
     try {
-      await putJson("/api/v1/current-user", { user: u });
+      await updateCurrentUser(u);
       setCurrentUser(u);
       window.location.reload();
     } catch (e) {
@@ -115,8 +115,8 @@ function useUsers({ setError }) {
   const reloadUserData = React.useCallback(async () => {
     try {
       const [deploymentType, user] = await Promise.all([
-        fetchJson("/api/v1/deployment_type"),
-        fetchJson("/api/v1/current-user"),
+        loadDeploymentType(),
+        loadCurrentUser(),
       ]);
 
       setDeployment(deploymentType);

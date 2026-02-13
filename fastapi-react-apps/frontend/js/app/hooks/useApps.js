@@ -223,6 +223,36 @@ function useApps({ activeEnv, setLoading, setError, setShowErrorModal }) {
     setSelectedApps(new Set());
   }, []);
 
+  /**
+   * Open create app modal with refreshed clusters.
+   * @param {Function} refreshClusters - Function to refresh clusters
+   * @param {Function} openCreateApp - Function to open create app modal
+   */
+  const openCreateAppWithClusters = React.useCallback(async (refreshClusters, openCreateApp) => {
+    try {
+      await refreshClusters(activeEnv);
+    } catch {
+      // Ignore errors, still open modal
+    }
+    openCreateApp();
+  }, [activeEnv]);
+
+  /**
+   * Create a new app, close modal, and refresh apps list.
+   * @param {Object} payload - App creation payload
+   * @param {Function} closeCreateApp - Function to close create app modal
+   */
+  const createAppAndRefresh = React.useCallback(async (payload, closeCreateApp) => {
+    try {
+      await createApp(payload);
+      closeCreateApp();
+      await refreshApps();
+    } catch (e) {
+      setError(e?.message || String(e));
+      setShowErrorModal(true);
+    }
+  }, [createApp, refreshApps, setError, setShowErrorModal]);
+
   return {
     // State
     apps,
@@ -238,6 +268,8 @@ function useApps({ activeEnv, setLoading, setError, setShowErrorModal }) {
     updateApp,
     deleteApp,
     refreshRequestsChangesData,
+    openCreateAppWithClusters,
+    createAppAndRefresh,
 
     // Selection
     toggleSelectAll,

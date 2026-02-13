@@ -65,24 +65,8 @@ async function loadEnvList() {
 }
 
 /**
- * Load deployment type configuration.
- * @returns {Promise<{deployment_env?: string, title?: Object, headerColor?: Object}>}
- */
-async function loadDeploymentType() {
-  return await fetchJson("/api/v1/deployment_type");
-}
-
-/**
- * Load current user information.
- * @returns {Promise<{user: string}>}
- */
-async function loadCurrentUser() {
-  return await fetchJson("/api/v1/current-user");
-}
-
-/**
  * Load portal mode (readonly status).
- * @returns {Promise<{readonly: boolean}>}
+ * @returns {Promise<{readonly: boolean, env_configured?: boolean}>}
  */
 async function loadPortalMode() {
   return await fetchJson("/api/v1/portal-mode");
