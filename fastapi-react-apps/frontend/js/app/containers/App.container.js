@@ -12,15 +12,6 @@
  */
 
 function App() {
-  const [deployment, setDeployment] = React.useState(null);
-  const [currentUser, setCurrentUser] = React.useState("");
-  const [currentUserRoles, setCurrentUserRoles] = React.useState([]);
-  const [currentUserContext, setCurrentUserContext] = React.useState({ roles: [], app_roles: {}, groups: [] });
-  const [demoMode, setDemoMode] = React.useState(false);
-  const [showChangeLoginUser, setShowChangeLoginUser] = React.useState(false);
-  const [demoUsers, setDemoUsers] = React.useState([]);
-  const [demoUsersLoading, setDemoUsersLoading] = React.useState(false);
-  const [demoUsersError, setDemoUsersError] = React.useState("");
   const [envKeys, setEnvKeys] = React.useState([]);
   const [activeEnv, setActiveEnv] = React.useState("");
   const [readonly, setReadonly] = React.useState(false);
@@ -43,6 +34,27 @@ function App() {
     closeErrorModal,
     closeDeleteWarningModal,
   } = useGlobalError();
+
+  // Use users hook for user state and demo mode management
+  const {
+    currentUser,
+    currentUserRoles,
+    currentUserContext,
+    demoMode,
+    bannerTitle,
+    bannerColor,
+    showChangeLoginUser,
+    demoUsers,
+    demoUsersLoading,
+    demoUsersError,
+    loadUserData,
+    reloadUserData,
+    openChangeLoginUser,
+    closeChangeLoginUser,
+    selectDemoUser,
+  } = useUsers({
+    setError,
+  });
 
   // Use config hook for configuration management
   const {
@@ -231,23 +243,13 @@ function App() {
         setLoading(true);
         setError("");
 
-        const [deploymentType, user, portalMode] = await Promise.all([
-          fetchJson("/api/v1/deployment_type"),
-          fetchJson("/api/v1/current-user"),
+        const [, portalMode] = await Promise.all([
+          loadUserData(),
           fetchJson("/api/v1/portal-mode"),
         ]);
 
         if (cancelled) return;
 
-        setDeployment(deploymentType);
-        setDemoMode(Boolean(deploymentType?.demo_mode));
-        setCurrentUser(String(user?.user || user?.username || user || "unknown"));
-        setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
-        setCurrentUserContext({
-          roles: Array.isArray(user?.roles) ? user.roles : [],
-          app_roles: typeof user?.app_roles === 'object' ? user.app_roles : {},
-          groups: Array.isArray(user?.groups) ? user.groups : [],
-        });
         setReadonly(portalMode?.readonly || false);
         setEnvConfigured(Boolean(portalMode?.env_configured));
 
@@ -293,40 +295,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  async function onOpenChangeLoginUser() {
-    setDemoUsersError("");
-    setDemoUsers([]);
-    setShowChangeLoginUser(true);
-    setDemoUsersLoading(true);
-    try {
-      const res = await fetchJson("/api/v1/demo-users");
-      const rows = Array.isArray(res?.rows) ? res.rows : [];
-      setDemoUsers(rows);
-    } catch (e) {
-      setDemoUsersError(e?.message || String(e));
-    } finally {
-      setDemoUsersLoading(false);
-    }
-  }
-
-  function onCloseChangeLoginUser() {
-    setShowChangeLoginUser(false);
-  }
-
-  async function onSelectDemoUser(user) {
-    const u = String(user || "").trim();
-    if (!u) return;
-
-    try {
-      await putJson("/api/v1/current-user", { user: u });
-      setCurrentUser(u);
-      window.location.reload();
-    } catch (e) {
-      setDemoUsersError(e?.message || String(e));
-    }
-  }
+  }, [loadUserData]);
 
   // Redirect to Home if config is incomplete
   React.useEffect(() => {
@@ -495,19 +464,7 @@ function App() {
 
       if (isComplete) {
         try {
-          const [deploymentType, user] = await Promise.all([
-            fetchJson("/api/v1/deployment_type"),
-            fetchJson("/api/v1/current-user"),
-          ]);
-          setDeployment(deploymentType);
-          setDemoMode(Boolean(deploymentType?.demo_mode));
-          setCurrentUser(String(user?.user || user?.username || user || "unknown"));
-          setCurrentUserRoles(Array.isArray(user?.roles) ? user.roles : []);
-          setCurrentUserContext({
-            roles: Array.isArray(user?.roles) ? user.roles : [],
-            app_roles: typeof user?.app_roles === 'object' ? user.app_roles : {},
-            groups: Array.isArray(user?.groups) ? user.groups : [],
-          });
+          await reloadUserData();
         } catch {
           // ignore
         }
@@ -844,11 +801,6 @@ function App() {
     pushUiUrl({ view: "apps", env: activeEnv, appname: "" }, false);
   }
 
-  // Derive values from state
-  const deploymentEnv = deployment?.deployment_env || "";
-  const bannerTitle = deployment?.title?.[deploymentEnv] || "OCP App Provisioning Portal";
-  const bannerColor = deployment?.headerColor?.[deploymentEnv] || deployment?.headerColor?.live || "#2563EB";
-
   return (
     <AppView
       bannerColor={bannerColor}
@@ -860,9 +812,9 @@ function App() {
       demoUsers={demoUsers}
       demoUsersLoading={demoUsersLoading}
       demoUsersError={demoUsersError}
-      onOpenChangeLoginUser={onOpenChangeLoginUser}
-      onCloseChangeLoginUser={onCloseChangeLoginUser}
-      onSelectDemoUser={onSelectDemoUser}
+      onOpenChangeLoginUser={openChangeLoginUser}
+      onCloseChangeLoginUser={closeChangeLoginUser}
+      onSelectDemoUser={selectDemoUser}
       envKeys={envKeys}
       activeEnv={activeEnv}
       loading={loading}
