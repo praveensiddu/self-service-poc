@@ -96,8 +96,14 @@ def get_resource(
 from typing import Dict, Any, List
 from pathlib import Path
 import logging
-from fastapi import HTTPException
+
 from backend.repositories.your_repository import YourRepository
+from backend.exceptions.custom import (
+    NotFoundError,
+    AlreadyExistsError,
+    ValidationError,
+    AppError,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -118,8 +124,13 @@ class YourService:
             Description of return value
             
         Raises:
-            HTTPException: When and why
+            NotFoundError: If resource not found
+            ValidationError: If input validation fails
         """
+        # Validate input
+        if not param:
+            raise ValidationError("param", "is required")
+        
         # Business logic here
         data = self.repo.read_data(env, param)
         # Apply business rules
@@ -129,8 +140,9 @@ class YourService:
 **Rules**:
 - Services contain business logic only
 - Use repositories for data access
-- Raise `HTTPException` or custom exceptions for errors
-- Use `logger.error()` with `exc_info=True` for error logging
+- **Raise custom domain exceptions** (NOT HTTPException)
+- Log errors with `logger.error()` and `exc_info=True` before raising exceptions
+- Let exception handlers convert to HTTP responses
 
 ### 3. Repositories (`repositories/*.py`)
 
@@ -139,11 +151,11 @@ class YourService:
 
 from pathlib import Path
 from typing import Dict, Any, Optional
-from fastapi import HTTPException
 import logging
 
 from backend.dependencies import get_requests_root
 from backend.utils.yaml_utils import read_yaml_dict, write_yaml_dict
+from backend.exceptions.custom import NotFoundError, AlreadyExistsError
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -162,12 +174,13 @@ class YourRepository:
             Path to resource
             
         Raises:
-            HTTPException: If resource doesn't exist
+            NotFoundError: If resource doesn't exist
         """
         requests_root = get_requests_root()
         path = requests_root / env / name
         if not path.exists():
-            raise HTTPException(status_code=404, detail=f"Not found: {name}")
+            logger.warning("Resource not found: %s/%s", env, name)
+            raise NotFoundError("Resource", f"{env}/{name}")
         return path
 ```
 
@@ -175,6 +188,8 @@ class YourRepository:
 - Repositories handle YAML file I/O only
 - Use `read_yaml_dict()` and `write_yaml_dict()` from utils
 - Use `@staticmethod` for stateless methods
+- **Raise custom domain exceptions** (NOT HTTPException)
+- Log warnings before raising exceptions
 - Always validate paths exist before operations
 
 ### 4. Pydantic Models (`models/*.py`)
@@ -205,20 +220,53 @@ class YourResponse(BaseModel):
 
 ### 5. Custom Exceptions (`exceptions/custom.py`)
 
+**Available Exceptions:**
 ```python
 from backend.exceptions.custom import (
+    AppError,             # 500 - Generic application error (base class)
     NotFoundError,        # 404 - Resource not found
     AlreadyExistsError,   # 409 - Resource already exists
     ValidationError,      # 400 - Invalid input
-    NotInitializedError,  # 400 - Workspace not initialized
-    ConfigurationError,   # 500 - Config issues
+    NotInitializedError,  # 400 - Workspace/component not initialized
+    ResourceInUseError,   # 409 - Resource is in use, cannot delete
+    ConfigurationError,   # 500 - Configuration issues
+    ExternalServiceError, # 502 - External service (GitHub, etc.) error
+    IpAllocationError,    # 400 - IP allocation failed
+    ReadOnlyModeError,    # 403 - Operation blocked in read-only mode
 )
-
-# Usage in services:
-raise NotFoundError("Namespace", namespace_name)
-raise AlreadyExistsError("Application", app_name)
-raise ValidationError("name", "must be lowercase")
 ```
+
+**Usage in Services/Repositories:**
+```python
+# Always log before raising exceptions for developer tracking
+logger.warning("Namespace not found: %s/%s", env, namespace_name)
+raise NotFoundError("Namespace", namespace_name)
+
+logger.warning("Application already exists: %s", app_name)
+raise AlreadyExistsError("Application", app_name)
+
+logger.warning("Invalid field value for 'name': %s", value)
+raise ValidationError("name", "must be lowercase alphanumeric")
+
+logger.error("Failed to create resource: %s", error, exc_info=True)
+raise AppError(f"Failed to create resource: {error}")
+```
+
+**Exception Handling Flow:**
+```
+Service/Repository raises custom exception
+         ↓
+Exception bubbles up to FastAPI
+         ↓
+Exception handler (handlers.py) catches it
+         ↓
+Handler logs with context (path, details)
+         ↓
+Handler returns JSONResponse with proper HTTP status
+```
+
+**Key Principle**: Services and repositories should NOT use HTTPException. 
+Use domain-specific custom exceptions - the exception handlers convert them to HTTP responses.
 
 ---
 
@@ -232,7 +280,7 @@ env = require_env(env)  # Validates and normalizes to lowercase
 ### Workspace Paths
 ```python
 from backend.dependencies import get_requests_root
-requests_root = get_requests_root()  # Raises HTTPException if not initialized
+requests_root = get_requests_root()  # Raises NotInitializedError if not initialized
 app_dir = requests_root / env / appname
 ```
 
@@ -278,13 +326,15 @@ logger.error("Failed operation: %s", error, exc_info=True)
 - Use existing utilities from `utils/`
 - Follow the Router → Service → Repository pattern
 - Export new models/services in `__init__.py`
+- **Use custom exceptions** from `exceptions/custom.py`
+- **Log before raising exceptions** for developer tracking
 
 ### ❌ DON'T
 - Put business logic in routers
 - Access files directly in services (use repositories)
 - Use `print()` - use `logger` instead
 - Catch generic `Exception` without re-raising or logging
-- Create new HTTPException patterns - use custom exceptions
+- **Use HTTPException in services or repositories** - use custom exceptions instead
 - Skip type hints or docstrings
 
 ---

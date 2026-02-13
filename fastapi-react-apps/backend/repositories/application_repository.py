@@ -2,13 +2,13 @@
 
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from fastapi import HTTPException
 import logging
 
 import yaml
 
 from backend.dependencies import get_requests_root
 from backend.utils.yaml_utils import read_yaml_dict, write_yaml_dict
+from backend.exceptions.custom import NotFoundError, AlreadyExistsError, NotInitializedError, AppError
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -27,12 +27,13 @@ class ApplicationRepository:
             Path to environment directory
 
         Raises:
-            HTTPException: If env directory doesn't exist
+            NotInitializedError: If env directory doesn't exist
         """
         requests_root = get_requests_root()
         env_dir = requests_root / str(env or "").strip().lower()
         if not env_dir.exists() or not env_dir.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
+            logger.warning("Environment not initialized: %s", env)
+            raise NotInitializedError(f"environment '{env}'")
         return env_dir
 
     @staticmethod
@@ -47,12 +48,13 @@ class ApplicationRepository:
             Path to application directory
 
         Raises:
-            HTTPException: If app directory doesn't exist
+            NotFoundError: If app directory doesn't exist
         """
         env_dir = ApplicationRepository.get_env_dir(env)
         app_dir = env_dir / str(appname or "").strip()
         if not app_dir.exists() or not app_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+            logger.warning("App folder not found: %s/%s", env, appname)
+            raise NotFoundError("Application", f"{env}/{appname}")
         return app_dir
 
     @staticmethod
@@ -85,13 +87,15 @@ class ApplicationRepository:
             Path to created app directory
 
         Raises:
-            HTTPException: If app already exists or creation fails
+            NotInitializedError: If environment not initialized
+            AlreadyExistsError: If app already exists
         """
         env_dir = ApplicationRepository.get_env_dir(env)
         app_dir = env_dir / str(appname or "").strip()
 
         if app_dir.exists():
-            raise HTTPException(status_code=409, detail=f"App already exists: {appname}")
+            logger.warning("App already exists: %s/%s", env, appname)
+            raise AlreadyExistsError("Application", f"{env}/{appname}")
 
         app_dir.mkdir(parents=True, exist_ok=False)
         return app_dir
@@ -111,7 +115,7 @@ class ApplicationRepository:
             app_dir = ApplicationRepository.get_app_dir(env, appname)
             appinfo_path = app_dir / "appinfo.yaml"
             return read_yaml_dict(appinfo_path)
-        except HTTPException:
+        except (NotFoundError, NotInitializedError):
             return {}
         except Exception:
             return {}
@@ -170,6 +174,9 @@ class ApplicationRepository:
 
         Returns:
             True if deleted, False if not found
+
+        Raises:
+            AppError: If deletion fails
         """
         import shutil
         try:
@@ -182,8 +189,8 @@ class ApplicationRepository:
             shutil.rmtree(app_dir)
             return True
         except Exception as e:
-            logger.error("Failed to delete app dir %s/%s: %s", env, appname, str(e))
-            raise HTTPException(status_code=500, detail=f"Failed to delete app: {e}")
+            logger.error("Failed to delete app dir %s/%s: %s", env, appname, str(e), exc_info=True)
+            raise AppError(f"Failed to delete app: {e}")
 
     @staticmethod
     def ensure_appinfo_exists(env: str, appname: str) -> None:
