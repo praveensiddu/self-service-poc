@@ -1,5 +1,7 @@
 function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, onSelectAll, onDeleteNamespace, onCopyNamespace, onViewDetails, onCreateNamespace, env, envKeys, appname, showCreate, onOpenCreate, onCloseCreate, argocdEnabled, requestsChanges, readonly }) {
 
+  const { canCreate, extractPermissions } = useAuthorization();
+
   // Create namespace modal state
   const [newNamespace, setNewNamespace] = React.useState("");
   const [newClustersList, setNewClustersList] = React.useState([]);
@@ -67,9 +69,15 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         rolebindingsText: formatRolebindings(ns?.rolebindings),
         statusText: formatTableValue(ns?.status),
         policyText: formatTableValue(ns?.policy),
+        permissions: extractPermissions(ns), // Extract permissions using hook
       };
     });
-  }, [namespaces, keys.join(',')]);
+  }, [namespaces, keys.join(','), extractPermissions]);
+
+  // Calculate if user has permission to create namespaces (app-level permission)
+  const canCreateNamespace = React.useMemo(() => {
+    return canCreate(transformedRows, readonly);
+  }, [transformedRows, readonly, canCreate]);
 
   const {
     sortedRows,
@@ -132,7 +140,10 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
         if (!resp.ok) throw new Error("Failed to load clusters");
         const data = await resp.json();
         if (cancelled) return;
-        setClusterOptions(Array.isArray(data) ? data.map(String) : []);
+
+        // Handle new response format with permissions
+        const clustersList = data?.clusters || data;
+        setClusterOptions(Array.isArray(clustersList) ? clustersList.map(String) : []);
       } catch {
         if (!cancelled) setClusterOptions([]);
       }
@@ -244,6 +255,7 @@ function NamespacesTable({ namespaces, selectedNamespaces, onToggleNamespace, on
       showCreate={showCreate}
       onCloseCreate={onCloseCreate}
       readonly={readonly}
+      canCreateNamespace={canCreateNamespace}
       newNamespace={newNamespace}
       setNewNamespace={setNewNamespace}
       newClustersList={newClustersList}

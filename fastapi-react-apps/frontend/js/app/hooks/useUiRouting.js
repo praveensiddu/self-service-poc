@@ -24,6 +24,7 @@
  */
 function useUiRouting({
   configComplete,
+  allowAdminPages,
   envKeys,
   activeEnv,
   setActiveEnv,
@@ -64,6 +65,11 @@ function useUiRouting({
     }
 
     if (nextTab === "Settings") {
+      if (!allowAdminPages) {
+        setTopTab("Home");
+        window.history.pushState({ topTab: "Home" }, "", "/home");
+        return;
+      }
       window.history.pushState({ topTab: "Settings" }, "", "/settings");
       return;
     }
@@ -88,6 +94,21 @@ function useUiRouting({
       const nextEnv = r.env || activeEnv || (envKeys[0] || "");
       if (nextEnv) setActiveEnv(nextEnv);
       window.history.pushState({ topTab: "Clusters" }, "", clustersUrlWithEnv(nextEnv));
+      return;
+    }
+
+    if (nextTab === "Access Requests") {
+      if (!configComplete) {
+        setTopTab("Home");
+        window.history.pushState({ topTab: "Home" }, "", "/home");
+        return;
+      }
+      if (!allowAdminPages) {
+        setTopTab("Home");
+        window.history.pushState({ topTab: "Home" }, "", "/home");
+        return;
+      }
+      window.history.pushState({ topTab: "Access Requests" }, "", accessRequestsUrl());
       return;
     }
 
@@ -118,6 +139,11 @@ function useUiRouting({
     }
 
     if (isSettingsPath()) {
+      if (!allowAdminPages) {
+        setTopTab("Home");
+        window.history.replaceState({ topTab: "Home" }, "", "/home");
+        return;
+      }
       setTopTab("Settings");
       return;
     }
@@ -138,6 +164,16 @@ function useUiRouting({
       }
       setTopTab(configComplete ? "Clusters" : "Home");
       if (!configComplete) window.history.replaceState({ topTab: "Home" }, "", "/home");
+      return;
+    }
+
+    if (isAccessRequestsPath()) {
+      if (!configComplete || !allowAdminPages) {
+        setTopTab("Home");
+        window.history.replaceState({ topTab: "Home" }, "", "/home");
+        return;
+      }
+      setTopTab("Access Requests");
       return;
     }
 
@@ -166,7 +202,13 @@ function useUiRouting({
     const initial = parseUiRouteFromLocation();
     setPendingRoute(initial);
 
-    if (isComplete && initialEnv && !isHomePath() && !isSettingsPath() && !isPrsPath() && !isClustersPath()) {
+    if ((isSettingsPath() || isAccessRequestsPath()) && !allowAdminPages) {
+      setTopTab("Home");
+      window.history.replaceState({ topTab: "Home" }, "", "/home");
+      return;
+    }
+
+    if (isComplete && initialEnv && !isHomePath() && !isSettingsPath() && !isPrsPath() && !isClustersPath() && !isAccessRequestsPath()) {
       pushUiUrl({ view: initial.view, env: initialEnv, appname: initial.appname, ns: initial.ns }, true);
     }
 
@@ -178,11 +220,22 @@ function useUiRouting({
       );
     }
 
+    if (isAccessRequestsPath()) {
+      window.history.replaceState(
+        { topTab: isComplete ? "Access Requests" : "Home" },
+        "",
+        accessRequestsUrl()
+      );
+    }
+
     // Determine initial top tab
     if (isHomePath()) {
       setTopTab("Home");
     } else if (isSettingsPath()) {
-      setTopTab("Settings");
+      setTopTab(allowAdminPages ? "Settings" : "Home");
+      if (!allowAdminPages) {
+        window.history.replaceState({ topTab: "Home" }, "", "/home");
+      }
     } else if (isPrsPath()) {
       setTopTab(isComplete ? "PRs and Approval" : "Home");
       if (!isComplete) {
@@ -193,13 +246,18 @@ function useUiRouting({
       if (!isComplete) {
         window.history.replaceState({ topTab: "Home" }, "", "/home");
       }
+    } else if (isAccessRequestsPath()) {
+      setTopTab(isComplete && allowAdminPages ? "Access Requests" : "Home");
+      if (!isComplete || !allowAdminPages) {
+        window.history.replaceState({ topTab: "Home" }, "", "/home");
+      }
     } else {
       setTopTab(isComplete ? "Request provisioning" : "Home");
       if (!isComplete) {
         window.history.replaceState({ topTab: "Home" }, "", "/home");
       }
     }
-  }, [setTopTab]);
+  }, [setTopTab, allowAdminPages]);
 
   return {
     pendingRoute,
@@ -220,5 +278,7 @@ function useUiRouting({
     isPrsPath,
     isClustersPath,
     clustersUrlWithEnv,
+    isAccessRequestsPath,
+    accessRequestsUrl,
   };
 }

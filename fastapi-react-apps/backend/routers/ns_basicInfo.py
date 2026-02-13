@@ -11,6 +11,8 @@ from backend.models import NamespaceInfoBasicUpdate
 from backend.repositories.namespace_repository import NamespaceRepository
 from backend.utils.helpers import parse_bool
 from backend.utils.yaml_utils import read_yaml_dict
+from backend.auth.rbac import require_rbac
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["ns_basic"])
 
@@ -76,9 +78,16 @@ def put_namespace_info_basic(
     namespace: str,
     payload: NamespaceInfoBasicUpdate,
     env: Optional[str] = None,
-    repo: NamespaceRepository = Depends(get_namespace_repository)
+    repo: NamespaceRepository = Depends(get_namespace_repository),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="POST",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
     """Update basic namespace information (clusters and egress_nameid).
+
+    Requires manager role for the application.
 
     Args:
         appname: Application name
@@ -89,6 +98,9 @@ def put_namespace_info_basic(
 
     Returns:
         Updated namespace basic information
+
+    Raises:
+        HTTPException: 403 if user lacks permission to modify namespace
     """
     env = require_env(env)
 
@@ -136,9 +148,16 @@ def get_namespace_info_basic(
     appname: str,
     namespace: str,
     env: Optional[str] = None,
-    repo: NamespaceRepository = Depends(get_namespace_repository)
+    repo: NamespaceRepository = Depends(get_namespace_repository),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
     """Get basic namespace information.
+
+    Requires viewer or manager role for the application.
 
     Args:
         appname: Application name
@@ -148,6 +167,9 @@ def get_namespace_info_basic(
 
     Returns:
         Namespace basic information including ArgoCD details
+
+    Raises:
+        HTTPException: 403 if user lacks permission to view namespace
     """
     env = require_env(env)
     ns_dir = repo.get_namespace_dir(env, appname, namespace)

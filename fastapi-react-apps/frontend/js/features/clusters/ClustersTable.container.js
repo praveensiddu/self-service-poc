@@ -12,10 +12,24 @@ function ClustersTable({
   readonly,
   apps,
 }) {
+  const { parseNestedResponse } = useAuthorization();
+
   const [selectedClusters, setSelectedClusters] = React.useState(new Set());
 
   const envKey = String(activeEnv || "").toUpperCase();
-  const rows = (clustersByEnv || {})[envKey] || [];
+
+  // Extract clusters data and permissions using consistent helper
+  const clustersData = React.useMemo(() => {
+    const { data, permissions } = parseNestedResponse(clustersByEnv, "clusters");
+    const envClusters = data?.[envKey] || [];
+    return {
+      rows: Array.isArray(envClusters) ? envClusters : [],
+      permissions
+    };
+  }, [clustersByEnv, envKey, parseNestedResponse]);
+
+  const rows = clustersData.rows;
+  const hasManagePermission = clustersData.permissions.canManage && !readonly;
 
   const {
     sortedRows: filteredRows,
@@ -93,6 +107,7 @@ function ClustersTable({
       allSelected={allSelected}
       onSelectAll={onSelectAll}
       readonly={readonly}
+      hasManagePermission={hasManagePermission}
       apps={apps}
     />
   );

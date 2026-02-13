@@ -7,7 +7,8 @@ and reduces code duplication.
 """
 
 from typing import Optional
-from fastapi import HTTPException
+import os
+from fastapi import HTTPException, Request
 
 from backend.utils.workspace import (
     get_config_path,
@@ -52,10 +53,31 @@ def require_initialized_workspace():
     return get_requests_root()
 
 
+def get_current_user(request: Request):
+    """Extract the current user id from request headers or environment.
+
+    This mirrors the implementation that used to live in
+    backend.core.deps.get_current_user so callers can import it from
+    backend.dependencies after the refactor.
+    """
+    headers = request.headers
+    userid = (
+        headers.get("x-user")
+        or headers.get("x-userid")
+        or headers.get("x-remote-user")
+        or headers.get("remote-user")
+        or headers.get("x-auth-request-user")
+        or os.getenv("CURRENT_USER")
+        or "unknown"
+    )
+    return str(userid)
+
+
 # Re-export workspace functions for convenience
 __all__ = [
     'require_env',
     'require_initialized_workspace',
+    'get_current_user',
     'get_config_path',
     'get_workspace_path',
     'get_requests_root',

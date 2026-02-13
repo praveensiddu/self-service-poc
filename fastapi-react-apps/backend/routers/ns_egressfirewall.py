@@ -8,6 +8,7 @@ from backend.routers import pull_requests
 from backend.models import EgressPort, EgressFirewallRule, EgressFirewallUpdate
 from backend.services.namespace_details_service import NamespaceDetailsService
 from backend.utils.enforcement import load_enforcement_settings
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["egressfirewall"])
 
@@ -52,9 +53,14 @@ def get_egressfirewall(
     appname: str,
     namespace: str,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Get egress firewall rules for a namespace."""
+    """Get egress firewall rules for a namespace. Requires viewer or manager role."""
     env = require_env(env)
     return service.get_egressfirewall(env, appname, namespace)
 
@@ -65,9 +71,14 @@ def put_egressfirewall(
     namespace: str,
     payload: EgressFirewallUpdate,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="POST",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Update egress firewall rules for a namespace."""
+    """Update egress firewall rules for a namespace. Requires manager role."""
     env = require_env(env)
 
     rules_in = payload.rules or []
@@ -90,19 +101,31 @@ def delete_egressfirewall(
     appname: str,
     namespace: str,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="DELETE",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Delete egress firewall rules for a namespace."""
+    """Delete egress firewall rules for a namespace. Requires manager role."""
     env = require_env(env)
     return service.delete_egressfirewall(env, appname, namespace)
 
 
 @router.post("/apps/{appname}/namespaces/{namespace}/egressfirewall/egressfirewall_yaml")
-def get_egressfirewall_yaml(appname: str, namespace: str, payload: EgressFirewallUpdate, env: Optional[str] = None):
-    """
-    Generate an EgressFirewall YAML definition from the provided egress firewall rules.
-    This endpoint creates a Kubernetes EgressFirewall resource in the k8s.ovn.org/v1 format.
-    """
+def get_egressfirewall_yaml(
+    appname: str,
+    namespace: str,
+    payload: EgressFirewallUpdate,
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
+):
+    """Generate an EgressFirewall YAML definition. Requires viewer or manager role."""
     env = require_env(env)
 
     enforcement = load_enforcement_settings()

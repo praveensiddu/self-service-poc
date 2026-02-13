@@ -15,19 +15,44 @@
  */
 function useGlobalError() {
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
+  const [error, setErrorState] = React.useState("");
   const [showErrorModal, setShowErrorModal] = React.useState(false);
   const [showDeleteWarningModal, setShowDeleteWarningModal] = React.useState(false);
   const [deleteWarningData, setDeleteWarningData] = React.useState(null);
 
   /**
-   * Show an error message.
+   * Set error and automatically show modal (unless it's a permission error).
+   * This is the main error setter - it always shows errors in modal, never in banner.
    * @param {string|Error} err - Error message or Error object
-   * @param {boolean} [showModal=false] - Whether to show error modal
    */
-  const showError = React.useCallback((err, showModal = false) => {
+  const setError = React.useCallback((err) => {
+    if (!err) {
+      setErrorState("");
+      setShowErrorModal(false);
+      return;
+    }
+
     const message = err?.message || String(err);
-    setError(message);
+
+    // Check if it's a permission error (handled separately with alerts)
+    const isPermissionError = message.includes("Access denied") ||
+                              message.includes("403") ||
+                              message.includes("Forbidden");
+
+    if (!isPermissionError) {
+      setErrorState(message);
+      setShowErrorModal(true);
+    }
+  }, []);
+
+  /**
+   * Show an error message with modal.
+   * @param {string|Error} err - Error message or Error object
+   * @param {boolean} [showModal=true] - Whether to show error modal (default true)
+   */
+  const showError = React.useCallback((err, showModal = true) => {
+    const message = err?.message || String(err);
+    setErrorState(message);
     if (showModal) {
       setShowErrorModal(true);
     }
@@ -37,7 +62,7 @@ function useGlobalError() {
    * Clear error state.
    */
   const clearError = React.useCallback(() => {
-    setError("");
+    setErrorState("");
     setShowErrorModal(false);
   }, []);
 
@@ -46,7 +71,7 @@ function useGlobalError() {
    */
   const closeErrorModal = React.useCallback(() => {
     setShowErrorModal(false);
-    setError("");
+    setErrorState("");
   }, []);
 
   /**
@@ -70,24 +95,26 @@ function useGlobalError() {
    * Execute an async operation with loading/error handling.
    * @param {Function} operation - Async function to execute
    * @param {Object} [options] - Options
-   * @param {boolean} [options.showErrorModal=false] - Show error modal on failure
+   * @param {boolean} [options.showErrorModal=true] - Show error modal on failure (default true)
    * @param {boolean} [options.rethrow=false] - Rethrow error after handling
    * @returns {Promise<any>} - Operation result
    */
   const withLoading = React.useCallback(async (operation, options = {}) => {
-    const { showErrorModal: showModal = false, rethrow = false } = options;
+    const { showErrorModal: showModal = true, rethrow = false } = options;
     try {
       setLoading(true);
       setError("");
       return await operation();
     } catch (e) {
-      showError(e, showModal);
+      if (showModal) {
+        setError(e);
+      }
       if (rethrow) throw e;
       return null;
     } finally {
       setLoading(false);
     }
-  }, [showError]);
+  }, [setError]);
 
   return {
     // State

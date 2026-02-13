@@ -5,7 +5,15 @@
  */
 
 function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
-  const [localItems, setLocalItems] = React.useState(Array.isArray(items) ? items : []);
+  const { parseItemsResponse, handlePermissionError } = useAuthorization();
+
+  // Extract items and permissions from the response using helper
+  const itemsData = React.useMemo(() => {
+    return parseItemsResponse(items);
+  }, [items, parseItemsResponse]);
+
+  const [localItems, setLocalItems] = React.useState(itemsData.items);
+  const canManage = itemsData.permissions.canManage;
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [addClusters, setAddClusters] = React.useState([]);
@@ -26,11 +34,11 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   const [errorModalMessage, setErrorModalMessage] = React.useState("");
 
   React.useEffect(() => {
-    setLocalItems(Array.isArray(items) ? items : []);
+    setLocalItems(itemsData.items);
     if (env && appname) {
       fetchClustersInfo();
     }
-  }, [items, env, appname]);
+  }, [itemsData.items, env, appname]);
 
 
   async function fetchClustersForApp() {
@@ -60,7 +68,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
         throw new Error(text || `HTTP ${res.status}`);
       }
       const parsed = await res.json();
-      const clustersForEnv = Array.isArray(parsed?.[env]) ? parsed[env] : [];
+
+      // Handle new response format with permissions
+      const clustersData = parsed?.clusters || parsed;
+      const clustersForEnv = Array.isArray(clustersData?.[env]) ? clustersData[env] : [];
       setClusters(clustersForEnv);
     } catch (e) {
       console.error("Failed to fetch clusters info:", e);
@@ -145,7 +156,20 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
 
       setAddOpen(false);
     } catch (e) {
-      setAddError(e?.message || String(e));
+      // Use centralized permission error handler
+      const wasPermissionError = handlePermissionError(
+        e,
+        "add",
+        "L4 ingress",
+        appname,
+        (msg) => setAddError(msg),
+        null
+      );
+
+      // If it wasn't a permission error, show the error in the modal
+      if (!wasPermissionError) {
+        setAddError(e?.message || String(e));
+      }
     } finally {
       setAddSaving(false);
     }
@@ -213,7 +237,20 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       setEditOpen(false);
       setEditRow(null);
     } catch (e) {
-      setEditError(e?.message || String(e));
+      // Use centralized permission error handler
+      const wasPermissionError = handlePermissionError(
+        e,
+        "edit",
+        "L4 ingress",
+        appname,
+        (msg) => setEditError(msg),
+        null
+      );
+
+      // If it wasn't a permission error, show the error in the modal
+      if (!wasPermissionError) {
+        setEditError(e?.message || String(e));
+      }
     } finally {
       setEditSaving(false);
     }
@@ -252,7 +289,21 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
         }),
       );
     } catch (e) {
-      alert(e?.message || String(e));
+      // Use centralized permission error handler - shows alert for permission errors
+      handlePermissionError(
+        e,
+        "allocate",
+        "L4 ingress IPs",
+        appname,
+        null,
+        null
+      );
+
+      // If not a permission error, still show alert
+      const errorMessage = e?.message || String(e);
+      if (!errorMessage.includes("Access denied") && !errorMessage.includes("403") && !errorMessage.includes("Forbidden")) {
+        alert(errorMessage);
+      }
     }
   }
 
@@ -345,7 +396,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   React.useEffect(() => {
     if (typeof renderAddButton === 'function') {
       renderAddButton(
-        !readonly ? (
+        !readonly && canManage ? (
           <button className="btn btn-primary" type="button" onClick={onOpenAdd} data-testid="add-l4-ingress-btn">
             + Add
           </button>
@@ -357,7 +408,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
         renderAddButton(null);
       }
     };
-  }, [renderAddButton, onOpenAdd, readonly]);
+  }, [renderAddButton, onOpenAdd, readonly, canManage]);
 
   return (
     <L4IngressTableView
@@ -368,6 +419,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       onEditRow={onEditRow}
       onAllocateRow={onAllocateRow}
       readonly={readonly}
+      canManage={canManage}
       renderAddButton={renderAddButton}
       onOpenAdd={onOpenAdd}
       addOpen={addOpen}

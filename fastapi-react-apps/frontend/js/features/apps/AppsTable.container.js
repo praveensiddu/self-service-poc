@@ -3,6 +3,7 @@ function AppsTable({
   env,
   clustersByApp,
   selectedApps,
+  currentUserContext,
   onToggleRow,
   onSelectAll,
   onDeleteApp,
@@ -13,13 +14,23 @@ function AppsTable({
   requestsChanges,
   readonly,
 }) {
+  const { extractPermissions } = useAuthorization();
+
+  // Add permissions to each row
+  const rowsWithPermissions = React.useMemo(() => {
+    return rows.map(row => ({
+      ...row,
+      permissions: extractPermissions(row),
+    }));
+  }, [rows, extractPermissions]);
+
   // Centralized filtering and sorting
   const {
     sortedRows,
     filters,
     setFilters
   } = useTableFilter({
-    rows,
+    rows: rowsWithPermissions,
     initialFilters: {
       appname: "",
       description: "",
@@ -73,6 +84,53 @@ function AppsTable({
   const canSubmitArgoCd = React.useMemo(() => {
     return isNonEmptyString(argoCdGitUrl);
   }, [argoCdGitUrl]);
+
+  const [showRequestAccess, setShowRequestAccess] = React.useState(false);
+  const [requestAccessAppName, setRequestAccessAppName] = React.useState("");
+  const [requestAccessRole, setRequestAccessRole] = React.useState("viewer");
+  const [requestAccessUserid, setRequestAccessUserid] = React.useState("");
+  const [requestAccessGroup, setRequestAccessGroup] = React.useState("");
+
+  function openRequestAccess(row) {
+    const r = row || {};
+    const name = safeTrim(r?.appname);
+    setRequestAccessAppName(name);
+    setRequestAccessRole("viewer");
+    setRequestAccessUserid("");
+    setRequestAccessGroup("");
+    setShowRequestAccess(true);
+  }
+
+  function closeRequestAccess() {
+    setShowRequestAccess(false);
+  }
+
+  const canSubmitRequestAccess = React.useMemo(() => {
+    const hasUserid = isNonEmptyString(requestAccessUserid);
+    const hasGroup = isNonEmptyString(requestAccessGroup);
+    return isNonEmptyString(requestAccessAppName)
+      && isNonEmptyString(requestAccessRole)
+      && ((hasUserid && !hasGroup) || (!hasUserid && hasGroup));
+  }, [requestAccessAppName, requestAccessRole, requestAccessUserid, requestAccessGroup]);
+
+  async function onSubmitRequestAccess() {
+    try {
+      const application = safeTrim(requestAccessAppName);
+      const role = safeTrim(requestAccessRole);
+      const userid = safeTrim(requestAccessUserid);
+      const group = safeTrim(requestAccessGroup);
+      if (!application) throw new Error("Application is required.");
+      if (!role) throw new Error("Role is required.");
+      if (Boolean(userid) === Boolean(group)) throw new Error("Exactly one of Userid or Group is required.");
+
+      await createAppAccessRequest({ application, role, userid, group });
+
+      setShowRequestAccess(false);
+      alert(`Access request submitted for ${application} (${role}).`);
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
 
   async function openArgoCd(row) {
     const r = row || {};
@@ -254,6 +312,19 @@ function AppsTable({
       closeArgoCd={closeArgoCd}
       onSubmitArgoCd={onSubmitArgoCd}
       onDeleteArgoCd={onDeleteArgoCd}
+
+      showRequestAccess={showRequestAccess}
+      requestAccessAppName={requestAccessAppName}
+      requestAccessRole={requestAccessRole}
+      setRequestAccessRole={setRequestAccessRole}
+      requestAccessUserid={requestAccessUserid}
+      setRequestAccessUserid={setRequestAccessUserid}
+      requestAccessGroup={requestAccessGroup}
+      setRequestAccessGroup={setRequestAccessGroup}
+      canSubmitRequestAccess={canSubmitRequestAccess}
+      openRequestAccess={openRequestAccess}
+      closeRequestAccess={closeRequestAccess}
+      onSubmitRequestAccess={onSubmitRequestAccess}
     />
   );
 }

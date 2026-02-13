@@ -20,6 +20,8 @@
  * @returns {Object} - Namespaces state and operations
  */
 function useNamespaces({ activeEnv, setLoading, setError, setShowErrorModal }) {
+  const { handlePermissionError } = useAuthorization();
+
   const [namespaces, setNamespaces] = React.useState({});
   const [selectedNamespaces, setSelectedNamespaces] = React.useState(() => new Set());
   const [detailAppName, setDetailAppName] = React.useState("");
@@ -66,7 +68,17 @@ function useNamespaces({ activeEnv, setLoading, setError, setShowErrorModal }) {
 
       return resp;
     } catch (e) {
-      setError(e?.message || String(e));
+      // Use centralized permission error handler
+      const wasPermissionError = handlePermissionError(
+        e,
+        "create",
+        "namespaces",
+        appname,
+        setError,
+        setShowErrorModal
+      );
+
+      // If it wasn't a permission error, the handler already showed the error modal
       throw e;
     } finally {
       setLoading(false);
@@ -102,8 +114,17 @@ function useNamespaces({ activeEnv, setLoading, setError, setShowErrorModal }) {
 
       return true;
     } catch (e) {
-      setError(e?.message || String(e));
-      throw e;
+      // Use centralized permission error handler
+      handlePermissionError(
+        e,
+        "delete",
+        "namespaces",
+        appname,
+        setError,
+        setShowErrorModal
+      );
+
+      return false;
     } finally {
       setLoading(false);
     }
@@ -131,7 +152,16 @@ function useNamespaces({ activeEnv, setLoading, setError, setShowErrorModal }) {
       const resp = await loadNamespaces(activeEnv, appname);
       setNamespaces(resp || {});
     } catch (e) {
-      setError(e?.message || String(e));
+      // Use centralized permission error handler
+      handlePermissionError(
+        e,
+        "copy",
+        "namespaces",
+        appname,
+        setError,
+        setShowErrorModal
+      );
+
       throw e;
     } finally {
       setLoading(false);

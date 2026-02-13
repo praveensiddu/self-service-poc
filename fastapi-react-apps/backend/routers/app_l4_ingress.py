@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Any, Dict, List, Optional
 import ipaddress
 import logging
@@ -17,6 +17,7 @@ from backend.dependencies import (
 from backend.routers.allocate_l4_ingress import _load_cluster_first_range
 from backend.routers.clusters import get_allocated_clusters_for_app
 from backend.utils.yaml_utils import read_yaml_dict
+from backend.auth.rbac import require_rbac, get_current_user_context, wrap_response_with_permissions
 
 router = APIRouter(tags=["l4_ingress"])
 
@@ -84,7 +85,23 @@ def _sanitize_l4_ingress_items(items: Any) -> List[Dict[str, Any]]:
 
 
 @router.get("/apps/{appname}/l4_ingress")
-def get_l4_ingress(appname: str, env: Optional[str] = None):
+def get_l4_ingress(
+    appname: str,
+    env: Optional[str] = None,
+    user_context: Dict[str, Any] = Depends(get_current_user_context)
+):
+    """Get L4 ingress allocations for an application with permissions.
+
+    This endpoint is open to users with view permission for the app.
+    Returns permissions for manage actions (edit/allocate).
+
+    Args:
+        appname: Application name
+        env: Environment name
+
+    Returns:
+        List of L4 ingress allocations with permissions
+    """
     env = require_env(env)
     requests_root = get_requests_root()
     workspace_path = get_workspace_path()
@@ -161,11 +178,19 @@ def get_l4_ingress(appname: str, env: Optional[str] = None):
             }
         )
 
-    return out
+    # Return with permissions using helper
+    return wrap_response_with_permissions(
+        out, user_context, f"/apps/{appname}/l4_ingress", {"id": appname}
+    )
 
 
 @router.put("/apps/{appname}/l4_ingress")
-def put_l4_ingress_requested(appname: str, payload: L4IngressRequestedUpdate, env: Optional[str] = None):
+def put_l4_ingress_requested(
+    appname: str,
+    payload: L4IngressRequestedUpdate,
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
+):
     env = require_env(env)
     requests_root = require_initialized_workspace()
 

@@ -1,0 +1,52 @@
+# Casbin policy CSV
+# Format (5 columns): ptype, sub, obj, act, cond
+# - ptype: policy type (e.g. 'p')
+# - sub: subject (role name in this demo, e.g. admin/viewall/user/viewer/manager)
+# - obj: object/resource path pattern (e.g. /apps/*)
+# - act: action/method regex (e.g. GET or (GET|POST))
+# - cond: Python expression evaluated by Casbin (simpleeval); use True/False (not true/false)
+
+p, platform_admin, /apps, GET, True
+p, platform_admin, /apps/*, (GET|PUT|DELETE), True
+p, platform_admin, /apps/*/namespaces, (GET|POST|DELETE), True
+p, platform_admin, /apps/*/namespaces/*/copy, POST, True
+p, platform_admin, /apps/*/l4_ingress, (GET|PUT), True
+p, platform_admin, /apps/*/egress_ips, GET, True
+
+p, platform_admin, /settings/enforcement, (GET|PUT), True
+p, platform_admin, /access_requests, GET, True
+p, platform_admin, /clusters, (GET|POST), True
+p, platform_admin, /clusters/*, (GET|DELETE), True
+
+
+p, role_mgmt_admin, /role-management/*, (GET|POST|PUT), True
+p, role_mgmt_admin, /role-management/app/*, (GET|POST|PUT), True
+p, role_mgmt_admin, /role-management/groupglobal/*, (GET|POST|PUT), True
+p, role_mgmt_admin, /role-management/userglobal/*, (GET|POST|PUT), True
+
+p, role_mgmt_admin, /settings/enforcement, (GET|PUT), True
+p, role_mgmt_admin, /access_requests, GET, True
+
+
+p, viewall, /apps, GET, True
+p, viewall, /apps/*, GET, True
+p, viewall, /apps/*/namespaces, GET, True
+p, viewall, /apps/*/l4_ingress, GET, True
+p, viewall, /apps/*/egress_ips, GET, True
+p, viewall, /clusters, GET, True
+
+
+p, manager, /apps, POST, True
+p, manager, /apps/*, (GET|PUT|DELETE), True
+p, manager, /apps/*/namespaces, (GET|POST|DELETE), True
+p, manager, /apps/*/namespaces/*/copy, POST, True
+p, manager, /apps/*/l4_ingress, (GET|PUT), True
+p, manager, /apps/*/egress_ips, GET, True
+p, manager, /clusters, GET, True
+
+p, viewer, /apps, GET, True
+p, viewer, /apps/*, GET, True
+p, viewer, /apps/*/namespaces, GET, True
+p, viewer, /apps/*/l4_ingress, GET, True
+p, viewer, /apps/*/egress_ips, GET, True
+p, viewer, /clusters, GET, True

@@ -2,6 +2,15 @@ function AppView({
   bannerColor,
   bannerTitle,
   currentUser,
+  currentUserContext,
+  demoMode,
+  showChangeLoginUser,
+  demoUsers,
+  demoUsersLoading,
+  demoUsersError,
+  onOpenChangeLoginUser,
+  onCloseChangeLoginUser,
+  onSelectDemoUser,
   envKeys,
   activeEnv,
   loading,
@@ -15,7 +24,12 @@ function AppView({
   topTab,
   configComplete,
   readonly,
+  envConfigured,
+  allowAdminPages,
   onTopTabChange,
+  accessRequests,
+  accessRequestStatusByKey,
+  onGrantAccessRequest,
   clustersByEnv,
   onAddCluster,
   onDeleteCluster,
@@ -103,8 +117,54 @@ function AppView({
         <div>
           <div className="title">{bannerTitle}</div>
         </div>
-        <div className="user">{currentUser ? `Logged in as ${currentUser}` : ""}</div>
+        <div className="topbarCenter">
+          {demoMode ? <div className="demoMode">DEMO MODE</div> : null}
+        </div>
+        <div className="user">
+          {demoMode ? (
+            <button className="btn" type="button" onClick={() => onOpenChangeLoginUser && onOpenChangeLoginUser()}>
+              Change Login User
+            </button>
+          ) : null}
+          {currentUser ? `Logged in as ${currentUser}` : ""}
+        </div>
       </div>
+
+      {demoMode && showChangeLoginUser ? (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="modalCard">
+            <div className="modalHeader">
+              <div style={{ fontWeight: 700 }}>Change Login User</div>
+              <button className="btn" type="button" onClick={() => onCloseChangeLoginUser && onCloseChangeLoginUser()}>
+                Close
+              </button>
+            </div>
+
+            {demoUsersError ? <div className="status">Error: {demoUsersError}</div> : null}
+            {demoUsersLoading ? <div className="muted">Loading…</div> : null}
+
+            {!demoUsersLoading ? (
+              <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                {(demoUsers || []).map((u) => (
+                  <button
+                    key={u?.user || ""}
+                    className="btn"
+                    type="button"
+                    onClick={() => onSelectDemoUser && onSelectDemoUser(u?.user)}
+                    style={{ textAlign: "left" }}
+                  >
+                    <div style={{ fontWeight: 700 }}>{u?.name || u?.user || ""}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {u?.description || u?.user || ""}
+                    </div>
+                  </button>
+                ))}
+                {(demoUsers || []).length === 0 ? <div className="muted">No demo users found.</div> : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="container">
         <div className="tabs">
@@ -115,13 +175,15 @@ function AppView({
           >
             Home
           </button>
-          <button
-            className={topTab === "Settings" ? "tab active" : "tab"}
-            onClick={() => onTopTabChange("Settings")}
-            type="button"
-          >
-            Settings
-          </button>
+          {allowAdminPages ? (
+            <button
+              className={topTab === "Settings" ? "tab active" : "tab"}
+              onClick={() => onTopTabChange("Settings")}
+              type="button"
+            >
+              Settings
+            </button>
+          ) : null}
           {configComplete ? (
             <>
               <button
@@ -145,11 +207,19 @@ function AppView({
               >
                 Clusters
               </button>
+              {allowAdminPages ? (
+                <button
+                  className={topTab === "Access Requests" ? "tab active" : "tab"}
+                  onClick={() => onTopTabChange("Access Requests")}
+                  type="button"
+                >
+                  Access Requests
+                </button>
+              ) : null}
             </>
           ) : null}
         </div>
 
-        {error && !showErrorModal ? <div className="status">Error: {error}</div> : null}
 
         {topTab === "Home" ? (
           <div className="card" style={{ padding: 16 }}>
@@ -220,7 +290,7 @@ function AppView({
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button className="btn" type="button" onClick={onUseDefaults} disabled={loading}>
+                <button className="btn" type="button" onClick={onUseDefaults} disabled={loading || envConfigured}>
                   Use Pre-prepared Samples
                 </button>
                 <button className="btn btn-primary" type="button" onClick={onSaveConfig} disabled={!canSaveConfig || loading}>
@@ -335,6 +405,66 @@ function AppView({
               apps={apps}
             />
           </>
+        ) : topTab === "Access Requests" ? (
+          <div className="card" style={{ padding: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>Access Requests</div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Requested At</th>
+                  <th>Requestor</th>
+                  <th>Type</th>
+                  <th>Application</th>
+                  <th>AccessType</th>
+                  <th>Userid or Group</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(accessRequests || []).length === 0 ? (
+                  <tr>
+                    <td className="muted" colSpan={8}>No access requests found.</td>
+                  </tr>
+                ) : (
+                  (accessRequests || []).map((r, idx) => (
+                    <tr key={`${r?.requested_at || ""}:${idx}`}>
+                      <td className="muted">{r?.requested_at || ""}</td>
+                      <td>{r?.requestor || ""}</td>
+                      <td>{r?.type || ""}</td>
+                      <td>{r?.payload?.application || ""}</td>
+                      <td>{r?.payload?.role || ""}</td>
+                      <td>{r?.payload?.usr_or_grp || ""}</td>
+                      <td>
+                        {(() => {
+                          const key = `${r?.requested_at || ""}:${r?.requestor || ""}:${r?.type || ""}`;
+                          const s = (accessRequestStatusByKey || {})[key];
+                          if (!s) return "Pending";
+                          if (s?.state === "error") return `Error: ${s?.message || ""}`;
+                          return s?.message || s?.state || "";
+                        })()}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-primary"
+                          type="button"
+                          onClick={() => onGrantAccessRequest && onGrantAccessRequest(r, idx)}
+                          disabled={(() => {
+                            const key = `${r?.requested_at || ""}:${r?.requestor || ""}:${r?.type || ""}`;
+                            const s = (accessRequestStatusByKey || {})[key];
+                            return s?.state === "granting" || s?.state === "granted";
+                          })()}
+                        >
+                          Grant
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <>
             <div className="row">
@@ -465,6 +595,7 @@ function AppView({
                 env={activeEnv}
                 clustersByApp={clustersByApp}
                 selectedApps={selectedApps}
+                currentUserContext={currentUserContext}
                 onToggleRow={toggleRow}
                 onSelectAll={onSelectAllFromFiltered}
                 onDeleteApp={deleteApp}
@@ -481,6 +612,7 @@ function AppView({
                 namespaceName={detailNamespaceName}
                 appname={detailAppName}
                 env={activeEnv}
+                currentUserContext={currentUserContext}
                 onUpdateNamespaceInfo={onUpdateNamespaceInfo}
                 readonly={readonly}
                 renderHeaderButtons={onSetNamespaceDetailsHeaderButtons}

@@ -8,8 +8,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+import os
 
 # Load environment variables from .env.local
 try:
@@ -28,6 +30,8 @@ setup_logging()
 
 logger = get_logger(__name__)
 
+from backend.config.settings import ensure_demo_mode_env_from_config
+
 from backend.routers import (
     # Core routers
     system,
@@ -35,6 +39,10 @@ from backend.routers import (
     apps,
     namespaces,
     pull_requests,
+
+    access_request_api,
+
+    role_mgmt_api,
 
     # Application-level routers
     app_argocd,
@@ -50,10 +58,14 @@ from backend.routers import (
     ns_limitrange,
     ns_rolebindings,
     ns_egressfirewall,
+
+    # User-related router
+    users,
 )
 from backend.middleware.readonly import ReadOnlyMiddleware
 from backend.middleware.logging import RequestLoggingMiddleware
 from backend.exceptions import register_exception_handlers
+from backend.auth.rbac import enforce_request, get_current_user_context
 
 # Constants
 API_PREFIX = "/api/v1"
@@ -90,6 +102,27 @@ async def lifespan(app: FastAPI):
     logger.info(f"📝 API Documentation: http://localhost:8888/api/docs")
     logger.info(f"🔗 Alternative Docs: http://localhost:8888/api/redoc")
     logger.info("=" * 80)
+
+    ensure_demo_mode_env_from_config()
+
+    # Validate env-based configuration (all-or-nothing)
+    repo_env_keys = [
+        "REQUESTS_REPO",
+        "TEMPLATES_REPO",
+        "RENDERED_MANIFESTS_REPO",
+        "CONTROL_REPO",
+    ]
+    present = [k for k in repo_env_keys if str(os.getenv(k, "")).strip()]
+    if present and len(present) != len(repo_env_keys):
+        missing = [k for k in repo_env_keys if k not in present]
+        raise RuntimeError(
+            "Invalid environment configuration: either set all of "
+            f"{', '.join(repo_env_keys)} or set none. Missing: {', '.join(missing)}"
+        )
+    if present and not str(os.getenv("WORKSPACE", "")).strip():
+        raise RuntimeError(
+            "Invalid environment configuration: WORKSPACE must be set when using env-based repo configuration."
+        )
     yield
     # Shutdown
     logger.info("=" * 80)
@@ -107,6 +140,21 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+
+
+@app.get("/docs", include_in_schema=False)
+def redirect_docs():
+    return RedirectResponse(url="/api/docs")
+
+
+@app.get("/redoc", include_in_schema=False)
+def redirect_redoc():
+    return RedirectResponse(url="/api/redoc")
+
+
+@app.get("/openapi.json", include_in_schema=False)
+def redirect_openapi():
+    return RedirectResponse(url="/api/openapi.json")
 
 
 # ============================================
@@ -135,15 +183,25 @@ app.add_middleware(ReadOnlyMiddleware)
 
 register_exception_handlers(app)
 
-
 # ============================================
 # Router Registration
 # ============================================
 
 # Core system routers
 app.include_router(system.router, prefix=API_PREFIX, tags=["System"])
+app.include_router(users.router, prefix=API_PREFIX, tags=["Users"])
 app.include_router(clusters.router, prefix=API_PREFIX, tags=["Clusters"])
 app.include_router(pull_requests.router, prefix=API_PREFIX, tags=["Pull Requests"])
+
+# Access request routers
+app.include_router(access_request_api.router, prefix=API_PREFIX, tags=["Access Requests"])
+
+# Role management router
+app.include_router(
+    role_mgmt_api.create_rolemgmt_router(enforce=enforce_request, get_current_user_context=get_current_user_context),
+    prefix=API_PREFIX,
+    tags=["RoleManagement"],
+)
 
 # Application routers
 app.include_router(apps.router, prefix=API_PREFIX, tags=["Applications"])

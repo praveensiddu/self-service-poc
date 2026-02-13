@@ -68,6 +68,57 @@ async function deleteAppApi(env, appname) {
 }
 
 /**
+ * Create an access request for an application.
+ * @param {{application: string, role: "viewer"|"manager", userid?: string, group?: string}} payload
+ * @returns {Promise<Object>} - Created access request
+ */
+async function createAppAccessRequest(payload) {
+  const application = safeTrim(payload?.application);
+  const role = safeTrim(payload?.role);
+  const userid = safeTrim(payload?.userid);
+  const group = safeTrim(payload?.group);
+  if (!application) throw new Error("Application is required.");
+  if (!role) throw new Error("Role is required.");
+  if (Boolean(userid) === Boolean(group)) throw new Error("Exactly one of Userid or Group is required.");
+
+  return await postJson("/api/v1/app_access", {
+    application,
+    role,
+    userid: userid || undefined,
+    group: group || undefined,
+  });
+}
+
+/**
+ * Load access requests.
+ * @returns {Promise<Array>} - List of access requests
+ */
+async function loadAccessRequests() {
+  return await fetchJson("/api/v1/access_requests");
+}
+
+async function grantAppAccessRequest(payload) {
+  const userid = safeTrim(payload?.userid);
+  const group = safeTrim(payload?.group);
+  const app = safeTrim(payload?.application);
+  const role = safeTrim(payload?.role);
+  if (Boolean(userid) === Boolean(group)) throw new Error("Exactly one of Userid or Group is required.");
+  if (!app) throw new Error("Application is required.");
+  if (!role) throw new Error("Role is required.");
+
+  return await postJson("/api/v1/role-management/app/assign", { userid: userid || undefined, group: group || undefined, app, role });
+}
+
+async function grantGlobalAccessRequest(payload) {
+  const group = safeTrim(payload?.usr_or_grp);
+  const role = safeTrim(payload?.role);
+  if (!group) throw new Error("Userid or Group is required.");
+  if (!role) throw new Error("Role is required.");
+
+  return await postJson("/api/v1/role-management/groupglobal/assign", { group, role });
+}
+
+/**
  * Load requests/changes for an environment.
  * @param {string} env - Environment name
  * @returns {Promise<{apps: string[], namespaces: string[]}>}

@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from pathlib import Path
 import logging
+import os
 
-from backend.config.settings import is_readonly
+from backend.config.settings import is_readonly, is_demo_mode, persist_demo_mode
 from backend.models import KSelfServeConfig
 from backend.services.config_service import ConfigService
 from backend.utils.enforcement import EnforcementSettings
 from backend.dependencies import get_workspace_path
-
+from backend.auth.rbac import require_rbac
+from backend.auth.role_mgmt_impl import RoleMgmtImpl
 router = APIRouter(tags=["system"])
 
 logger = logging.getLogger("uvicorn.error")
@@ -32,8 +34,23 @@ def get_config(service: ConfigService = Depends(get_config_service)):
 
 
 @router.post("/config", response_model=KSelfServeConfig)
-def save_config(cfg: KSelfServeConfig, service: ConfigService = Depends(get_config_service)):
-    """Save workspace configuration and setup repositories."""
+def save_config(
+    cfg: KSelfServeConfig,
+    service: ConfigService = Depends(get_config_service)
+):
+    """Save workspace configuration and setup repositories.
+
+    This endpoint is open to all authenticated users for initial configuration.
+    """
+    env_keys = [
+        "WORKSPACE",
+        "REQUESTS_REPO",
+        "TEMPLATES_REPO",
+        "RENDERED_MANIFESTS_REPO",
+        "CONTROL_REPO",
+    ]
+    if any(str(os.getenv(k, "")).strip() for k in env_keys):
+        raise HTTPException(status_code=403, detail="Config updates are disabled when portal is started with environment-based configuration")
     config = service.save_config(
         workspace=cfg.workspace or "",
         requests_repo=cfg.requestsRepo or "",
@@ -41,6 +58,9 @@ def save_config(cfg: KSelfServeConfig, service: ConfigService = Depends(get_conf
         rendered_manifests_repo=cfg.renderedManifestsRepo or "",
         control_repo=cfg.controlRepo or "",
     )
+   
+    persist_demo_mode(True)
+    RoleMgmtImpl.get_instance().update_roles(force=True)
     return KSelfServeConfig(**config)
 
 
@@ -54,36 +74,40 @@ def get_envlist(service: ConfigService = Depends(get_config_service)):
 def get_deployment_type():
     """Get deployment type and environment information."""
     return {
-        "deployment_env": "test",
+        "deployment_env": "live",
+        "demo_mode": is_demo_mode(),
         "title": {
             "test": "Kubernetes Self Server Provisioning Tool (Test)",
-            "staging": "Kubernetes Self Server Provisioning Tool (Staging)",
             "live": "Kubernetes Self Server Provisioning Tool",
         },
         "headerColor": {
             "test": "red",
-            "staging": "orange",
-            "live": "#384454",
+            "live": "#2563EB",
         },
     }
-
-
-@router.get("/current-user")
-def get_current_user():
-    """Get current user information."""
-    return {"user": "user1"}
 
 
 @router.get("/portal-mode")
 def get_portal_mode():
     """Return the portal mode (readonly or not)."""
+    env_keys = [
+        "WORKSPACE",
+        "REQUESTS_REPO",
+        "TEMPLATES_REPO",
+        "RENDERED_MANIFESTS_REPO",
+        "CONTROL_REPO",
+    ]
     return {
-        "readonly": is_readonly()
+        "readonly": is_readonly(),
+        "env_configured": any(str(os.getenv(k, "")).strip() for k in env_keys),
     }
 
 
 @router.get("/settings/enforcement", response_model=EnforcementSettings)
-def get_enforcement_settings(service: ConfigService = Depends(get_config_service)):
+def get_enforcement_settings(
+    service: ConfigService = Depends(get_config_service),
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method)),
+):
     """Get enforcement settings for egress firewall and egress IP."""
     return service.get_enforcement_settings()
 
@@ -91,7 +115,8 @@ def get_enforcement_settings(service: ConfigService = Depends(get_config_service
 @router.put("/settings/enforcement", response_model=EnforcementSettings)
 def put_enforcement_settings(
     payload: EnforcementSettings,
-    service: ConfigService = Depends(get_config_service)
+    service: ConfigService = Depends(get_config_service),
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method)),
 ):
     """Update enforcement settings for egress firewall and egress IP."""
     return service.update_enforcement_settings(

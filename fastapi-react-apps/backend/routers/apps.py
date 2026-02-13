@@ -1,6 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, List, Optional
-from pathlib import Path
+from fastapi import APIRouter, HTTPException, Depends, Request
+from typing import Dict, Optional, Any
 import logging
 
 from backend.routers import pull_requests
@@ -8,6 +7,7 @@ from backend.dependencies import require_env, require_initialized_workspace
 from backend.models import AppCreate, AppResponse, AppDeleteResponse
 from backend.services.application_service import ApplicationService
 from backend.services.cluster_service import ClusterService
+from backend.auth.rbac import require_rbac, get_current_user_context, add_permissions_to_items
 
 router = APIRouter(tags=["apps"])
 
@@ -33,27 +33,39 @@ def get_cluster_service() -> ClusterService:
 # API Endpoints
 # ============================================
 
-@router.get("/apps", response_model=Dict[str, AppResponse])
+@router.get("/apps", response_model=Dict[str, Dict[str, Any]])
 def list_apps(
+    request: Request,
     env: Optional[str] = None,
-    service: ApplicationService = Depends(get_app_service)
+    service: ApplicationService = Depends(get_app_service),
+    user_context: Dict[str, Any] = Depends(get_current_user_context)
 ):
-    """List all applications for an environment.
+    """List all applications for an environment with permissions.
+
+    This endpoint is open to all authenticated users. Each app includes permission
+    flags (canView, canManage) calculated per user. The frontend uses these flags
+    to control UI visibility and interactions.
 
     Args:
         env: Environment name (dev, qa, prd)
 
     Returns:
-        Dictionary of applications keyed by app name
+        Dictionary of applications keyed by app name, each with permissions field
     """
     env = require_env(env)
-    return service.get_apps_for_env(env)
+    apps = service.get_apps_for_env(env)
+
+    # Add permissions for each app using helper
+    add_permissions_to_items(apps, user_context, "/apps/{item_id}")
+
+    return apps
 
 
 @router.post("/apps", response_model=AppResponse)
 def create_app(
     payload: AppCreate,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj="/apps", act="POST")),
     service: ApplicationService = Depends(get_app_service)
 ):
     """Create a new application.
@@ -84,6 +96,7 @@ def update_app(
     appname: str,
     payload: AppCreate,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: ApplicationService = Depends(get_app_service)
 ):
     """Update an existing application.
@@ -119,6 +132,7 @@ def update_app(
 def delete_app(
     appname: str,
     env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
     service: ApplicationService = Depends(get_app_service)
 ):
     """Delete an application and all its associated data.

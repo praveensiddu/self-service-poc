@@ -12,6 +12,7 @@ from backend.models import (
 )
 from backend.routers import pull_requests
 from backend.services.namespace_details_service import NamespaceDetailsService
+from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["resourcequota"])
 
@@ -28,9 +29,14 @@ def get_namespace_resourcequota(
     appname: str,
     namespace: str,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Get namespace resource quota."""
+    """Get namespace resource quota. Requires viewer or manager role."""
     env = require_env(env)
     return service.get_resourcequota(env, appname, namespace)
 
@@ -41,9 +47,14 @@ def get_resourcequota_yaml(
     namespace: str,
     payload: NamespaceResourcesYamlRequest,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="GET",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Generate ResourceQuota YAML."""
+    """Generate ResourceQuota YAML. Requires viewer or manager role."""
     env = require_env(env)
 
     req = payload.resources.requests if payload and payload.resources is not None else None
@@ -59,9 +70,14 @@ def put_namespace_resourcequota(
     namespace: str,
     payload: NamespaceResourceQuotaUpdate,
     env: Optional[str] = None,
-    service: NamespaceDetailsService = Depends(get_namespace_details_service)
+    service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    _: None = Depends(require_rbac(
+        obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
+        act="POST",
+        app_id=lambda r: r.path_params.get("appname", "")
+    ))
 ):
-    """Update namespace resource quota."""
+    """Update namespace resource quota. Requires manager role."""
     env = require_env(env)
 
     result = service.update_resourcequota(
