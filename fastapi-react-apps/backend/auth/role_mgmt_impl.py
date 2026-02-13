@@ -17,7 +17,7 @@ class RoleMgmtImpl:
     def __init__(self) -> None:
         self._lock = RLock()
         self._rbac_dir = Path.home() / "workspace" / "kselfserv" / "cloned-repositories" / "control" / "rbac"
-        self._demo_mode = os.getenv("DEMO_MODE", "").lower() == "true"
+        self._demo_mode = is_demo_mode()
         self._legacy_store_path = self._rbac_dir / "role_assignments.yaml"
         self._store_paths: Dict[str, Path] = {}
         self._demo_users_path = self._rbac_dir / "demo_users.yaml"

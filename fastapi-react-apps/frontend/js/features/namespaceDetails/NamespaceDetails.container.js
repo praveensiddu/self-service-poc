@@ -12,18 +12,28 @@
  * @param {string} props.namespaceName - Name of the namespace
  * @param {string} props.appname - Application name
  * @param {string} props.env - Environment key
+ * @param {Object} props.currentUserContext - Current user RBAC context (roles/app_roles)
  * @param {Function} props.onUpdateNamespaceInfo - Callback to update namespace info
  * @param {boolean} props.readonly - Whether the view is in readonly mode
  * @param {Function} props.renderHeaderButtons - Callback to render header buttons
  */
-function NamespaceDetails({ namespace, namespaceName, appname, env, onUpdateNamespaceInfo, readonly, renderHeaderButtons }) {
+function NamespaceDetails({ namespace, namespaceName, appname, env, currentUserContext, onUpdateNamespaceInfo, readonly, renderHeaderButtons }) {
   const { canManage } = useAuthorization();
 
   // Check if user has manage permission
-  const hasManagePermission = canManage(namespace);
-
-  // Combine readonly mode with permission check - if user doesn't have manage permission, treat as readonly
-  const effectiveReadonly = readonly || !hasManagePermission;
+  const namespacePermissions = namespace?.permissions;
+  const hasBackendManageFlag = typeof namespacePermissions?.canManage === "boolean";
+  const hasManagePermission = React.useMemo(() => {
+    if (hasBackendManageFlag) return Boolean(namespacePermissions?.canManage);
+    if (typeof window !== 'undefined' && typeof window.canManageApp === 'function') {
+      return window.canManageApp(appname, currentUserContext);
+    }
+    const roles = currentUserContext?.roles || [];
+    if (Array.isArray(roles) && roles.includes('platform_admin')) return true;
+    const appRoles = currentUserContext?.app_roles || {};
+    const appSpecificRoles = appRoles?.[appname] || [];
+    return Array.isArray(appSpecificRoles) && appSpecificRoles.includes('manager');
+  }, [hasBackendManageFlag, namespacePermissions?.canManage, appname, currentUserContext]);
 
   // Cluster picker state
   const [clusterQuery, setClusterQuery] = React.useState("");
@@ -65,8 +75,13 @@ function NamespaceDetails({ namespace, namespaceName, appname, env, onUpdateName
     namespaceName,
     appname,
     onUpdateNamespaceInfo,
-    readonly: effectiveReadonly,
+    readonly,
   });
+
+  const canStartEditingWithAuth = React.useCallback((block) => {
+    if (!hasManagePermission) return false;
+    return canStartEditing(block);
+  }, [hasManagePermission, canStartEditing]);
 
   // Use API hook
   const {
@@ -133,14 +148,16 @@ function NamespaceDetails({ namespace, namespaceName, appname, env, onUpdateName
       readonly,
       isEditing,
       blockKey,
-      canStartEditing,
+      canStartEditing: canStartEditingWithAuth,
       onEnableBlockEdit,
       onDiscardBlockEdits,
       onSaveBlock,
       editDisabledReason:
-        blockKey === "egressfirewall" && Boolean(namespace?.allow_all_egress)
-          ? "Egress firewall enforcement is disabled (enforce_egress_firewall is set to no in Settings)."
-          : "",
+        !hasManagePermission
+          ? "You don't have permission to update namespaces. Please contact your administrator to request manager access."
+          : (blockKey === "egressfirewall" && Boolean(namespace?.allow_all_egress)
+              ? "Egress firewall enforcement is disabled (enforce_egress_firewall is set to no in Settings)."
+              : ""),
     };
   }
 

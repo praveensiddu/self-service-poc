@@ -612,6 +612,7 @@ function AppView({
                 namespaceName={detailNamespaceName}
                 appname={detailAppName}
                 env={activeEnv}
+                currentUserContext={currentUserContext}
                 onUpdateNamespaceInfo={onUpdateNamespaceInfo}
                 readonly={readonly}
                 renderHeaderButtons={onSetNamespaceDetailsHeaderButtons}

@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import yaml
 
+from backend.config.settings import is_demo_mode
 from backend.auth.role_mgmt_impl import RoleMgmtImpl
 from backend.auth.rbac import get_current_user_context
 
@@ -23,7 +24,7 @@ def get_user_api(request: Request):
 
 @router.put("/current-user")
 def put_user_api(payload: dict):
-    if os.getenv("DEMO_MODE", "").lower() != "true":
+    if not is_demo_mode():
         raise HTTPException(status_code=403, detail="Not supported")
 
     user = str((payload or {}).get("user") or "").strip()
@@ -37,10 +38,15 @@ def put_user_api(payload: dict):
 
 @router.get("/demo-users")
 def get_demo_users():
-    if os.getenv("DEMO_MODE", "").lower() != "true":
+    if not is_demo_mode():
         return {"rows": []}
 
-    p = Path.home() / "workspace" / "kselfserv" / "cloned-repositories" / "control" / "rbac" / "demo_mode" / "demo_users.yaml"
+    workspace_raw = str(os.getenv("WORKSPACE", "")).strip()
+    if workspace_raw:
+        workspace = Path(workspace_raw).expanduser()
+    else:
+        workspace = Path.home() / "workspace"
+    p = workspace / "kselfserv" / "cloned-repositories" / "control" / "rbac" / "demo_mode" / "demo_users.yaml"
     if not p.exists() or not p.is_file():
         return {"rows": []}
     raw = yaml.safe_load(p.read_text())
