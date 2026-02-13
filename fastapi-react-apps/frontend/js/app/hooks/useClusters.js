@@ -19,6 +19,7 @@
  * @param {Function} params.setShowErrorModal - Error modal visibility setter
  * @param {Function} params.setShowDeleteWarningModal - Delete warning modal visibility setter
  * @param {Function} params.setDeleteWarningData - Delete warning data setter
+ * @param {Function} [params.onRefreshApps] - Optional callback to refresh apps after cluster operations
  * @returns {Object} - Clusters state and operations
  */
 function useClusters({
@@ -28,7 +29,8 @@ function useClusters({
   setError,
   setShowErrorModal,
   setShowDeleteWarningModal,
-  setDeleteWarningData
+  setDeleteWarningData,
+  onRefreshApps,
 }) {
   const [clustersByEnv, setClustersByEnv] = React.useState({});
 
@@ -62,9 +64,8 @@ function useClusters({
   /**
    * Add a new cluster.
    * @param {{clustername: string, purpose?: string, datacenter?: string, applications?: string[], l4_ingress_ip_ranges?: Array, egress_ip_ranges?: Array}} payload
-   * @param {Function} [onRefreshApps] - Optional callback to refresh apps after adding cluster
    */
-  const addCluster = React.useCallback(async (payload, onRefreshApps) => {
+  const addCluster = React.useCallback(async (payload) => {
     const env = activeEnv || (envKeys[0] || "");
     if (!env) {
       setError("No environment selected.");
@@ -94,15 +95,14 @@ function useClusters({
     } finally {
       setLoading(false);
     }
-  }, [activeEnv, envKeys, refreshClusters, setLoading, setError, setShowErrorModal]);
+  }, [activeEnv, envKeys, refreshClusters, setLoading, setError, setShowErrorModal, onRefreshApps]);
 
   /**
    * Delete a cluster.
    * @param {string} clustername - Cluster name
-   * @param {Function} [onRefreshApps] - Optional callback to refresh apps after deletion
    * @returns {Promise<{deleted: boolean, showWarning: boolean, warningData?: Object}>}
    */
-  const deleteCluster = React.useCallback(async (clustername, onRefreshApps) => {
+  const deleteCluster = React.useCallback(async (clustername) => {
     const env = activeEnv || (envKeys[0] || "");
     if (!env) {
       setError("No environment selected.");
@@ -158,7 +158,7 @@ function useClusters({
     } finally {
       setLoading(false);
     }
-  }, [activeEnv, envKeys, refreshClusters, setLoading, setError, setShowErrorModal, setShowDeleteWarningModal, setDeleteWarningData]);
+  }, [activeEnv, envKeys, refreshClusters, setLoading, setError, setShowErrorModal, setShowDeleteWarningModal, setDeleteWarningData, onRefreshApps]);
 
   return {
     // State

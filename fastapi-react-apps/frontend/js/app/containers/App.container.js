@@ -27,8 +27,6 @@ function App() {
   const [envConfigured, setEnvConfigured] = React.useState(false);
   const [topTab, setTopTab] = React.useState("Home");
 
-  const [accessRequests, setAccessRequests] = React.useState([]);
-  const [accessRequestStatusByKey, setAccessRequestStatusByKey] = React.useState({});
 
   // Use global error hook for centralized error and loading state
   const {
@@ -85,6 +83,7 @@ function App() {
     loadAppsData,
     refreshApps,
     createApp,
+    updateApp,
     deleteApp,
     refreshRequestsChangesData,
     toggleRow,
@@ -111,6 +110,7 @@ function App() {
     setShowErrorModal,
     setShowDeleteWarningModal,
     setDeleteWarningData,
+    onRefreshApps: refreshApps,
   });
 
   // Use namespaces hook for namespace management
@@ -151,6 +151,7 @@ function App() {
     l4IngressItems,
     l4IngressAddButton,
     setL4IngressAddButton,
+    detailAppName: l4IngressAppName,
     loadL4IngressData,
     resetL4IngressState,
   } = useL4Ingress({
@@ -160,10 +161,23 @@ function App() {
   // Use Egress IPs hook for Egress IPs management
   const {
     egressIpItems,
+    detailAppName: egressIpsAppName,
     loadEgressIpsData,
     resetEgressIpsState,
   } = useEgressIps({
     activeEnv,
+  });
+
+  // Use access requests hook for access requests management
+  const {
+    accessRequests,
+    accessRequestStatusByKey,
+    loadAccessRequestsData,
+    grantAccessRequest,
+    getAccessRequestKey,
+  } = useAccessRequests({
+    setLoading,
+    setError,
   });
 
   // Use modals hook for modal visibility
@@ -437,61 +451,16 @@ function App() {
 
     (async () => {
       try {
-        setLoading(true);
-        setError("");
-        const data = await loadAccessRequests();
-        if (!cancelled) setAccessRequests(Array.isArray(data) ? data : []);
+        await loadAccessRequestsData();
       } catch (e) {
-        if (!cancelled) setError(e?.message || String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
+        // Error already handled by hook
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [topTab, configComplete, setLoading, setError]);
-
-  function getAccessRequestKey(r, idx) {
-    const requestedAt = r?.requested_at || "";
-    const requestor = r?.requestor || "";
-    const type = r?.type || "";
-    if (requestedAt && requestor && type) return `${requestedAt}:${requestor}:${type}`;
-    return `${requestedAt}:${idx}`;
-  }
-
-  async function onGrantAccessRequest(r, idx) {
-    const key = getAccessRequestKey(r, idx);
-
-    try {
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "granting", message: "Granting…" },
-      }));
-
-      const t = String(r?.type || "");
-      const payload = r?.payload || {};
-
-      if (t === "app_access") {
-        await grantAppAccessRequest(payload);
-      } else if (t === "global_access") {
-        await grantGlobalAccessRequest(payload);
-      } else {
-        throw new Error(`Unsupported access request type: ${t}`);
-      }
-
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "granted", message: "Granted" },
-      }));
-    } catch (e) {
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "error", message: e?.message || String(e) },
-      }));
-    }
-  }
+  }, [topTab, configComplete, loadAccessRequestsData]);
 
   // ============================================================================
   // CONFIG HANDLERS
@@ -812,21 +781,19 @@ function App() {
 
   /**
    * Add a new cluster to the environment.
-   * Refreshes the apps list after successful addition.
-   * @param {Object} payload - Cluster creation payload
+   * The useClusters hook handles both cluster creation and app list refresh.
    */
-  async function onAddCluster(payload) {
-    await addCluster(payload, refreshApps);
-  }
+  const onAddCluster = addCluster;
 
   /**
    * Delete a cluster from the environment.
-   * Refreshes apps list and view-specific data after successful deletion.
-   * @param {string} clustername - Name of cluster to delete
+   * The useClusters hook handles cluster deletion and app list refresh.
+   * This wrapper additionally refreshes view-specific data if viewing app details.
    */
-  async function onDeleteCluster(clustername) {
-    const result = await deleteCluster(clustername, refreshApps);
+  const onDeleteCluster = React.useCallback(async (clustername) => {
+    const result = await deleteCluster(clustername);
 
+    // If deletion didn't complete (user cancelled or dependencies exist), exit
     if (!result?.deleted) {
       return;
     }
@@ -848,7 +815,7 @@ function App() {
         setError(e?.message || String(e));
       }
     }
-  }
+  }, [deleteCluster, detailAppName, view, detailNamespaceName, loadNamespacesData, viewNamespaceDetails, loadL4IngressData, loadEgressIpsData, setError]);
 
   // ============================================================================
   // NAVIGATION HANDLERS
@@ -914,9 +881,10 @@ function App() {
       onTopTabChange={setTopTabWithUrl}
       accessRequests={accessRequests}
       accessRequestStatusByKey={accessRequestStatusByKey}
-      onGrantAccessRequest={onGrantAccessRequest}
+      onGrantAccessRequest={grantAccessRequest}
+      getAccessRequestKey={getAccessRequestKey}
       clustersByEnv={clustersByEnv}
-      onAddCluster={addCluster}
+      onAddCluster={onAddCluster}
       onDeleteCluster={onDeleteCluster}
       showCreateCluster={showCreateCluster}
       onOpenCreateCluster={openCreateCluster}
@@ -952,6 +920,7 @@ function App() {
       toggleRow={toggleRow}
       onSelectAllFromFiltered={onSelectAllFromFiltered}
       deleteApp={deleteApp}
+      updateApp={updateApp}
       openNamespaces={openNamespaces}
       onCreateApp={onCreateApp}
       showCreateApp={showCreateApp}
@@ -975,7 +944,9 @@ function App() {
       argocdEnabled={argocdEnabled}
       requestsChanges={requestsChanges}
       l4IngressItems={l4IngressItems}
+      l4IngressAppName={l4IngressAppName}
       egressIpItems={egressIpItems}
+      egressIpsAppName={egressIpsAppName}
       namespaceDetailsHeaderButtons={namespaceDetailsHeaderButtons}
       onSetNamespaceDetailsHeaderButtons={setNamespaceDetailsHeaderButtons}
       l4IngressAddButton={l4IngressAddButton}
