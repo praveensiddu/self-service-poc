@@ -33,15 +33,8 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   const [errorModalOpen, setErrorModalOpen] = React.useState(false);
   const [errorModalMessage, setErrorModalMessage] = React.useState("");
 
-  React.useEffect(() => {
-    setLocalItems(itemsData.items);
-    if (env && appname) {
-      fetchClustersInfo();
-    }
-  }, [itemsData.items, env, appname]);
-
-
-  async function fetchClustersForApp() {
+  // Fetch clusters for app - wrapped in useCallback
+  const fetchClustersForApp = React.useCallback(async () => {
     if (!env) throw new Error("No env selected.");
     if (!appname) throw new Error("No app selected.");
     const res = await fetch(
@@ -54,9 +47,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     }
     const parsed = await res.json();
     return Array.isArray(parsed) ? parsed.map(String) : [];
-  }
+  }, [env, appname]);
 
-  async function fetchClustersInfo() {
+  // Fetch clusters info - wrapped in useCallback
+  const fetchClustersInfo = React.useCallback(async () => {
     if (!env) return;
     try {
       const res = await fetch(
@@ -77,16 +71,25 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       console.error("Failed to fetch clusters info:", e);
       setClusters([]);
     }
-  }
+  }, [env]);
 
-  function hasIpRangeForCluster(clusterNo) {
+  React.useEffect(() => {
+    setLocalItems(itemsData.items);
+    if (env && appname) {
+      fetchClustersInfo();
+    }
+  }, [itemsData.items, env, appname, fetchClustersInfo]);
+
+  // Check if cluster has IP range - wrapped in useCallback
+  const hasIpRangeForCluster = React.useCallback((clusterNo) => {
     const cluster = clusters.find((c) => String(c?.clustername || "") === String(clusterNo || ""));
     if (!cluster) return false;
     const ranges = cluster.l4_ingress_ip_ranges;
     return Array.isArray(ranges) && ranges.length > 0 && ranges.some((r) => r?.start_ip && r?.end_ip);
-  }
+  }, [clusters]);
 
-  async function onOpenAdd() {
+  // Open add modal - wrapped in useCallback
+  const onOpenAdd = React.useCallback(async () => {
     setAddError("");
     setAddSaving(false);
     setAddClusterNo("");
@@ -101,9 +104,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       setAddError(e?.message || String(e));
     }
     setAddOpen(true);
-  }
+  }, [appname, fetchClustersForApp]);
 
-  async function onSaveAdd() {
+  // Save add - wrapped in useCallback
+  const onSaveAdd = React.useCallback(async () => {
     const cluster_no = String(addClusterNo || "").trim();
     const purpose = String(addPurpose || "").trim();
     const next = String(addRequested || "").trim();
@@ -173,9 +177,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     } finally {
       setAddSaving(false);
     }
-  }
+  }, [addClusterNo, addPurpose, addRequested, appname, env, handlePermissionError]);
 
-  function onEditRow(row) {
+  // Edit row - wrapped in useCallback
+  const onEditRow = React.useCallback((row) => {
     const clusterNo = String(row?.clusterNoRaw || row?.clusterNo || "");
     if (!hasIpRangeForCluster(clusterNo)) {
       setErrorModalMessage("There is no IP Range defined for this cluster.");
@@ -186,9 +191,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     setEditRow(row || null);
     setEditRequested(String(row?.requested ?? ""));
     setEditOpen(true);
-  }
+  }, [hasIpRangeForCluster]);
 
-  async function onSaveEdit() {
+  // Save edit - wrapped in useCallback
+  const onSaveEdit = React.useCallback(async () => {
     if (!editRow) return;
 
     const next = String(editRequested || "").trim();
@@ -254,9 +260,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     } finally {
       setEditSaving(false);
     }
-  }
+  }, [editRow, editRequested, appname, env, handlePermissionError]);
 
-  async function onAllocateRow(row) {
+  // Allocate row - wrapped in useCallback
+  const onAllocateRow = React.useCallback(async (row) => {
     try {
       if (!env) throw new Error("No env selected.");
       if (!appname) throw new Error("No app selected.");
@@ -305,19 +312,22 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
         alert(errorMessage);
       }
     }
-  }
+  }, [env, appname, handlePermissionError]);
 
-  function onCloseAdd() {
+  // Close add - wrapped in useCallback
+  const onCloseAdd = React.useCallback(() => {
     setAddOpen(false);
-  }
+  }, []);
 
-  function onCloseEdit() {
+  // Close edit - wrapped in useCallback
+  const onCloseEdit = React.useCallback(() => {
     setEditOpen(false);
-  }
+  }, []);
 
-  function onCloseErrorModal() {
+  // Close error modal - wrapped in useCallback
+  const onCloseErrorModal = React.useCallback(() => {
     setErrorModalOpen(false);
-  }
+  }, []);
 
   // Transform and sort rows
   const rows = React.useMemo(() => {

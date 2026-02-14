@@ -10,7 +10,12 @@ from backend.repositories.namespace_repository import NamespaceRepository
 from backend.utils.helpers import parse_bool, as_trimmed_str
 from backend.utils.yaml_utils import write_yaml_dict
 from backend.utils.enforcement import load_enforcement_settings
-from fastapi import HTTPException
+from backend.exceptions.custom import (
+    ValidationError,
+    NotFoundError,
+    AlreadyExistsError,
+    AppError,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -86,16 +91,17 @@ class NamespaceService:
             Created namespace data
 
         Raises:
-            HTTPException: If validation fails or creation fails
+            ValidationError: If validation fails
+            AppError: If creation fails
         """
         # Validate namespace name
         namespace = str(namespace or "").strip()
         if not namespace:
-            raise HTTPException(status_code=400, detail="namespace is required")
+            raise ValidationError("namespace", "is required")
         if not re.match(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", namespace):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid namespace name. Must be lowercase alphanumeric with hyphens."
+            raise ValidationError(
+                "namespace",
+                "Invalid namespace name. Must be lowercase alphanumeric with hyphens."
             )
 
         ns_dir = None
@@ -105,13 +111,22 @@ class NamespaceService:
 
             # Prepare namespace info
             clusters = clusters or []
-            clusters = [str(c) for c in clusters if c is not None and str(c).strip()]
-            egress_nameid_str = str(egress_nameid or "").strip()
+            # Flatten any nested lists and convert to strings
+            flattened_clusters = []
+            for item in clusters:
+                if isinstance(item, list):
+                    # Handle nested lists by flattening them
+                    for sub_item in item:
+                        if sub_item is not None and str(sub_item).strip():
+                            flattened_clusters.append(str(sub_item).strip())
+                elif item is not None and str(item).strip():
+                    flattened_clusters.append(str(item).strip())
 
             ns_info: Dict[str, Any] = {
-                "clusters": clusters,
+                "clusters": flattened_clusters,
             }
 
+            egress_nameid_str = str(egress_nameid or "").strip()
             if egress_nameid_str:
                 ns_info["egress_nameid"] = egress_nameid_str
 
@@ -119,13 +134,14 @@ class NamespaceService:
             ns_info_path = ns_dir / "namespace_info.yaml"
             write_yaml_dict(ns_info_path, ns_info, sort_keys=False)
 
-        except HTTPException:
+        except (ValidationError, AlreadyExistsError, NotFoundError):
             raise
         except Exception as e:
             # Clean up if something went wrong
             if ns_dir is not None and ns_dir.exists():
                 shutil.rmtree(ns_dir)
-            raise HTTPException(status_code=500, detail=f"Failed to create namespace: {e}")
+            logger.error("Failed to create namespace: %s", e, exc_info=True)
+            raise AppError(f"Failed to create namespace: {e}")
 
         need_argo = False
         status = "Argo used" if need_argo else "Argo not used"
@@ -133,7 +149,7 @@ class NamespaceService:
         return {
             "name": namespace,
             "description": "",
-            "clusters": clusters,
+            "clusters": flattened_clusters,
             "egress_nameid": egress_nameid_str if egress_nameid_str else None,
             "enable_pod_based_egress_ip": False,
             "allow_all_egress": False,
@@ -201,47 +217,41 @@ class NamespaceService:
             Dictionary with copy results
 
         Raises:
-            HTTPException: If validation fails or copy fails
+            ValidationError: If validation fails
+            NotFoundError: If source not found
+            AlreadyExistsError: If destination exists
+            AppError: If copy fails
         """
         from backend.utils.yaml_utils import rewrite_namespace_in_yaml_files
         from backend.dependencies import get_requests_root
 
         # Validate namespace name
         if not re.match(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", to_namespace):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid namespace name. Must be lowercase alphanumeric with hyphens."
+            raise ValidationError(
+                "to_namespace",
+                "Invalid namespace name. Must be lowercase alphanumeric with hyphens."
             )
 
         if from_env == to_env and to_namespace == namespace:
-            raise HTTPException(
-                status_code=400,
-                detail="When copying within the same env, to_namespace must be different"
+            raise ValidationError(
+                "to_namespace",
+                "When copying within the same env, to_namespace must be different"
             )
 
         requests_root = get_requests_root()
         src_dir = requests_root / from_env / appname / namespace
 
         if not src_dir.exists() or not src_dir.is_dir():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Source namespace folder not found: {src_dir}"
-            )
+            raise NotFoundError("Namespace", f"{from_env}/{appname}/{namespace}")
 
         dst_dir = requests_root / to_env / appname / to_namespace
         if dst_dir.exists():
-            raise HTTPException(
-                status_code=409,
-                detail=f"Destination namespace already exists: {dst_dir}"
-            )
+            raise AlreadyExistsError("Namespace", f"{to_env}/{appname}/{to_namespace}")
 
         # Ensure app folder exists in destination env
         dst_app_dir = requests_root / to_env / appname
         if not dst_app_dir.exists() or not dst_app_dir.is_dir():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Destination app folder not found: {dst_app_dir}"
-            )
+            raise NotFoundError("Application", f"{to_env}/{appname}")
 
         try:
             shutil.copytree(src_dir, dst_dir)
@@ -252,10 +262,8 @@ class NamespaceService:
                     shutil.rmtree(dst_dir)
             except Exception:
                 pass
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to copy namespace: {e}"
-            )
+            logger.error("Failed to copy namespace: %s", e, exc_info=True)
+            raise AppError(f"Failed to copy namespace: {e}")
 
         try:
             rewrite_namespace_in_yaml_files(dst_dir, to_namespace)

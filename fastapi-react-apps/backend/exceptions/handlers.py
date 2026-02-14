@@ -47,7 +47,12 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
     Returns 500 Internal Server Error for unhandled application errors.
     """
-    logger.error("Application error: %s", exc.message, exc_info=True)
+    logger.error(
+        "Application error: %s - Path: %s",
+        exc.message,
+        request.url.path,
+        exc_info=True
+    )
     return JSONResponse(
         status_code=500,
         content={
@@ -63,6 +68,12 @@ async def not_found_error_handler(request: Request, exc: NotFoundError) -> JSONR
 
     Returns 404 Not Found.
     """
+    logger.warning(
+        "Resource not found: %s '%s' - Path: %s",
+        exc.resource_type,
+        exc.identifier,
+        request.url.path
+    )
     return JSONResponse(
         status_code=404,
         content={
@@ -79,6 +90,12 @@ async def already_exists_error_handler(request: Request, exc: AlreadyExistsError
 
     Returns 409 Conflict.
     """
+    logger.warning(
+        "Resource already exists: %s '%s' - Path: %s",
+        exc.resource_type,
+        exc.identifier,
+        request.url.path
+    )
     return JSONResponse(
         status_code=409,
         content={
@@ -95,6 +112,12 @@ async def validation_error_handler(request: Request, exc: ValidationError) -> JS
 
     Returns 400 Bad Request.
     """
+    logger.warning(
+        "Validation error on field '%s': %s - Path: %s",
+        exc.field,
+        exc.message,
+        request.url.path
+    )
     return JSONResponse(
         status_code=400,
         content={
@@ -110,6 +133,11 @@ async def not_initialized_error_handler(request: Request, exc: NotInitializedErr
 
     Returns 400 Bad Request.
     """
+    logger.warning(
+        "Component not initialized: %s - Path: %s",
+        exc.component,
+        request.url.path
+    )
     return JSONResponse(
         status_code=400,
         content={
@@ -125,6 +153,13 @@ async def resource_in_use_error_handler(request: Request, exc: ResourceInUseErro
 
     Returns 409 Conflict.
     """
+    logger.warning(
+        "Resource in use: %s '%s' used by %s - Path: %s",
+        exc.resource_type,
+        exc.identifier,
+        exc.used_by,
+        request.url.path
+    )
     return JSONResponse(
         status_code=409,
         content={
@@ -142,7 +177,12 @@ async def configuration_error_handler(request: Request, exc: ConfigurationError)
 
     Returns 500 Internal Server Error.
     """
-    logger.error("Configuration error: %s", exc.message)
+    logger.error(
+        "Configuration error for key '%s': %s - Path: %s",
+        exc.config_key,
+        exc.message,
+        request.url.path
+    )
     return JSONResponse(
         status_code=500,
         content={
@@ -158,7 +198,13 @@ async def external_service_error_handler(request: Request, exc: ExternalServiceE
 
     Returns 502 Bad Gateway.
     """
-    logger.error("External service error (%s): %s", exc.service, exc.message)
+    logger.error(
+        "External service error from '%s' (status=%s): %s - Path: %s",
+        exc.service,
+        exc.status_code,
+        exc.message,
+        request.url.path
+    )
     return JSONResponse(
         status_code=502,
         content={
@@ -175,6 +221,12 @@ async def ip_allocation_error_handler(request: Request, exc: IpAllocationError) 
 
     Returns 400 Bad Request.
     """
+    logger.warning(
+        "IP allocation error for cluster '%s': %s - Path: %s",
+        exc.cluster,
+        exc.message,
+        request.url.path
+    )
     return JSONResponse(
         status_code=400,
         content={
@@ -190,6 +242,11 @@ async def readonly_mode_error_handler(request: Request, exc: ReadOnlyModeError) 
 
     Returns 403 Forbidden.
     """
+    logger.warning(
+        "Read-only mode blocked operation '%s' - Path: %s",
+        exc.operation,
+        request.url.path
+    )
     return JSONResponse(
         status_code=403,
         content={

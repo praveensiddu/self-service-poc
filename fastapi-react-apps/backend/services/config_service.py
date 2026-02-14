@@ -10,7 +10,6 @@ import os
 import subprocess
 
 import yaml
-from fastapi import HTTPException
 
 from backend.dependencies import (
     get_config_path,
@@ -22,6 +21,12 @@ from backend.dependencies import (
 from backend.utils.helpers import normalize_yes_no
 from backend.utils.enforcement import EnforcementSettings
 from backend.config.logging_config import get_logger
+from backend.exceptions.custom import (
+    ValidationError,
+    NotFoundError,
+    NotInitializedError,
+    AppError,
+)
 
 logger = get_logger(__name__)
 
@@ -43,7 +48,7 @@ class ConfigService:
             Dictionary with configuration values
 
         Raises:
-            HTTPException: If configuration cannot be read
+            AppError: If configuration cannot be read
         """
         if not self.config_path.exists():
             return {
@@ -59,7 +64,8 @@ class ConfigService:
             if not isinstance(raw, dict):
                 raise ValueError("config is not a mapping")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
+            logger.error("Failed to read config from %s: %s", self.config_path, e, exc_info=True)
+            raise AppError(f"Failed to read config: {e}")
 
         return {
             "workspace": str(raw.get("workspace", "") or ""),
@@ -92,7 +98,8 @@ class ConfigService:
             Saved configuration dictionary
 
         Raises:
-            HTTPException: If validation or repository operations fail
+            ValidationError: If validation fails
+            AppError: If repository operations fail
         """
         workspace_path = Path(workspace or "").expanduser()
 
@@ -148,7 +155,8 @@ class ConfigService:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             self.config_path.write_text(yaml.safe_dump(config_data, sort_keys=False))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to write config: {e}")
+            logger.error("Failed to write config to %s: %s", self.config_path, e, exc_info=True)
+            raise AppError(f"Failed to write config: {e}")
 
         return config_data
 
@@ -159,17 +167,19 @@ class ConfigService:
             workspace_path: Path to workspace directory
 
         Raises:
-            HTTPException: If validation fails
+            ValidationError: If validation fails
         """
         if not workspace_path.exists() or not workspace_path.is_dir():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Workspace directory does not exist or is not a directory: {workspace_path}",
+            logger.error("Workspace validation failed: directory does not exist or is not a directory: %s", workspace_path)
+            raise ValidationError(
+                "workspace",
+                f"Workspace directory does not exist or is not a directory: {workspace_path}",
             )
         if not os.access(workspace_path, os.R_OK | os.W_OK | os.X_OK):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Workspace directory is not accessible (need read/write/execute): {workspace_path}",
+            logger.error("Workspace validation failed: directory is not accessible (need read/write/execute): %s", workspace_path)
+            raise ValidationError(
+                "workspace",
+                f"Workspace directory is not accessible (need read/write/execute): {workspace_path}",
             )
 
     def _validate_clone_directories(
@@ -186,22 +196,25 @@ class ConfigService:
             control_dir: Control clone directory
 
         Raises:
-            HTTPException: If validation fails
+            ValidationError: If validation fails
         """
         if requests_dir.exists() and not requests_dir.is_dir():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Expected requests clone path to be a directory: {requests_dir}",
+            logger.error("Requests clone path validation failed: expected directory but found file: %s", requests_dir)
+            raise ValidationError(
+                "requestsRepo",
+                f"Expected requests clone path to be a directory: {requests_dir}",
             )
         if templates_dir.exists() and not templates_dir.is_dir():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Expected templates clone path to be a directory: {templates_dir}",
+            logger.error("Templates clone path validation failed: expected directory but found file: %s", templates_dir)
+            raise ValidationError(
+                "templatesRepo",
+                f"Expected templates clone path to be a directory: {templates_dir}",
             )
         if control_dir.exists() and not control_dir.is_dir():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Expected control clone path to be a directory: {control_dir}",
+            logger.error("Control clone path validation failed: expected directory but found file: %s", control_dir)
+            raise ValidationError(
+                "controlRepo",
+                f"Expected control clone path to be a directory: {control_dir}",
             )
 
     def _clone_repository(
@@ -218,7 +231,7 @@ class ConfigService:
             repo_name: Repository name for error messages
 
         Raises:
-            HTTPException: If clone fails
+            AppError: If clone fails
         """
         target_dir.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -230,10 +243,8 @@ class ConfigService:
             )
         except subprocess.CalledProcessError as e:
             stderr = (e.stderr or "").strip()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to clone {repo_name} into {target_dir}: {stderr}",
-            )
+            logger.error("Failed to clone %s into %s: %s", repo_name, target_dir, stderr)
+            raise AppError(f"Failed to clone {repo_name} into {target_dir}: {stderr}")
 
     def _validate_env_info(self, requests_clone_dir: Path) -> List[str]:
         """Validate env_info.yaml and return environment keys.
@@ -245,34 +256,38 @@ class ConfigService:
             List of environment keys
 
         Raises:
-            HTTPException: If validation fails
+            ValidationError: If validation fails
         """
         env_info_path = requests_clone_dir / "apprequests" / "env_info.yaml"
         if not env_info_path.exists() or not env_info_path.is_file():
-            raise HTTPException(
-                status_code=400,
-                detail=f"env_info.yaml file not present {env_info_path}",
+            logger.error("env_info.yaml validation failed: file not present at %s", env_info_path)
+            raise ValidationError(
+                "env_info.yaml",
+                f"env_info.yaml file not present {env_info_path}",
             )
 
         try:
             env_info = yaml.safe_load(env_info_path.read_text()) or {}
-        except Exception:
-            raise HTTPException(
-                status_code=400,
-                detail="env_info.yaml file parsing failed",
+        except Exception as e:
+            logger.error("env_info.yaml parsing failed at %s: %s", env_info_path, e, exc_info=True)
+            raise ValidationError(
+                "env_info.yaml",
+                "env_info.yaml file parsing failed",
             )
 
         if not isinstance(env_info, dict):
-            raise HTTPException(
-                status_code=400,
-                detail="env_info.yaml is not a dictionary",
+            logger.error("env_info.yaml validation failed: not a dictionary, got type %s", type(env_info).__name__)
+            raise ValidationError(
+                "env_info.yaml",
+                "env_info.yaml is not a dictionary",
             )
 
         env_order = env_info.get("env_order")
         if not isinstance(env_order, list) or not env_order:
-            raise HTTPException(
-                status_code=400,
-                detail="env_order field is not present in env_info.yaml file",
+            logger.error("env_info.yaml validation failed: env_order field missing or invalid, got type %s", type(env_order).__name__ if env_order else "None")
+            raise ValidationError(
+                "env_info.yaml",
+                "env_order field is not present in env_info.yaml file",
             )
 
         env_keys: List[str] = []
@@ -284,7 +299,8 @@ class ConfigService:
                 env_keys.append(k)
 
         if not env_keys:
-            raise HTTPException(status_code=400, detail="invalid env_info.yaml file")
+            logger.error("env_info.yaml validation failed: no valid environment keys found in env_order")
+            raise ValidationError("env_info.yaml", "invalid env_info.yaml file")
 
         return env_keys
 
@@ -302,7 +318,7 @@ class ConfigService:
             env_keys: List of environment keys
 
         Raises:
-            HTTPException: If setup fails
+            ValidationError: If setup fails
         """
         cloned_repos_dir.mkdir(parents=True, exist_ok=True)
 
@@ -310,9 +326,10 @@ class ConfigService:
             rendered_env_dir = cloned_repos_dir / f"rendered_{env_key}"
 
             if rendered_env_dir.exists() and not rendered_env_dir.is_dir():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Expected rendered clone path to be a directory: {rendered_env_dir}",
+                logger.error("Rendered clone path validation failed for env %s: expected directory but found file: %s", env_key, rendered_env_dir)
+                raise ValidationError(
+                    "renderedManifestsRepo",
+                    f"Expected rendered clone path to be a directory: {rendered_env_dir}",
                 )
 
             if not rendered_env_dir.exists():
@@ -334,7 +351,7 @@ class ConfigService:
             branch: Branch name
 
         Raises:
-            HTTPException: If clone fails
+            AppError: If clone fails
         """
         try:
             subprocess.run(
@@ -353,9 +370,9 @@ class ConfigService:
             )
         except subprocess.CalledProcessError as e:
             stderr = (e.stderr or "").strip()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to clone renderedManifestsRepo branch {branch} into {target_dir}: {stderr}",
+            logger.error("Failed to clone rendered branch %s into %s: %s", branch, target_dir, stderr)
+            raise AppError(
+                f"Failed to clone renderedManifestsRepo branch {branch} into {target_dir}: {stderr}"
             )
 
     def _update_rendered_branch(self, repo_dir: Path, branch: str) -> None:
@@ -366,7 +383,7 @@ class ConfigService:
             branch: Branch name
 
         Raises:
-            HTTPException: If update fails
+            AppError: If update fails
         """
         try:
             git_dir = repo_dir / ".git"
@@ -391,9 +408,9 @@ class ConfigService:
                 )
         except subprocess.CalledProcessError as e:
             stderr = (e.stderr or "").strip()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to update renderedManifestsRepo in {repo_dir}: {stderr}",
+            logger.error("Failed to update rendered repo in %s for branch %s: %s", repo_dir, branch, stderr)
+            raise AppError(
+                f"Failed to update renderedManifestsRepo in {repo_dir}: {stderr}"
             )
 
     # ============================================
@@ -407,19 +424,23 @@ class ConfigService:
             Dictionary of environment keys
 
         Raises:
-            HTTPException: If environments cannot be loaded
+            NotInitializedError: If environments cannot be loaded
+            ValidationError: If env_info.yaml is invalid
         """
         if not self.config_path.exists():
-            raise HTTPException(status_code=400, detail="not initialized")
+            logger.error("Configuration not initialized: config file does not exist at %s", self.config_path)
+            raise NotInitializedError("configuration")
 
         try:
             raw_cfg = yaml.safe_load(self.config_path.read_text()) or {}
             if not isinstance(raw_cfg, dict):
-                raise HTTPException(status_code=400, detail="not initialized")
+                logger.error("Configuration not initialized: config is not a dictionary")
+                raise NotInitializedError("configuration")
 
             workspace = str(raw_cfg.get("workspace", "") or "").strip()
             if not workspace:
-                raise HTTPException(status_code=400, detail="not initialized")
+                logger.error("Configuration not initialized: workspace not set")
+                raise NotInitializedError("workspace")
 
             workspace_path = Path(workspace).expanduser()
             env_info_path = (
@@ -432,15 +453,18 @@ class ConfigService:
             )
 
             if not env_info_path.exists():
-                raise HTTPException(status_code=400, detail="not initialized")
+                logger.error("env_info.yaml not found at %s", env_info_path)
+                raise NotInitializedError("env_info.yaml")
 
             env_info = yaml.safe_load(env_info_path.read_text()) or {}
             if not isinstance(env_info, dict):
-                raise HTTPException(status_code=400, detail="invalid env_info.yaml file")
+                logger.error("env_info.yaml is not a dictionary")
+                raise ValidationError("env_info.yaml", "invalid env_info.yaml file")
 
             env_order = env_info.get("env_order")
             if not isinstance(env_order, list) or not env_order:
-                raise HTTPException(status_code=400, detail="invalid env_info.yaml file")
+                logger.error("env_order field missing or invalid in env_info.yaml")
+                raise ValidationError("env_info.yaml", "invalid env_info.yaml file")
 
             out = {}
             for env in env_order:
@@ -452,13 +476,15 @@ class ConfigService:
                 out[key.upper()] = ""
 
             if not out:
-                raise HTTPException(status_code=400, detail="invalid env_info.yaml file")
+                logger.error("No valid environment keys found in env_order")
+                raise ValidationError("env_info.yaml", "invalid env_info.yaml file")
 
             return out
-        except HTTPException:
+        except (ValidationError, NotInitializedError):
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to load env list: {e}")
+            logger.error("Failed to load env list: %s", e, exc_info=True)
+            raise AppError(f"Failed to load env list: {e}")
 
     # ============================================
     # Enforcement Settings Operations
@@ -488,7 +514,7 @@ class ConfigService:
             Updated EnforcementSettings
 
         Raises:
-            HTTPException: If update fails
+            AppError: If update fails
         """
         path = get_control_settings_path()
 
@@ -500,7 +526,8 @@ class ConfigService:
                 if isinstance(raw, dict):
                     base = dict(raw)
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to read settings: {e}")
+                logger.error("Failed to read enforcement settings from %s: %s", path, e, exc_info=True)
+                raise AppError(f"Failed to read settings: {e}")
 
         base["enforce_egress_firewall"] = normalize_yes_no(enforce_egress_firewall, "yes")
         base["enforce_egress_ip"] = normalize_yes_no(enforce_egress_ip, "yes")
@@ -509,7 +536,8 @@ class ConfigService:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(yaml.safe_dump(base, sort_keys=False))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to write settings: {e}")
+            logger.error("Failed to write enforcement settings to %s: %s", path, e, exc_info=True)
+            raise AppError(f"Failed to write settings: {e}")
 
         return EnforcementSettings(
             enforce_egress_firewall=normalize_yes_no(base.get("enforce_egress_firewall"), "yes"),
@@ -531,13 +559,16 @@ class ConfigService:
             List of role names
 
         Raises:
-            HTTPException: If catalog cannot be loaded
+            ValidationError: If invalid parameters
+            NotInitializedError: If catalog not initialized
+            AppError: If catalog cannot be loaded
         """
         kind_key = str(kind or "").strip()
         if kind_key not in ("Role", "ClusterRole"):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid kind; expected Role or ClusterRole",
+            logger.error("Invalid role kind specified: %s (expected Role or ClusterRole)", kind_key)
+            raise ValidationError(
+                "kind",
+                "Invalid kind; expected Role or ClusterRole",
             )
 
         templates_root = get_templates_repo_root()
@@ -546,12 +577,14 @@ class ConfigService:
         path = catalog_dir / filename
 
         if not path.exists() or not path.is_file():
-            raise HTTPException(status_code=400, detail="not initialized")
+            logger.error("Role catalog not found at %s", path)
+            raise NotInitializedError("role catalog")
 
         try:
             raw = yaml.safe_load(path.read_text())
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to read role catalog: {e}")
+            logger.error("Failed to read role catalog: %s", e, exc_info=True)
+            raise AppError(f"Failed to read role catalog: {e}")
 
         base = self._normalize_role_catalog(raw)
 
@@ -562,10 +595,8 @@ class ConfigService:
                 try:
                     env_raw = yaml.safe_load(env_path.read_text())
                 except Exception as e:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to read env role catalog: {e}",
-                    )
+                    logger.error("Failed to read env role catalog: %s", e, exc_info=True)
+                    raise AppError(f"Failed to read env role catalog: {e}")
 
                 env_items = self._normalize_role_catalog(env_raw)
                 return sorted(set([*base, *env_items]), key=lambda s: s.lower())
@@ -619,20 +650,22 @@ class ConfigService:
             Dictionary with changed apps and namespaces
 
         Raises:
-            HTTPException: If changes cannot be computed
+            NotInitializedError: If repo not initialized
+            ValidationError: If repo is not a git repository
+            AppError: If changes cannot be computed
         """
         env_key = str(env or "").strip().lower()
         repo_root = get_requests_repo_root()
 
         if not repo_root.exists() or not repo_root.is_dir():
-            raise HTTPException(status_code=400, detail="not initialized")
+            raise NotInitializedError("requests repository")
 
         try:
             git_dir = repo_root / ".git"
             if not git_dir.exists() or not git_dir.is_dir():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Requests repo is not a git repository: {repo_root}",
+                raise ValidationError(
+                    "requestsRepo",
+                    f"Requests repo is not a git repository: {repo_root}",
                 )
 
             # Try to fetch latest changes
@@ -650,13 +683,11 @@ class ConfigService:
                 "apps": sorted(apps_set),
                 "namespaces": sorted(namespaces_set),
             }
-        except HTTPException:
+        except (NotInitializedError, ValidationError):
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to compute requests repo changes: {e}",
-            )
+            logger.error("Failed to compute requests repo changes: %s", e, exc_info=True)
+            raise AppError(f"Failed to compute requests repo changes: {e}")
 
     def _run_git(self, repo_dir: Path, args: List[str]) -> subprocess.CompletedProcess:
         """Run a git command.

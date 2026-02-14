@@ -8,8 +8,9 @@ and reduces code duplication.
 
 from typing import Optional
 import os
-from fastapi import HTTPException, Request
+from fastapi import Request
 
+from backend.exceptions.custom import ValidationError
 from backend.utils.workspace import (
     get_config_path,
     get_workspace_path,
@@ -32,10 +33,10 @@ def require_env(env: Optional[str]) -> str:
         Lowercase trimmed environment string
 
     Raises:
-        HTTPException: If env is missing or empty
+        ValidationError: If env is missing or empty
     """
     if not env:
-        raise HTTPException(status_code=400, detail="Missing required query parameter: env")
+        raise ValidationError("env", "Missing required query parameter: env")
     return env.strip().lower()
 
 
@@ -48,7 +49,7 @@ def require_initialized_workspace():
         Path to requests root
 
     Raises:
-        HTTPException: If workspace is not initialized
+        NotInitializedError: If workspace is not initialized
     """
     return get_requests_root()
 

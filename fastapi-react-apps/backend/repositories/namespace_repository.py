@@ -2,11 +2,11 @@
 
 from pathlib import Path
 from typing import Dict, Any, Optional
-from fastapi import HTTPException
 import logging
 
 from backend.dependencies import get_requests_root
 from backend.utils.yaml_utils import read_yaml_dict, write_yaml_dict
+from backend.exceptions.custom import NotFoundError, AlreadyExistsError
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -27,12 +27,13 @@ class NamespaceRepository:
             Path to namespace directory
 
         Raises:
-            HTTPException: If namespace directory doesn't exist
+            NotFoundError: If namespace directory doesn't exist
         """
         requests_root = get_requests_root()
         ns_dir = requests_root / env / appname / namespace
         if not ns_dir.exists() or not ns_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"Namespace folder not found: {ns_dir}")
+            logger.warning("Namespace folder not found: %s/%s/%s", env, appname, namespace)
+            raise NotFoundError("Namespace", f"{env}/{appname}/{namespace}")
         return ns_dir
 
     @staticmethod
@@ -47,12 +48,13 @@ class NamespaceRepository:
             Path to application directory
 
         Raises:
-            HTTPException: If app directory doesn't exist
+            NotFoundError: If app directory doesn't exist
         """
         requests_root = get_requests_root()
         app_dir = requests_root / env / appname
         if not app_dir.exists() or not app_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+            logger.warning("App folder not found: %s/%s", env, appname)
+            raise NotFoundError("Application", f"{env}/{appname}")
         return app_dir
 
     @staticmethod
@@ -68,16 +70,19 @@ class NamespaceRepository:
             Path to created namespace directory
 
         Raises:
-            HTTPException: If namespace already exists or creation fails
+            NotFoundError: If app directory doesn't exist
+            AlreadyExistsError: If namespace already exists
         """
         requests_root = get_requests_root()
         app_dir = requests_root / env / appname
         if not app_dir.exists() or not app_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"App folder not found: {app_dir}")
+            logger.warning("App folder not found for namespace creation: %s/%s", env, appname)
+            raise NotFoundError("Application", f"{env}/{appname}")
 
         ns_dir = app_dir / namespace
         if ns_dir.exists():
-            raise HTTPException(status_code=409, detail=f"Namespace already exists: {namespace}")
+            logger.warning("Namespace already exists: %s/%s/%s", env, appname, namespace)
+            raise AlreadyExistsError("Namespace", f"{env}/{appname}/{namespace}")
 
         ns_dir.mkdir(parents=True, exist_ok=False)
         return ns_dir
