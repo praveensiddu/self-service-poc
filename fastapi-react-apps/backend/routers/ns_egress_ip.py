@@ -177,7 +177,42 @@ def get_namespace_info_egress(
 ):
     """Get egress information for a namespace. Requires viewer or manager role."""
     env = require_env(env)
-    return service.get_egress_info(env, appname, namespace)
+
+    base = service.get_egress_info(env, appname, namespace)
+    egress_nameid = base.get("egress_nameid")
+    if not egress_nameid:
+        return {**base, "allocated_egress_ips": []}
+
+    clusters_list: List[str] = []
+    try:
+        ns_dir = service.repo.get_namespace_dir(env, appname, namespace)
+        ns_info_path = ns_dir / "namespace_info.yaml"
+        if ns_info_path.exists() and ns_info_path.is_file():
+            parsed = yaml.safe_load(ns_info_path.read_text()) or {}
+            if isinstance(parsed, dict):
+                raw_clusters = parsed.get("clusters")
+                if isinstance(raw_clusters, list):
+                    clusters_list = [str(c).strip() for c in raw_clusters if c is not None and str(c).strip()]
+    except Exception:
+        clusters_list = []
+
+    workspace_path = get_workspace_path()
+    alloc_key = f"{str(appname or '').strip()}_{str(egress_nameid or '').strip()}"
+    allocated_egress_ips: List[str] = []
+    for cluster_no in clusters_list:
+        allocated_path = _egress_allocated_file_for_cluster(
+            workspace_path=workspace_path,
+            env=env,
+            cluster_no=cluster_no,
+        )
+        allocated_yaml = read_yaml_dict(allocated_path)
+        existing = allocated_yaml.get(alloc_key)
+        existing_list = [str(x).strip() for x in existing] if isinstance(existing, list) else []
+        existing_list = [x for x in existing_list if x]
+        ip = existing_list[0] if existing_list else ""
+        allocated_egress_ips.append(f"{cluster_no}:{ip}")
+
+    return {**base, "allocated_egress_ips": allocated_egress_ips}
 
 
 @router.get("/apps/{appname}/namespaces/{namespace}/egress_ip")

@@ -133,6 +133,7 @@ async function loadNamespaceDetails(env, appname, namespaceName) {
     name: namespaceName,
     clusters: Array.isArray(basic?.clusters) ? basic.clusters : [],
     egress_nameid: egress?.egress_nameid ?? null,
+    allocated_egress_ips: Array.isArray(egress?.allocated_egress_ips) ? egress.allocated_egress_ips : [],
     enable_pod_based_egress_ip: Boolean(egress?.enable_pod_based_egress_ip),
     allow_all_egress: Boolean(egress?.allow_all_egress),
     need_argo: Boolean(basic?.need_argo),
@@ -311,5 +312,22 @@ async function loadEgressIps(env, appname) {
   if (!appname) throw new Error("Application name is required.");
   return await fetchJson(
     `/api/v1/apps/${encodeURIComponent(appname)}/egress_ips?env=${encodeURIComponent(env)}`
+  );
+}
+
+async function removeEgressIpAllocation(env, appname, cluster, allocationId) {
+  if (!env) throw new Error("Environment is required.");
+  if (!appname) throw new Error("Application name is required.");
+  if (!cluster) throw new Error("Cluster is required.");
+  if (!allocationId) throw new Error("Allocation ID is required.");
+
+  const qs = new URLSearchParams({
+    env: String(env),
+    cluster: String(cluster),
+    allocation_id: String(allocationId),
+  });
+
+  return await deleteJson(
+    `/api/v1/apps/${encodeURIComponent(appname)}/egress_ips?${qs.toString()}`
   );
 }

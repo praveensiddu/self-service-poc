@@ -666,6 +666,39 @@ function App() {
     await openEgressIps(appname, true);
   }
 
+  const onRemoveEgressIpAllocation = React.useCallback(async (row) => {
+    try {
+      if (readonly) return;
+      if (!activeEnv) throw new Error("No env selected.");
+
+      const appname = String(egressIpsAppName || detailAppName || "").trim();
+      if (!appname) throw new Error("No app selected.");
+
+      const cluster = String(row?.cluster || "").trim();
+      const allocationId = String(row?.allocation_id || "").trim();
+      const namespaces = Array.isArray(row?.namespaces) ? row.namespaces : [];
+      if (!cluster) throw new Error("Missing cluster.");
+      if (!allocationId) throw new Error("Missing allocation_id.");
+      if (namespaces.length > 0) {
+        throw new Error("Cannot remove allocation that is still used by namespaces.");
+      }
+
+      const ips = Array.isArray(row?.allocated_ips) ? row.allocated_ips : [];
+      const ipText = String(ips?.[0] || "").trim();
+
+      const ok = window.confirm(
+        `Release allocation '${allocationId}' ip=${ipText} from cluster '${cluster}' to free pool?`,
+      );
+      if (!ok) return;
+
+      await removeEgressIpAllocation(activeEnv, appname, cluster, allocationId);
+      await loadEgressIpsData(appname);
+    } catch (e) {
+      setError(e?.message || String(e));
+      setShowErrorModal(true);
+    }
+  }, [readonly, activeEnv, egressIpsAppName, detailAppName, loadEgressIpsData, setError, setShowErrorModal]);
+
   // ============================================================================
   // CLUSTER HANDLERS
   // ============================================================================
@@ -836,6 +869,7 @@ function App() {
       l4IngressAppName={l4IngressAppName}
       egressIpItems={egressIpItems}
       egressIpsAppName={egressIpsAppName}
+      onRemoveEgressIpAllocation={onRemoveEgressIpAllocation}
       namespaceDetailsHeaderButtons={namespaceDetailsHeaderButtons}
       onSetNamespaceDetailsHeaderButtons={setNamespaceDetailsHeaderButtons}
       l4IngressAddButton={l4IngressAddButton}

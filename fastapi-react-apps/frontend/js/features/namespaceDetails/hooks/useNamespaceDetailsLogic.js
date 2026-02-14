@@ -172,6 +172,7 @@ function useNamespaceDetailsLogic({
     return {
       clusters: formatValue(effectiveNamespace?.clusters),
       egressNameId: formatValue(effectiveNamespace?.egress_nameid),
+      allocatedEgressIps: formatValue(effectiveNamespace?.allocated_egress_ips),
       podBasedEgress: effectiveNamespace?.enable_pod_based_egress_ip ? "Enabled" : "Disabled",
       managedByArgo: effectiveNamespace?.need_argo || effectiveNamespace?.generate_argo_app ? "Yes" : "No",
       resources: effectiveNamespace?.resources || {},

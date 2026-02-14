@@ -1,4 +1,4 @@
-function EgressIpTable({ items }) {
+function EgressIpTable({ items, env, appname, onRemoveAllocation, readonly }) {
   // Centralized filtering using shared hook
   const {
     sortedRows,
@@ -10,11 +10,13 @@ function EgressIpTable({ items }) {
       cluster: "",
       allocation_id: "",
       allocated_ips: "",
+      namespaces: "",
     },
     fieldMapping: (item) => ({
       cluster: safeTrim(item?.cluster),
       allocation_id: safeTrim(item?.allocation_id),
       allocated_ips: (item?.allocated_ips || []).join(", "),
+      namespaces: (item?.namespaces || []).join(", "),
     }),
   });
 
@@ -23,6 +25,10 @@ function EgressIpTable({ items }) {
       filteredItems={sortedRows}
       filters={filters}
       setFilters={setFilters}
+      env={env}
+      appname={appname}
+      onRemoveAllocation={onRemoveAllocation}
+      readonly={readonly}
     />
   );
 }

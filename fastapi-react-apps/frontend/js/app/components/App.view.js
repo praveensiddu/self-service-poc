@@ -98,6 +98,7 @@ function AppView({
   l4IngressAppName,
   egressIpItems,
   egressIpsAppName,
+  onRemoveEgressIpAllocation,
   namespaceDetailsHeaderButtons,
   onSetNamespaceDetailsHeaderButtons,
   l4IngressAddButton,
@@ -620,6 +621,10 @@ function AppView({
             ) : (
               <EgressIpTable
                 items={egressIpItems}
+                env={activeEnv}
+                appname={detailAppName}
+                onRemoveAllocation={onRemoveEgressIpAllocation}
+                readonly={readonly}
               />
             )}
           </>

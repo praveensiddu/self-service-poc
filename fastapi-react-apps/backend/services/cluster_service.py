@@ -79,7 +79,7 @@ class ClusterService:
         if not cluster:
             return []
 
-        egress_ranges = cluster.get("egress_ranges", cluster.get("egressRanges", []))
+        egress_ranges = cluster.get("egress_ip_ranges", [])
         return self._normalize_ranges(egress_ranges)
 
     def get_cluster_l4_ingress_ranges(self, env: str, cluster_no: str) -> List[Dict[str, str]]:
@@ -142,12 +142,12 @@ class ClusterService:
 
         # Parse L4 ingress IP ranges
         l4_ranges = self._parse_ip_ranges_from_item(
-            item, ["l4_ingress_ip_ranges", "l4IngressIpRanges", "l4_ingress_ipranges"]
+            item, ["l4_ingress_ip_ranges"]
         )
 
         # Parse egress IP ranges
         egress_ranges = self._parse_ip_ranges_from_item(
-            item, ["egress_ip_ranges", "egressIpRanges", "egress_ipranges"]
+            item, ["egress_ip_ranges"]
         )
 
         return {

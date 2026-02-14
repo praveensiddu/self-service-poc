@@ -62,6 +62,9 @@ function NamespaceDetailsView({
 
   // Extract display values for child components
   const { clusters, egressNameId, podBasedEgress, managedByArgo, resources, rolebindings } = displayValues;
+  const allocatedEgressIpsList = Array.isArray(effectiveNamespace?.allocated_egress_ips)
+    ? effectiveNamespace.allocated_egress_ips
+    : [];
 
   return (
     <div>
@@ -89,6 +92,7 @@ function NamespaceDetailsView({
             <NamespaceEgressConfigCard
               header={getHeaderProps("egress", isEditingEgress)}
               egressNameId={egressNameId}
+              allocatedEgressIps={allocatedEgressIpsList}
               podBasedEgress={podBasedEgress}
               draft={draftEgress}
               setDraft={setDraftEgress}
