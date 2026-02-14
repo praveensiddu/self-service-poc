@@ -12,7 +12,7 @@ function HelpIconButton({ docPath, title }) {
 
   async function onClick() {
     try {
-      const res = await fetch(doc, { headers: { Accept: 'text/html' } });
+      const res = await fetch(doc, { cache: "no-store", headers: { Accept: 'text/html' } });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`${res.status} ${res.statusText}: ${text}`);

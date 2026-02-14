@@ -1,5 +1,6 @@
 <div>
-  If EgressIP is not used, the egress traffic from the pods of this namespace will use the kubernetes node ip where the pod is running and it could be any node in the cluster. If we use an external firewall to control egress traffic all the kubernetes nodes ips must be in the allow list. If the cluster is hosting multiple tenants this would would mean giving network access to sensitive backends to unrelated applications.
-  <p><strong>Egress Name ID</strong>: Identifier used to reserve and use an egress IP for this namespace. Multiple namespaces within the same application can use the same egress IP busing the same egress name id.</p>
+  Without an EgressIP, pod egress traffic uses the IP address of the underlying Kubernetes node. Because workloads can run on any node, outbound traffic may originate from any node IP in the cluster.
+
+To enforce egress controls using an external firewall, all node IPs would need to be allow-listed. In a multi-tenant environment, this undermines tenant isolation by permitting unintended access to sensitive back-end systems required by only one tenant. <p><strong>Egress Name ID</strong>: Identifier used to reserve and use an egress IP for this namespace. Multiple namespaces within the same application can use the same egress IP by using the same egress name id.</p>
   <p><strong>Enable Pod Based Egress IP</strong>: When enabled, pods may receive an egress IP based on pod-specific rules (if supported in your environment).</p>
 </div>
