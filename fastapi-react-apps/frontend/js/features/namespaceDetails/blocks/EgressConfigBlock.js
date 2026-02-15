@@ -91,7 +91,7 @@ function NamespaceEgressConfigCard({
                 <tbody>
                   {allocatedRows.map((r) => (
                     <tr key={r.cluster}>
-                      <td style={{ paddingRight: 12 }}>CL{r.cluster}</td>
+                      <td style={{ paddingRight: 12 }}>CL {r.cluster}</td>
                       <td>{r.ip || ""}</td>
                     </tr>
                   ))}
