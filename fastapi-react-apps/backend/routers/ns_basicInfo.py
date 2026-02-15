@@ -176,24 +176,6 @@ def put_namespace_info_basic(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
 
-    # If clusters changed, reconcile egress IP allocation state for the whole app in this env.
-    new_clusters = existing.get("clusters")
-    if not isinstance(new_clusters, list):
-        new_clusters = []
-    new_clusters = [str(c).strip() for c in new_clusters if c is not None and str(c).strip()]
-
-    # if sorted(set(old_clusters), key=lambda s: s.lower()) != sorted(
-    #     set(new_clusters), key=lambda s: s.lower()
-    # ):
-    #     try:
-    #         ns_egress_service.reconcile_app_egress_ip_allocations(env=env, appname=appname)
-    #     except ValueError as e:
-    #         raise HTTPException(status_code=400, detail=str(e))
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=500,
-    #             detail=f"Failed to reconcile egress IP allocations: {e}",
-    #         )
 
     try:
         pull_requests.ensure_pull_request(appname=appname, env=env)

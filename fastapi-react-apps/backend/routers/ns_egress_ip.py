@@ -75,16 +75,6 @@ def put_namespace_info_egress(
                 detail=f"Failed to persist egress IP allocation: {e}",
             )
 
-    # if remove_egress_nameid:
-    #     try:
-    #         ns_egress_service.reconcile_app_egress_ip_allocations(env=env, appname=appname)
-    #     except ValueError as e:
-    #         raise HTTPException(status_code=400, detail=str(e))
-    #     except Exception as e:
-    #         raise HTTPException(
-    #             status_code=500,
-    #             detail=f"Failed to reconcile egress IP allocations: {e}",
-    #         )
 
     try:
         pull_requests.ensure_pull_request(appname=appname, env=env)
