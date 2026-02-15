@@ -1,18 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Any, Dict, List, Optional, Set
+from typing import Optional
 
-import ipaddress
 import logging
-from pathlib import Path
-import yaml
 
-from backend.dependencies import require_env, get_workspace_path
+from backend.dependencies import require_env
 from backend.routers import pull_requests
 from backend.models import NamespaceInfoEgressRequest
 from backend.services.namespace_details_service import NamespaceDetailsService
-from backend.utils.yaml_utils import read_yaml_dict
-from backend.services.cluster_service import ClusterService
-from backend.repositories.cluster_repository import ClusterRepository
+from backend.services.ns_egress_ip_service import NsEgressIpService
 from backend.auth.rbac import require_rbac
 
 router = APIRouter(tags=["egress"])
@@ -20,8 +15,7 @@ router = APIRouter(tags=["egress"])
 logger = logging.getLogger("uvicorn.error")
 
 # Initialize services
-cluster_service = ClusterService()
-cluster_repo = ClusterRepository()
+ns_egress_ip_service = NsEgressIpService()
 
 
 def get_namespace_details_service() -> NamespaceDetailsService:
@@ -29,54 +23,8 @@ def get_namespace_details_service() -> NamespaceDetailsService:
     return NamespaceDetailsService()
 
 
-def _egress_allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: str) -> Path:
-    """Get path to egress allocated file for a cluster."""
-    return (
-        workspace_path
-        / "kselfserv"
-        / "cloned-repositories"
-        / f"rendered_{str(env or '').strip().lower()}"
-        / "ip_provisioning"
-        / str(cluster_no).strip()
-        / "egressip-allocated.yaml"
-    )
-
-
-def _collect_allocated_ips(allocated_yaml: Dict[str, Any]) -> Set[int]:
-    """Collect all allocated IPs from the allocation YAML."""
-    out: Set[int] = set()
-    if not isinstance(allocated_yaml, dict):
-        return out
-    for v in allocated_yaml.values():
-        if not isinstance(v, list):
-            continue
-        for ip_s in v:
-            try:
-                out.add(int(ipaddress.ip_address(str(ip_s).strip())))
-            except Exception:
-                continue
-    return out
-
-
-def _allocate_first_free_ip(*, ranges: List[Dict[str, str]], allocated: Set[int]) -> str:
-    """Allocate the first free IP from the given ranges."""
-    for r in ranges:
-        try:
-            lo = int(ipaddress.ip_address(str(r.get("start_ip") or "").strip()))
-            hi = int(ipaddress.ip_address(str(r.get("end_ip") or "").strip()))
-        except Exception:
-            continue
-        if hi < lo:
-            lo, hi = hi, lo
-
-        for ip_i in range(lo, hi + 1):
-            if ip_i in allocated:
-                continue
-            try:
-                return str(ipaddress.ip_address(ip_i))
-            except Exception:
-                continue
-    return ""
+def get_ns_egress_ip_service() -> NsEgressIpService:
+    return ns_egress_ip_service
 
 
 @router.put("/apps/{appname}/namespaces/{namespace}/namespace_info/egress")
@@ -86,6 +34,7 @@ def put_namespace_info_egress(
     payload: NamespaceInfoEgressRequest,
     env: Optional[str] = None,
     service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    ns_egress_service: NsEgressIpService = Depends(get_ns_egress_ip_service),
     _: None = Depends(require_rbac(
         obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
         act="POST",
@@ -96,11 +45,13 @@ def put_namespace_info_egress(
     env = require_env(env)
 
     ni = payload.namespace_info
+    remove_egress_nameid = ni.egress_nameid is None
     result = service.update_egress_info(
         env,
         appname,
         namespace,
-        egress_nameid=ni.egress_nameid,
+        egress_nameid=None if remove_egress_nameid else ni.egress_nameid,
+        remove_egress_nameid=remove_egress_nameid,
         enable_pod_based_egress_ip=ni.enable_pod_based_egress_ip,
     )
 
@@ -108,49 +59,32 @@ def put_namespace_info_egress(
     egress_nameid = result.get("egress_nameid")
     if egress_nameid:
         clusters_list = result.get("clusters", [])
-        clusters_list = [str(c).strip() for c in clusters_list if c is not None and str(c).strip()]
 
-        workspace_path = get_workspace_path()
-        alloc_key = f"{str(appname or '').strip()}_{str(egress_nameid or '').strip()}"
-
-        for cluster_no in clusters_list:
-            allocated_path = _egress_allocated_file_for_cluster(
-                workspace_path=workspace_path,
+        try:
+            ns_egress_service.ensure_egress_ip_allocations(
                 env=env,
-                cluster_no=cluster_no
+                appname=appname,
+                egress_nameid=str(egress_nameid),
+                clusters_list=clusters_list,
             )
-            allocated_yaml = read_yaml_dict(allocated_path)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to persist egress IP allocation: {e}",
+            )
 
-            existing_ips_for_key = allocated_yaml.get(alloc_key)
-            existing_ip_list = [str(x).strip() for x in existing_ips_for_key] if isinstance(existing_ips_for_key, list) else []
-            existing_ip_list = [x for x in existing_ip_list if x]
-            if existing_ip_list:
-                continue
-
-            ranges = cluster_service.get_cluster_egress_ranges(env, cluster_no)
-            if not ranges:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"No egress_ip_ranges configured for cluster {cluster_no}"
-                )
-
-            allocated_all = _collect_allocated_ips(allocated_yaml)
-            new_ip = _allocate_first_free_ip(ranges=ranges, allocated=allocated_all)
-            if not new_ip:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"No free egress IPs remaining for cluster {cluster_no}"
-                )
-
-            allocated_yaml[alloc_key] = [new_ip]
-            try:
-                allocated_path.parent.mkdir(parents=True, exist_ok=True)
-                allocated_path.write_text(yaml.safe_dump(allocated_yaml, sort_keys=False))
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to persist egress IP allocation for cluster {cluster_no}: {e}"
-                )
+    # if remove_egress_nameid:
+    #     try:
+    #         ns_egress_service.reconcile_app_egress_ip_allocations(env=env, appname=appname)
+    #     except ValueError as e:
+    #         raise HTTPException(status_code=400, detail=str(e))
+    #     except Exception as e:
+    #         raise HTTPException(
+    #             status_code=500,
+    #             detail=f"Failed to reconcile egress IP allocations: {e}",
+    #         )
 
     try:
         pull_requests.ensure_pull_request(appname=appname, env=env)
@@ -169,6 +103,7 @@ def get_namespace_info_egress(
     namespace: str,
     env: Optional[str] = None,
     service: NamespaceDetailsService = Depends(get_namespace_details_service),
+    ns_egress_service: NsEgressIpService = Depends(get_ns_egress_ip_service),
     _: None = Depends(require_rbac(
         obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
         act="GET",
@@ -183,34 +118,13 @@ def get_namespace_info_egress(
     if not egress_nameid:
         return {**base, "allocated_egress_ips": []}
 
-    clusters_list: List[str] = []
-    try:
-        ns_dir = service.repo.get_namespace_dir(env, appname, namespace)
-        ns_info_path = ns_dir / "namespace_info.yaml"
-        if ns_info_path.exists() and ns_info_path.is_file():
-            parsed = yaml.safe_load(ns_info_path.read_text()) or {}
-            if isinstance(parsed, dict):
-                raw_clusters = parsed.get("clusters")
-                if isinstance(raw_clusters, list):
-                    clusters_list = [str(c).strip() for c in raw_clusters if c is not None and str(c).strip()]
-    except Exception:
-        clusters_list = []
-
-    workspace_path = get_workspace_path()
-    alloc_key = f"{str(appname or '').strip()}_{str(egress_nameid or '').strip()}"
-    allocated_egress_ips: List[str] = []
-    for cluster_no in clusters_list:
-        allocated_path = _egress_allocated_file_for_cluster(
-            workspace_path=workspace_path,
-            env=env,
-            cluster_no=cluster_no,
-        )
-        allocated_yaml = read_yaml_dict(allocated_path)
-        existing = allocated_yaml.get(alloc_key)
-        existing_list = [str(x).strip() for x in existing] if isinstance(existing, list) else []
-        existing_list = [x for x in existing_list if x]
-        ip = existing_list[0] if existing_list else ""
-        allocated_egress_ips.append(f"{cluster_no}:{ip}")
+    allocated_egress_ips = ns_egress_service.get_allocated_egress_ips_for_namespace(
+        env=env,
+        appname=appname,
+        namespace=namespace,
+        egress_nameid=str(egress_nameid),
+        namespace_details_service=service,
+    )
 
     return {**base, "allocated_egress_ips": allocated_egress_ips}
 

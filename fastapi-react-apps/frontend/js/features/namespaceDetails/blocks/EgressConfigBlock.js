@@ -15,11 +15,21 @@ function NamespaceEgressConfigCard({
   const draftEnablePodBasedEgressIp = Boolean(draft?.enablePodBasedEgressIp);
   const allocatedRows = Array.isArray(allocatedEgressIps)
     ? allocatedEgressIps
-        .map((s) => String(s || ""))
-        .map((s) => {
-          const idx = s.indexOf(":");
-          if (idx < 0) return { cluster: s.trim(), ip: "" };
-          return { cluster: s.slice(0, idx).trim(), ip: s.slice(idx + 1).trim() };
+        .flatMap((item) => {
+          if (typeof item === "string") {
+            const s = String(item || "");
+            const idx = s.indexOf(":");
+            if (idx < 0) return [{ cluster: s.trim(), ip: "" }];
+            return [{ cluster: s.slice(0, idx).trim(), ip: s.slice(idx + 1).trim() }];
+          }
+          if (item && typeof item === "object") {
+            const entries = Object.entries(item);
+            return entries.map(([cluster, ip]) => ({
+              cluster: String(cluster || "").trim(),
+              ip: String(ip || "").trim(),
+            }));
+          }
+          return [];
         })
         .filter((r) => Boolean(r.cluster))
     : [];

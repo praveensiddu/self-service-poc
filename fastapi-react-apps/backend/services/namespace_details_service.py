@@ -1102,6 +1102,7 @@ class NamespaceDetailsService:
         appname: str,
         namespace: str,
         egress_nameid: Optional[str] = None,
+        remove_egress_nameid: bool = False,
         enable_pod_based_egress_ip: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Update egress information for a namespace.
@@ -1129,7 +1130,9 @@ class NamespaceDetailsService:
                 if isinstance(parsed, dict):
                     existing = parsed
 
-            if egress_nameid is not None:
+            if remove_egress_nameid:
+                existing.pop("egress_nameid", None)
+            elif egress_nameid is not None:
                 existing["egress_nameid"] = str(egress_nameid)
             if enable_pod_based_egress_ip is not None:
                 existing["enable_pod_based_egress_ip"] = bool(enable_pod_based_egress_ip)

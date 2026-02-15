@@ -12,7 +12,7 @@ from backend.repositories.namespace_repository import NamespaceRepository
 from backend.utils.helpers import parse_bool
 from backend.utils.yaml_utils import read_yaml_dict
 from backend.auth.rbac import require_rbac
-from backend.auth.rbac import require_rbac
+from backend.services.ns_egress_ip_service import NsEgressIpService
 
 router = APIRouter(tags=["ns_basic"])
 
@@ -23,6 +23,12 @@ def get_namespace_repository() -> NamespaceRepository:
     """Dependency injection for NamespaceRepository."""
     return NamespaceRepository()
 
+
+ns_egress_ip_service = NsEgressIpService()
+
+
+def get_ns_egress_ip_service() -> NsEgressIpService:
+    return ns_egress_ip_service
 
 
 def _nsargocd_summary(
@@ -79,6 +85,7 @@ def put_namespace_info_basic(
     payload: NamespaceInfoBasicUpdate,
     env: Optional[str] = None,
     repo: NamespaceRepository = Depends(get_namespace_repository),
+    ns_egress_service: NsEgressIpService = Depends(get_ns_egress_ip_service),
     _: None = Depends(require_rbac(
         obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
         act="POST",
@@ -114,6 +121,11 @@ def put_namespace_info_basic(
             if isinstance(parsed, dict):
                 existing = parsed
 
+        old_clusters = existing.get("clusters")
+        if not isinstance(old_clusters, list):
+            old_clusters = []
+        old_clusters = [str(c).strip() for c in old_clusters if c is not None and str(c).strip()]
+
         ni = payload.namespace_info
         if ni.clusters is not None:
             # Flatten any nested lists and convert to strings
@@ -133,6 +145,25 @@ def put_namespace_info_basic(
         ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
+
+    # If clusters changed, reconcile egress IP allocation state for the whole app in this env.
+    new_clusters = existing.get("clusters")
+    if not isinstance(new_clusters, list):
+        new_clusters = []
+    new_clusters = [str(c).strip() for c in new_clusters if c is not None and str(c).strip()]
+
+    # if sorted(set(old_clusters), key=lambda s: s.lower()) != sorted(
+    #     set(new_clusters), key=lambda s: s.lower()
+    # ):
+    #     try:
+    #         ns_egress_service.reconcile_app_egress_ip_allocations(env=env, appname=appname)
+    #     except ValueError as e:
+    #         raise HTTPException(status_code=400, detail=str(e))
+    #     except Exception as e:
+    #         raise HTTPException(
+    #             status_code=500,
+    #             detail=f"Failed to reconcile egress IP allocations: {e}",
+    #         )
 
     try:
         pull_requests.ensure_pull_request(appname=appname, env=env)
