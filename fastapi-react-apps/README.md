@@ -1,6 +1,5 @@
-# FastAPI + React Application Manager
 
-## Backend
+## How to start the application
 
 ```bash
 cd backend
