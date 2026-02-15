@@ -177,7 +177,18 @@ def delete_egress_ip_allocation(
         except Exception:
             ns_info = {}
         raw_egress_nameid = ns_info.get("egress_nameid")
-        if str(raw_egress_nameid or "").strip() == egress_nameid:
+        ns_egress_nameid = str(raw_egress_nameid or "").strip()
+        if not ns_egress_nameid:
+            continue
+
+        raw_clusters = ns_info.get("clusters")
+        ns_clusters = [str(c).strip() for c in raw_clusters] if isinstance(raw_clusters, list) else []
+        ns_clusters = [c for c in ns_clusters if c]
+
+        uses_cluster = any(
+            str(c or "").strip().lower() == target_cluster.lower() for c in ns_clusters
+        )
+        if ns_egress_nameid == egress_nameid and uses_cluster:
             used_by.append(ns_name)
 
     if used_by:
