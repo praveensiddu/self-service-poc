@@ -1,6 +1,32 @@
 <div>
   Without an EgressIP, pod egress traffic uses the IP address of the underlying Kubernetes node. Because workloads can run on any node, outbound traffic may originate from any node IP in the cluster.
-
 To enforce egress controls using an external firewall, all node IPs would need to be allow-listed. In a multi-tenant environment, this undermines tenant isolation by permitting unintended access to sensitive back-end systems required by only one tenant. <p><strong>Egress Name ID</strong>: Identifier used to reserve and use an egress IP for this namespace. Multiple namespaces within the same application can use the same egress IP by using the same egress name id.</p>
-  <p><strong>Enable Pod Based Egress IP</strong>: When enabled, pods may receive an egress IP based on pod-specific rules (if supported in your environment).</p>
+  
+  <p><strong>How it works?</strong></p>
+  <p>
+    A cluster scoped object EgressIP with a namespaceSelector matching a label "&lt;app&gt;_&lt;egress_nameid&gt;" is created in the cluster.
+    The same label will be applied to this namespace. This makes Kubernetes OVN route all the outgoing traffic from the pods in this namespace through a node hosting this egress IP and applies source natting.
+  </p>
+  <pre>
+apiVersion: k8s.ovn.org/v1
+kind: EgressIP
+metadata:
+  name: egressips-&lt;app&gt;_&lt;egress_nameid&gt;
+spec:
+  egressIPs: [1.1.1.1]
+  namespaceSelector:
+    matchLabels:
+      egress_nameid: &lt;app&gt;_&lt;egress_nameid&gt;
+  </pre>
+  <p>
+    For more details refer to
+    <a href="https://ovn-kubernetes.io/features/cluster-egress-controls/egress-ip/#example" target="_blank" rel="noreferrer">https://ovn-kubernetes.io/features/cluster-egress-controls/egress-ip/#example</a>
+  </p>
+
+<p><strong>Enable Pod Based Egress IP</strong>: When enabled EgressIP object will be created with podSelector instead of namespaceSelector. Label your pods as shown below to route outgoing traffic from specific pods instead of all pods in the namesapce.
+  <pre>
+labels:
+  egress_nameid: &lt;app&gt;_&lt;egress_nameid&gt;
+  </pre>
+  </p>
 </div>
