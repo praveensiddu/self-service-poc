@@ -110,6 +110,82 @@ def get_clusters(
     }
 
 
+@router.get("/clusters/datacenters")
+def get_datacenters(
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj="/clusters", act="GET")),
+):
+    """Get datacenter choices for a given environment.
+
+    Reads from: workspace/kselfserv/cloned-repositories/control/datacenters/<env>_datacenters.yaml
+    """
+    env_key = require_env(env)
+
+    from backend.dependencies import get_workspace_path
+    from backend.utils.yaml_utils import read_yaml_dict, read_yaml_list
+
+    workspace_path = get_workspace_path()
+    path = (
+        workspace_path
+        / "kselfserv"
+        / "cloned-repositories"
+        / "control"
+        / "datacenters"
+        / f"{env_key}_datacenters.yaml"
+    )
+
+    items: List[Dict[str, str]] = []
+
+    raw_list = read_yaml_list(path)
+    if isinstance(raw_list, list) and raw_list:
+        for it in raw_list:
+            if isinstance(it, dict):
+                loc = str(it.get("location") or it.get("name") or "").strip()
+                if not loc:
+                    continue
+                desc = str(it.get("description") or "").strip()
+                items.append({"location": loc, "description": desc})
+            else:
+                loc = str(it or "").strip()
+                if not loc:
+                    continue
+                items.append({"location": loc, "description": ""})
+    else:
+        raw_dict = read_yaml_dict(path)
+        if isinstance(raw_dict, dict) and raw_dict:
+            if isinstance(raw_dict.get("datacenters"), list):
+                for it in raw_dict.get("datacenters"):
+                    loc = str(it or "").strip()
+                    if not loc:
+                        continue
+                    items.append({"location": loc, "description": ""})
+            else:
+                for k, v in raw_dict.items():
+                    loc = str(k or "").strip()
+                    if not loc:
+                        continue
+                    desc = ""
+                    if isinstance(v, dict):
+                        desc = str(v.get("description") or "").strip()
+                    elif v is not None:
+                        desc = str(v).strip()
+                    items.append({"location": loc, "description": desc})
+
+    merged: Dict[str, Dict[str, str]] = {}
+    for it in items:
+        loc = str(it.get("location") or "").strip()
+        if not loc:
+            continue
+        if loc not in merged:
+            merged[loc] = {"location": loc, "description": str(it.get("description") or "").strip()}
+        else:
+            if not merged[loc].get("description") and str(it.get("description") or "").strip():
+                merged[loc]["description"] = str(it.get("description") or "").strip()
+
+    out_items = sorted(merged.values(), key=lambda d: str(d.get("location") or "").lower())
+    return {"env": env_key.upper(), "datacenters": out_items}
+
+
 @router.post("/clusters", response_model=ClusterCreateResponse)
 def add_cluster(
     payload: ClusterUpsert,

@@ -19,12 +19,17 @@ function ClusterFormModal({
   initialData = {},
   loading = false,
 }) {
+  const env = String(envKey || "").trim().toLowerCase();
+
   const [draft, setDraft] = React.useState({
     clustername: "",
     purpose: "",
     datacenter: "",
     applications: "",
   });
+
+  const [datacenters, setDatacenters] = React.useState([]);
+  const [datacentersError, setDatacentersError] = React.useState("");
 
   const [draftRanges, setDraftRanges] = React.useState([{ startIp: "", endIp: "", error: "" }]);
   const [draftEgressRanges, setDraftEgressRanges] = React.useState([{ startIp: "", endIp: "", error: "" }]);
@@ -69,6 +74,54 @@ function ClusterFormModal({
     }
   }, [show, mode, initialData?.clustername]); // Only depend on specific properties to avoid infinite loops
 
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!show) return;
+      if (!env) return;
+
+      setDatacentersError("");
+      try {
+        const resp = await loadDatacenters(env);
+        const items = Array.isArray(resp?.datacenters) ? resp.datacenters : [];
+        const normalized = items.map((x) => {
+          if (x && typeof x === "object") {
+            return {
+              location: String(x.location || x.name || "").trim().toLowerCase(),
+              description: String(x.description || "").trim(),
+            };
+          }
+          return {
+            location: String(x || "").trim().toLowerCase(),
+            description: "",
+          };
+        }).filter((x) => Boolean(x.location));
+        if (cancelled) return;
+
+        const merged = new Map();
+        normalized.forEach((it) => {
+          const key = it.location;
+          const prev = merged.get(key);
+          if (!prev) {
+            merged.set(key, it);
+          } else if (!prev.description && it.description) {
+            merged.set(key, { ...prev, description: it.description });
+          }
+        });
+
+        setDatacenters(Array.from(merged.values()));
+      } catch (e) {
+        if (cancelled) return;
+        setDatacenters([]);
+        setDatacentersError(e?.message || String(e));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [show, env]);
+
   // Reset form when modal is closed
   React.useEffect(() => {
     if (!show) {
@@ -76,6 +129,8 @@ function ClusterFormModal({
       setDraft({ clustername: "", purpose: "", datacenter: "", applications: "" });
       setDraftRanges([{ startIp: "", endIp: "", error: "" }]);
       setDraftEgressRanges([{ startIp: "", endIp: "", error: "" }]);
+      setDatacenters([]);
+      setDatacentersError("");
     }
   }, [show]);
 
@@ -194,18 +249,41 @@ function ClusterFormModal({
               <div className="muted">Datacenter <span style={{ color: "#dc3545" }}>*</span></div>
               <div className="muted" style={{ fontSize: 12 }}>Physical/region location</div>
             </div>
-            <input
-              className="filterInput"
-              value={draft.datacenter}
-              onChange={(e) => setDraft((p) => ({ ...p, datacenter: String(e.target.value || "").toLowerCase() }))}
-              data-testid="input-datacenter"
-            />
+            {datacentersError ? (
+              <div className="error" style={{ marginBottom: 6 }}>{datacentersError}</div>
+            ) : null}
+            {Array.isArray(datacenters) && datacenters.length > 0 ? (
+              <select
+                className="filterInput"
+                value={draft.datacenter}
+                onChange={(e) => setDraft((p) => ({ ...p, datacenter: String(e.target.value || "").toLowerCase() }))}
+                data-testid="input-datacenter"
+              >
+                <option value="">Select...</option>
+                {datacenters.map((dc) => {
+                  const loc = String(dc?.location || dc?.name || dc || "").trim().toLowerCase();
+                  if (!loc) return null;
+                  const desc = String(dc?.description || "").trim();
+                  const label = desc ? `${loc} - ${desc}` : loc;
+                  return (
+                    <option key={loc} value={loc}>{label}</option>
+                  );
+                })}
+              </select>
+            ) : (
+              <input
+                className="filterInput"
+                value={draft.datacenter}
+                onChange={(e) => setDraft((p) => ({ ...p, datacenter: String(e.target.value || "").toLowerCase() }))}
+                data-testid="input-datacenter"
+              />
+            )}
           </div>
 
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <div className="muted">Applications <span style={{ color: "#dc3545" }}>*</span></div>
-              <div className="muted" style={{ fontSize: 12 }}>Comma-separated app names</div>
+              <div className="muted" style={{ fontSize: 12 }}>Comma-separated app names. List all apps to be hosted on this cluster</div>
             </div>
             <input
               className="filterInput"

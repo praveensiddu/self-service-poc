@@ -24,6 +24,13 @@ async function loadClusters(env) {
   return response || { clusters: {}, permissions: { canView: true, canManage: true } };
 }
 
+async function loadDatacenters(env) {
+  if (!env) throw new Error("Environment is required.");
+  return await fetchJson(
+    `/api/v1/clusters/datacenters?env=${encodeURIComponent(env)}`
+  );
+}
+
 /**
  * Create a new cluster.
  * @param {string} env - Environment name
