@@ -259,11 +259,8 @@ Access at: `http://localhost:8000`
 All JavaScript files are loaded via `<script>` tags in `index.html`:
 ```html
 <!-- Core React -->
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-
 <!-- Babel for JSX -->
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
 
 <!-- Application code -->
 <script type="text/babel" src="/static/js/app/App.container.js"></script>
