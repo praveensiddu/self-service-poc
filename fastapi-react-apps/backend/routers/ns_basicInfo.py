@@ -142,6 +142,36 @@ def put_namespace_info_basic(
         if ni.egress_nameid is not None:
             existing["egress_nameid"] = str(ni.egress_nameid)
 
+        # If clusters are being added for a namespace using egress_nameid, ensure
+        # allocation exists (or can be created) in each newly added cluster before
+        # persisting namespace_info.yaml.
+        next_egress_nameid = str(existing.get("egress_nameid") or "").strip()
+        next_clusters = existing.get("clusters")
+        if not isinstance(next_clusters, list):
+            next_clusters = []
+        next_clusters = [str(c).strip() for c in next_clusters if c is not None and str(c).strip()]
+
+        added_clusters = sorted(
+            set(next_clusters) - set(old_clusters),
+            key=lambda s: s.lower(),
+        )
+        if next_egress_nameid and added_clusters:
+            try:
+                ns_egress_service.validate_egress_ip_allocations(
+                    env=env,
+                    appname=appname,
+                    egress_nameid=next_egress_nameid,
+                    clusters_list=added_clusters,
+                )
+                ns_egress_service.ensure_egress_ip_allocations(
+                    env=env,
+                    appname=appname,
+                    egress_nameid=next_egress_nameid,
+                    clusters_list=added_clusters,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
         ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")

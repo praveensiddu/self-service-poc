@@ -114,6 +114,56 @@ class NsEgressIpService:
             allocated_path.parent.mkdir(parents=True, exist_ok=True)
             allocated_path.write_text(yaml.safe_dump(allocated_yaml, sort_keys=False))
 
+    def validate_egress_ip_allocations(
+        self,
+        *,
+        env: str,
+        appname: str,
+        egress_nameid: str,
+        clusters_list: List[str],
+    ) -> None:
+        """Validate that the specified clusters either already have an allocation for this
+        app+egress_nameid, or have at least one free IP available in the cluster ranges.
+
+        Does not persist any changes.
+        """
+
+        workspace_path = get_workspace_path()
+        alloc_key = f"{str(appname or '').strip()}_{str(egress_nameid or '').strip()}"
+
+        clusters_list = [
+            str(c).strip() for c in clusters_list if c is not None and str(c).strip()
+        ]
+
+        for cluster_no in clusters_list:
+            allocated_path = self._egress_allocated_file_for_cluster(
+                workspace_path=workspace_path,
+                env=env,
+                cluster_no=cluster_no,
+            )
+            allocated_yaml = read_yaml_dict(allocated_path)
+
+            existing_ips_for_key = allocated_yaml.get(alloc_key)
+            existing_ip_list = (
+                [str(x).strip() for x in existing_ips_for_key]
+                if isinstance(existing_ips_for_key, list)
+                else []
+            )
+            existing_ip_list = [x for x in existing_ip_list if x]
+            if existing_ip_list:
+                continue
+
+            ranges = self.cluster_service.get_cluster_egress_ranges(env, cluster_no)
+            if not ranges:
+                raise ValueError(
+                    f"No egress_ip_ranges configured for cluster {cluster_no}"
+                )
+
+            allocated_all = self._collect_allocated_ips(allocated_yaml)
+            new_ip = self._allocate_first_free_ip(ranges=ranges, allocated=allocated_all)
+            if not new_ip:
+                raise ValueError(f"No free egress IPs remaining for cluster {cluster_no}")
+
     def reconcile_app_egress_ip_allocations(self, *, env: str, appname: str) -> None:
         env_key = str(env or "").strip().lower()
         app_key = str(appname or "").strip()
