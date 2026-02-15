@@ -213,6 +213,12 @@ run_backend_tests() {
     pytest tests/e2e/ -v --tb=short
 
     BACKEND_EXIT=$?
+
+    # Cleanup test data (e2e-test-app) after tests
+    echo ""
+    echo "Cleaning up test data..."
+    python tests/cleanup_test_data.py 2>/dev/null || true
+
     deactivate
     cd ..
 

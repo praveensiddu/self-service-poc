@@ -1,4 +1,8 @@
-pytest
-pytest-asyncio
-httpx
-pytest-cov
+# Test dependencies for E2E and unit tests
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
+pytest-cov>=4.0.0
+pytest-timeout>=2.0.0
+# For unit tests that use Casbin directly
+casbin>=1.0.0
