@@ -24,3 +24,7 @@ class AccessRequest(BaseModel):
     requested_at: str
     type: AccessReqType
     payload: Dict[str, str]
+
+    status: str | None = None
+    granted_at: str | None = None
+    granted_by: str | None = None

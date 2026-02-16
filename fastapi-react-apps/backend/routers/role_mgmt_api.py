@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from pydantic import BaseModel
+import yaml
 
 from backend.auth.role_mgmt_impl import RoleMgmtImpl
 from backend.dependencies import get_current_user
@@ -98,8 +101,13 @@ def create_rolemgmt_router(
 
     @router.get("/role-management/app")
     def list_applicationservice_roles() -> dict[str, Any]:
-        rows = rolemgmtimpl.get_grp2apps2roles()
-        return {"rows": rows}
+        group_rows = rolemgmtimpl.get_grp2apps2roles()
+        user_rows = rolemgmtimpl.get_user2apps2roles()
+        return {
+            "rows": group_rows,
+            "group_rows": group_rows,
+            "user_rows": user_rows,
+        }
 
 
     @router.post("/role-management/app/assign")
@@ -114,12 +122,63 @@ def create_rolemgmt_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"status": "error", "message": "Exactly one of userid or group is required"},
             )
-        return execute_role_operation(
+        result = execute_role_operation(
             (lambda: rolemgmtimpl.add_user2apps2roles(grantor, userid, payload.app, payload.role))
             if userid
             else (lambda: rolemgmtimpl.add_grp2apps2roles(grantor, group, payload.app, payload.role)),
             "assigned"
         )
+        try:
+            store_path = (Path.home() / "workspace" / "kselfserv" / "temp" / "accessrequests.yaml")
+            raw = None
+            if store_path.exists() and store_path.is_file():
+                loaded = yaml.safe_load(store_path.read_text())
+                if isinstance(loaded, dict):
+                    raw = loaded
+            if isinstance(raw, dict):
+                matches: list[tuple[str, dict[str, object]]] = []
+                for k, v in raw.items():
+                    if not isinstance(k, str) or not isinstance(v, dict):
+                        continue
+                    if str(v.get("type") or "").strip() != "app_access":
+                        continue
+                    p = v.get("payload")
+                    if not isinstance(p, dict):
+                        continue
+                    if str(p.get("application") or "").strip() != str(payload.app or "").strip():
+                        continue
+                    if userid and str(p.get("userid") or "").strip() != userid:
+                        continue
+                    if group and str(p.get("group") or "").strip() != group:
+                        continue
+                    matches.append((k, v))
+
+                if matches:
+                    def _requested_at(key: str) -> str:
+                        return str(key.split(":", 1)[0] if ":" in key else "")
+
+                    matches.sort(key=lambda kv: _requested_at(kv[0]), reverse=True)
+                    k, v = matches[0]
+                    v = dict(v)
+                    p = dict(v.get("payload") or {})
+                    p["application"] = str(payload.app or "").strip()
+                    p["role"] = str(payload.role or "").strip()
+                    if userid:
+                        p["userid"] = userid
+                        p.pop("group", None)
+                    else:
+                        p["group"] = group
+                        p.pop("userid", None)
+                    v["payload"] = p
+                    v["status"] = "granted"
+                    v["granted_by"] = str(grantor or "").strip() or "unknown"
+                    v["granted_at"] = datetime.now().astimezone().isoformat()
+                    raw[k] = v
+                    store_path.write_text(yaml.safe_dump(raw, sort_keys=False))
+        except Exception:
+            pass
+
+        return result
 
 
     @router.post("/role-management/app/unassign")
@@ -188,6 +247,71 @@ def create_rolemgmt_router(
     def list_userglobal_roles() -> dict[str, Any]:
         rows = rolemgmtimpl.get_users2globalroles()
         return {"rows": rows}
+
+
+    @router.get("/role-management/user/roles")
+    def lookup_user_roles(
+        userid: str,
+        user_context: dict[str, Any] = Depends(get_current_user_context),
+    ) -> dict[str, Any]:
+        enforce(user_context, "/role-management/user/roles", "GET", {})
+
+        user_id = str(userid or "").strip()
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"status": "error", "message": "userid is required"},
+            )
+
+        groups = rolemgmtimpl.get_user_groups(user_id)
+
+        user_global_map = rolemgmtimpl.get_users2globalroles()
+        group_global_map = rolemgmtimpl.get_grps2globalroles()
+        user_app_map = rolemgmtimpl.get_user2apps2roles()
+        group_app_map = rolemgmtimpl.get_grp2apps2roles()
+
+        user_global_roles = user_global_map.get(user_id) if isinstance(user_global_map, dict) else None
+        if not isinstance(user_global_roles, list):
+            user_global_roles = []
+
+        group_global_roles: dict[str, list[str]] = {}
+        if isinstance(group_global_map, dict):
+            for g in groups:
+                roles = group_global_map.get(g)
+                if isinstance(roles, list):
+                    group_global_roles[g] = [str(r).strip() for r in roles if str(r).strip()]
+
+        user_app_roles = user_app_map.get(user_id) if isinstance(user_app_map, dict) else None
+        if not isinstance(user_app_roles, dict):
+            user_app_roles = {}
+
+        group_app_roles: dict[str, dict[str, list[str]]] = {}
+        if isinstance(group_app_map, dict):
+            for g in groups:
+                amap = group_app_map.get(g)
+                if not isinstance(amap, dict):
+                    continue
+                next_amap: dict[str, list[str]] = {}
+                for app, roles in amap.items():
+                    if not isinstance(roles, list):
+                        continue
+                    next_amap[str(app)] = [str(r).strip() for r in roles if str(r).strip()]
+                if next_amap:
+                    group_app_roles[g] = next_amap
+
+        combined_app_roles = rolemgmtimpl.get_app_roles(groups, user_id)
+        combined_global_roles = rolemgmtimpl.get_user_roles(user_id, groups)
+
+        return {
+            "userid": user_id,
+            "groups": groups,
+            "user_global_roles": [str(r).strip() for r in user_global_roles if str(r).strip()],
+            "group_global_roles": group_global_roles,
+            "user_app_roles": user_app_roles,
+            "group_app_roles": group_app_roles,
+            "combined_global_roles": combined_global_roles,
+            "combined_app_roles": combined_app_roles,
+        }
 
 
     @router.post("/role-management/userglobal/assign",

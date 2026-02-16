@@ -59,8 +59,9 @@ function useAccessRequests({
    * Grant access for a request.
    * @param {Object} r - Access request object
    * @param {number} idx - Index in the array
+   * @param {Object} overridePayload - Optional payload override from UI
    */
-  const grantAccessRequest = React.useCallback(async (r, idx) => {
+  const grantAccessRequest = React.useCallback(async (r, idx, overridePayload) => {
     const key = getAccessRequestKey(r, idx);
 
     try {
@@ -70,7 +71,7 @@ function useAccessRequests({
       }));
 
       const t = String(r?.type || "");
-      const payload = r?.payload || {};
+      const payload = (overridePayload && typeof overridePayload === "object") ? overridePayload : (r?.payload || {});
 
       if (t === "app_access") {
         await grantAppAccessRequest(payload);
@@ -80,10 +81,20 @@ function useAccessRequests({
         throw new Error(`Unsupported access request type: ${t}`);
       }
 
-      setAccessRequestStatusByKey((prev) => ({
-        ...(prev || {}),
-        [key]: { state: "granted", message: "Granted" },
-      }));
+      // Refresh access requests after a successful grant so the table reflects persisted status.
+      try {
+        const data = await loadAccessRequests();
+        setAccessRequests(Array.isArray(data) ? data : []);
+      } catch {
+        // Best-effort refresh; do not fail the grant flow if reload fails.
+      }
+
+      // Clear in-flight state; UI should reflect persisted status from backend after reload.
+      setAccessRequestStatusByKey((prev) => {
+        const updated = { ...(prev || {}) };
+        delete updated[key];
+        return updated;
+      });
     } catch (e) {
       // Remove the "granting" status and revert to pending
       setAccessRequestStatusByKey((prev) => {
