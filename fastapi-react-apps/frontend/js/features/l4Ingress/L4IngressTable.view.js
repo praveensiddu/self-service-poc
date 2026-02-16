@@ -14,6 +14,7 @@ function L4IngressTableView({
   addClusters,
   addClusterNo,
   setAddClusterNo,
+  addFreePoolInfo,
   addPurpose,
   setAddPurpose,
   addRequested,
@@ -26,6 +27,7 @@ function L4IngressTableView({
   editRow,
   editRequested,
   setEditRequested,
+  editFreePoolInfo,
   editError,
   editSaving,
   onSaveEdit,
@@ -44,6 +46,11 @@ function L4IngressTableView({
   env,
   appname,
 }) {
+  const addFreeRemaining = Number(addFreePoolInfo?.free_remaining);
+  const addHasFreeRemaining = Number.isFinite(addFreeRemaining);
+  const editFreeRemaining = Number(editFreePoolInfo?.free_remaining);
+  const editHasFreeRemaining = Number.isFinite(editFreeRemaining);
+
   return (
     <>
       {typeof renderAddButton !== 'function' && !readonly && canManage && (
@@ -293,6 +300,11 @@ function L4IngressTableView({
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                {String(addClusterNo || "").trim() ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    Free pool available: {addHasFreeRemaining ? String(addFreeRemaining) : "..."} IPs
+                  </div>
+                ) : null}
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
@@ -441,6 +453,11 @@ function L4IngressTableView({
                   <div className="muted">Cluster</div>
                 </div>
                 <input className="filterInput" value={String(editRow?.clusterNo || "")} disabled readOnly />
+                {String(editRow?.clusterNoRaw || editRow?.clusterNo || "").trim() ? (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    Free pool available: {editHasFreeRemaining ? String(editFreeRemaining) : "..."} IPs
+                  </div>
+                ) : null}
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>

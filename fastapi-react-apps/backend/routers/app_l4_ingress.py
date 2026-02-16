@@ -43,6 +43,64 @@ def _sanitize_allocations(allocations: Any) -> List[Dict[str, Any]]:
     return sanitized
 
 
+@router.get("/l4_ingress/free_pool")
+def get_l4_ingress_free_pool(
+    cluster_no: str,
+    env: Optional[str] = None,
+    _: Dict[str, Any] = Depends(get_current_user_context),
+):
+    env = require_env(env)
+    c = str(cluster_no or "").strip()
+    if not c:
+        raise HTTPException(status_code=400, detail="cluster_no is required")
+
+    workspace_path = get_workspace_path()
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=c)
+    allocated_yaml = _load_allocated_yaml(allocated_path)
+
+    clusters_root = require_control_clusters_root()
+    first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=c)
+    if not first_range:
+        return {
+            "cluster_no": c,
+            "capacity": 0,
+            "allocated_in_range": 0,
+            "free_remaining": 0,
+        }
+
+    try:
+        start_int = int(ipaddress.ip_address(str(first_range.get("start_ip") or "").strip()))
+        end_int = int(ipaddress.ip_address(str(first_range.get("end_ip") or "").strip()))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid l4_ingress_ip_ranges configured for this cluster")
+
+    lo = min(start_int, end_int)
+    hi = max(start_int, end_int)
+    capacity = (hi - lo) + 1
+    if capacity <= 0:
+        return {
+            "cluster_no": c,
+            "capacity": 0,
+            "allocated_in_range": 0,
+            "free_remaining": 0,
+        }
+
+    allocated_in_range: set[int] = set()
+    if isinstance(allocated_yaml, dict):
+        for v in allocated_yaml.values():
+            for ip in v:
+                allocated_in_range.add(ip)
+
+    free_remaining = capacity - len(allocated_in_range)
+
+    return {
+        "cluster_no": c,
+        "capacity": capacity,
+        "allocated_in_range": len(allocated_in_range),
+        "free_remaining": max(free_remaining, 0),
+    }
+
+
 def _allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: str) -> Path:
     return (
         workspace_path
