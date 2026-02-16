@@ -191,7 +191,7 @@ class NamespaceCreateResponse(BaseModel):
     enable_pod_based_egress_ip: bool = False
     allow_all_egress: bool = False
     need_argo: bool = False
-    generate_argo_app: bool = False
+    generate_argo_app: bool = True
     status: str = ""
 
 
