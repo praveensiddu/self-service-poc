@@ -11,6 +11,13 @@ class L4IngressRequestedUpdate(BaseModel):
     requested_total: int
 
 
+class L4IngressReleaseIpRequest(BaseModel):
+    """Request model for releasing a single allocated L4 ingress IP."""
+    cluster_no: str
+    purpose: str
+    ip: str
+
+
 class L4IngressAllocation(BaseModel):
     """L4 ingress allocation details."""
     name: str

@@ -5,6 +5,7 @@ function L4IngressTableView({
   filteredRows,
   onEditRow,
   onAllocateRow,
+  onReleaseRow,
   readonly,
   canManage,
   renderAddButton,
@@ -29,6 +30,14 @@ function L4IngressTableView({
   editSaving,
   onSaveEdit,
   onCloseEdit,
+  releaseOpen,
+  releaseRow,
+  releaseIp,
+  setReleaseIp,
+  releaseError,
+  releaseSaving,
+  onSaveRelease,
+  onCloseRelease,
   errorModalOpen,
   errorModalMessage,
   onCloseErrorModal,
@@ -172,6 +181,28 @@ function L4IngressTableView({
                           className="iconBtn iconBtn-primary"
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (canManage && Array.isArray(r?.allocatedIpsRaw) && r.allocatedIpsRaw.length > 0) {
+                              onReleaseRow(r);
+                            }
+                          }}
+                          aria-label="Release"
+                          title={!canManage ? "No permission to release" : (Array.isArray(r?.allocatedIpsRaw) && r.allocatedIpsRaw.length > 0 ? "Release" : "No allocated IPs")}
+                          disabled={!canManage || !(Array.isArray(r?.allocatedIpsRaw) && r.allocatedIpsRaw.length > 0)}
+                          style={{
+                            opacity: (canManage && Array.isArray(r?.allocatedIpsRaw) && r.allocatedIpsRaw.length > 0) ? 1 : 0.4,
+                            cursor: (canManage && Array.isArray(r?.allocatedIpsRaw) && r.allocatedIpsRaw.length > 0) ? 'pointer' : 'not-allowed',
+                            pointerEvents: (canManage && Array.isArray(r?.allocatedIpsRaw) && r.allocatedIpsRaw.length > 0) ? 'auto' : 'none'
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="iconBtn iconBtn-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             if (canManage && Number(r?.allocatedRaw ?? 0) < Number(r?.requestedRaw ?? 0) && r?.hasIpRange) {
                               onAllocateRow(r);
                             }
@@ -266,6 +297,7 @@ function L4IngressTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Purpose</div>
+                  <div className="muted" style={{ fontSize: 12 }}>non http protocols like mysql,postgres, kafka need routing using ip address</div>
                 </div>
                 <input
                   className="filterInput"
@@ -297,6 +329,78 @@ function L4IngressTableView({
               </button>
               <button className="btn btn-primary" type="button" onClick={onSaveAdd} disabled={addSaving}>
                 {addSaving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Release Modal */}
+      {releaseOpen ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onCloseRelease();
+          }}
+          data-testid="release-l4-ingress-panel"
+        >
+          <div className="card" style={{ width: 640, maxWidth: "92vw", padding: 16, overflow: "visible" }}>
+            <div className="muted" style={{ textAlign: "center", marginBottom: 8 }}>
+              Environment: {env || ""} App: {appname || ""}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Release L4 Ingress IP</div>
+              <button className="btn" type="button" onClick={onCloseRelease}>
+                Close
+              </button>
+            </div>
+            {releaseError ? <div className="error" style={{ marginBottom: 10 }}>{releaseError}</div> : null}
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Cluster</div>
+                </div>
+                <input className="filterInput" value={String(releaseRow?.clusterNo || "")} disabled readOnly />
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">Purpose</div>
+                </div>
+                <input className="filterInput" value={String(releaseRow?.purpose || "")} disabled readOnly />
+              </div>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div className="muted">IP</div>
+                </div>
+                <select
+                  className="filterInput"
+                  value={releaseIp}
+                  onChange={(e) => setReleaseIp(e.target.value)}
+                  disabled={releaseSaving}
+                >
+                  <option value="">Select...</option>
+                  {(Array.isArray(releaseRow?.allocatedIpsRaw) ? releaseRow.allocatedIpsRaw : []).map((ip) => (
+                    <option key={ip} value={ip}>{ip}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button className="btn" type="button" onClick={onCloseRelease} disabled={releaseSaving}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" type="button" onClick={onSaveRelease} disabled={releaseSaving}>
+                {releaseSaving ? "Releasing..." : "Release"}
               </button>
             </div>
           </div>
@@ -347,7 +451,7 @@ function L4IngressTableView({
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Requested</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Whole number</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Total number of IPs requested for this app from each cluster</div>
                 </div>
                 <input
                   className="filterInput"

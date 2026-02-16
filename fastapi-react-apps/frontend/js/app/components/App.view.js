@@ -617,7 +617,7 @@ function AppView({
                 readonly={readonly}
               />
             ) : view === "l4ingress" ? (
-              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={onSetL4IngressAddButton} readonly={readonly} />
+              <L4IngressTable items={l4IngressItems} appname={l4IngressAppName || detailAppName} env={activeEnv} renderAddButton={onSetL4IngressAddButton} readonly={readonly} />
             ) : (
               <EgressIpTable
                 items={egressIpItems}
