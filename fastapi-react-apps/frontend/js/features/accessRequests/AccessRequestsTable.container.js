@@ -22,6 +22,12 @@ function AccessRequestsTable({
   const [grantError, setGrantError] = React.useState("");
   const [grantSaving, setGrantSaving] = React.useState(false);
 
+  const [lookupOpen, setLookupOpen] = React.useState(false);
+  const [lookupUserid, setLookupUserid] = React.useState("");
+  const [lookupLoading, setLookupLoading] = React.useState(false);
+  const [lookupError, setLookupError] = React.useState("");
+  const [lookupResult, setLookupResult] = React.useState(null);
+
   /**
    * Format the userid or group display value.
    * @param {Object} r - Access request object
@@ -108,6 +114,35 @@ function AccessRequestsTable({
     setGrantGroup("");
   }
 
+  function openLookup() {
+    setLookupError("");
+    setLookupResult(null);
+    setLookupUserid("");
+    setLookupOpen(true);
+  }
+
+  function closeLookup() {
+    if (lookupLoading) return;
+    setLookupOpen(false);
+    setLookupError("");
+    setLookupResult(null);
+    setLookupUserid("");
+  }
+
+  async function runLookup() {
+    try {
+      setLookupLoading(true);
+      setLookupError("");
+      setLookupResult(null);
+      const data = await lookupUserRoles(lookupUserid);
+      setLookupResult(data);
+    } catch (e) {
+      setLookupError(e?.message || String(e));
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
   async function saveGrant() {
     if (!grantRow) return;
     const t = String(grantRow?.type || "");
@@ -159,6 +194,15 @@ function AccessRequestsTable({
   return (
     <AccessRequestsTableView
       accessRequests={accessRequests}
+      lookupOpen={lookupOpen}
+      lookupUserid={lookupUserid}
+      setLookupUserid={setLookupUserid}
+      lookupLoading={lookupLoading}
+      lookupError={lookupError}
+      lookupResult={lookupResult}
+      onOpenLookup={openLookup}
+      onCloseLookup={closeLookup}
+      onRunLookup={runLookup}
       formatUserOrGroup={formatUserOrGroup}
       getStatus={getStatus}
       isGrantDisabled={isGrantDisabled}

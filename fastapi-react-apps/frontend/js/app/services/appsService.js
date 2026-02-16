@@ -97,6 +97,12 @@ async function loadAccessRequests() {
   return await fetchJson("/api/v1/access_requests");
 }
 
+async function lookupUserRoles(userid) {
+  const userId = safeTrim(userid);
+  if (!userId) throw new Error("Userid is required.");
+  return await fetchJson(`/api/v1/role-management/user/roles?userid=${encodeURIComponent(userId)}`);
+}
+
 async function grantAppAccessRequest(payload) {
   const userid = safeTrim(payload?.userid);
   const group = safeTrim(payload?.group);
