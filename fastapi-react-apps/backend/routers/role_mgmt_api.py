@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from pydantic import BaseModel
+import yaml
 
 from backend.auth.role_mgmt_impl import RoleMgmtImpl
 from backend.dependencies import get_current_user
@@ -98,8 +101,13 @@ def create_rolemgmt_router(
 
     @router.get("/role-management/app")
     def list_applicationservice_roles() -> dict[str, Any]:
-        rows = rolemgmtimpl.get_grp2apps2roles()
-        return {"rows": rows}
+        group_rows = rolemgmtimpl.get_grp2apps2roles()
+        user_rows = rolemgmtimpl.get_user2apps2roles()
+        return {
+            "rows": group_rows,
+            "group_rows": group_rows,
+            "user_rows": user_rows,
+        }
 
 
     @router.post("/role-management/app/assign")
@@ -114,12 +122,63 @@ def create_rolemgmt_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"status": "error", "message": "Exactly one of userid or group is required"},
             )
-        return execute_role_operation(
+        result = execute_role_operation(
             (lambda: rolemgmtimpl.add_user2apps2roles(grantor, userid, payload.app, payload.role))
             if userid
             else (lambda: rolemgmtimpl.add_grp2apps2roles(grantor, group, payload.app, payload.role)),
             "assigned"
         )
+        try:
+            store_path = (Path.home() / "workspace" / "kselfserv" / "temp" / "accessrequests.yaml")
+            raw = None
+            if store_path.exists() and store_path.is_file():
+                loaded = yaml.safe_load(store_path.read_text())
+                if isinstance(loaded, dict):
+                    raw = loaded
+            if isinstance(raw, dict):
+                matches: list[tuple[str, dict[str, object]]] = []
+                for k, v in raw.items():
+                    if not isinstance(k, str) or not isinstance(v, dict):
+                        continue
+                    if str(v.get("type") or "").strip() != "app_access":
+                        continue
+                    p = v.get("payload")
+                    if not isinstance(p, dict):
+                        continue
+                    if str(p.get("application") or "").strip() != str(payload.app or "").strip():
+                        continue
+                    if userid and str(p.get("userid") or "").strip() != userid:
+                        continue
+                    if group and str(p.get("group") or "").strip() != group:
+                        continue
+                    matches.append((k, v))
+
+                if matches:
+                    def _requested_at(key: str) -> str:
+                        return str(key.split(":", 1)[0] if ":" in key else "")
+
+                    matches.sort(key=lambda kv: _requested_at(kv[0]), reverse=True)
+                    k, v = matches[0]
+                    v = dict(v)
+                    p = dict(v.get("payload") or {})
+                    p["application"] = str(payload.app or "").strip()
+                    p["role"] = str(payload.role or "").strip()
+                    if userid:
+                        p["userid"] = userid
+                        p.pop("group", None)
+                    else:
+                        p["group"] = group
+                        p.pop("userid", None)
+                    v["payload"] = p
+                    v["status"] = "granted"
+                    v["granted_by"] = str(grantor or "").strip() or "unknown"
+                    v["granted_at"] = datetime.now().astimezone().isoformat()
+                    raw[k] = v
+                    store_path.write_text(yaml.safe_dump(raw, sort_keys=False))
+        except Exception:
+            pass
+
+        return result
 
 
     @router.post("/role-management/app/unassign")

@@ -22,17 +22,15 @@ class AccessRequestsImpl:
     _instance = None
 
     def __init__(self):
-        self._items: Dict[str, Dict[str, object]] = {}
         self._store_path = (Path.home() / "workspace" / "kselfserv" / "temp" / "accessrequests.yaml")
-        self._load_from_disk()
 
-    def _load_from_disk(self) -> None:
+    def _read_from_disk(self) -> Dict[str, Dict[str, object]]:
         try:
             if not self._store_path.exists() or not self._store_path.is_file():
-                return
+                return {}
             loaded = yaml.safe_load(self._store_path.read_text())
             if not isinstance(loaded, dict):
-                return
+                return {}
             sanitized: Dict[str, Dict[str, object]] = {}
             for k, v in loaded.items():
                 if not isinstance(k, str) or not isinstance(v, dict):
@@ -65,14 +63,15 @@ class AccessRequestsImpl:
                     row[kk] = str(vv)
 
                 sanitized[str(k)] = row
-            self._items = sanitized
+            return sanitized
         except Exception as e:
             logger.error("Failed to load access requests from %s: %s", str(self._store_path), str(e), exc_info=True)
+            return {}
 
-    def _flush_to_disk(self) -> None:
+    def _write_to_disk(self, items: Dict[str, Dict[str, object]]) -> None:
         try:
             self._store_path.parent.mkdir(parents=True, exist_ok=True)
-            self._store_path.write_text(yaml.safe_dump(self._items, sort_keys=False))
+            self._store_path.write_text(yaml.safe_dump(items or {}, sort_keys=False))
         except Exception as e:
             logger.error("Failed to persist access requests to %s: %s", str(self._store_path), str(e), exc_info=True)
 
@@ -84,11 +83,12 @@ class AccessRequestsImpl:
 
     def request_access(self, item: "AccessRequest") -> None:
         key = f"{item.requested_at}:{item.requestor}:{item.type}"
-        self._items[key] = item.model_dump()
-        self._flush_to_disk()
+        items = self._read_from_disk()
+        items[key] = item.model_dump()
+        self._write_to_disk(items)
 
     def get_all_access_requests(self) -> Dict[str, Dict[str, object]]:
-        return dict(self._items)
+        return dict(self._read_from_disk())
 
 
 accessrequestimpl: AccessRequestsImpl = AccessRequestsImpl.get_instance()
