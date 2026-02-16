@@ -129,6 +129,12 @@ function AppView({
           {demoMode ? <div className="demoMode">DEMO MODE</div> : null}
         </div>
         <div className="user">
+          {currentUser ? (
+            <div className="muted" style={{ marginRight: 10, color: "rgba(255,255,255,0.9)", textAlign: "right" }}>
+              <div style={{ fontSize: 11, lineHeight: 1.1 }}>Logged in as</div>
+              <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.1 }}>{currentUser}</div>
+            </div>
+          ) : null}
           <UserProfileMenu
             currentUser={currentUser}
             demoMode={demoMode}

@@ -56,6 +56,8 @@ def save_config(
     # If request came from "Use Pre-prepared Samples", ensure workspace directory exists.
     # For regular Save, we keep existing behavior (workspace must already exist).
     if str(source or "").strip().lower() == "prepared_samples":
+        if not str(os.getenv("CURRENT_USER", "")).strip():
+            os.environ["CURRENT_USER"] = "usr_platform_admin"
         workspace_path = Path(str(cfg.workspace or "").strip()).expanduser()
         if str(cfg.workspace or "").strip() and not workspace_path.exists():
             try:

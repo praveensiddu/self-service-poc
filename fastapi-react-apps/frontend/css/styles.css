@@ -31,6 +31,8 @@ body {
 .user {
   color: rgba(255, 255, 255, 0.88);
   font-size: 14px;
+  display: flex;
+  align-items: center;
 }
 
 .topbarCenter {
