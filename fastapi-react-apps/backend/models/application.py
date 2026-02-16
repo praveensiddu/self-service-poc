@@ -31,7 +31,6 @@ class AppCreate(BaseModel):
     """Request model for creating an application via API."""
     appname: str
     description: Optional[str] = ""
-    managedby: Optional[str] = ""
     clusters: Optional[List[str]] = None
 
 

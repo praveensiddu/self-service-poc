@@ -325,3 +325,46 @@ class RoleMgmtImpl:
                         if rr not in app_roles[str(app)]:
                             app_roles[str(app)].append(rr)
         return app_roles
+
+    def get_app_managedby(self, app: str) -> List[str]:
+        app = self._norm(app)
+        if not app:
+            return []
+
+        users: List[str] = []
+        groups: List[str] = []
+
+        with self._lock:
+            umap = self._data.get("user_app_roles") or {}
+            if isinstance(umap, dict):
+                for user_id, apps_map in umap.items():
+                    if not isinstance(apps_map, dict):
+                        continue
+                    roles = apps_map.get(app)
+                    if not isinstance(roles, list):
+                        continue
+                    if "manager" in [self._norm(r) for r in roles]:
+                        uid = self._norm(str(user_id))
+                        if uid:
+                            users.append(uid)
+
+            gmap = self._data.get("group_app_roles") or {}
+            if isinstance(gmap, dict):
+                for group, apps_map in gmap.items():
+                    if not isinstance(apps_map, dict):
+                        continue
+                    roles = apps_map.get(app)
+                    if not isinstance(roles, list):
+                        continue
+                    if "manager" in [self._norm(r) for r in roles]:
+                        gg = self._norm(str(group))
+                        if gg:
+                            groups.append(gg)
+
+        seen = set()
+        out: List[str] = []
+        for v in (users + groups):
+            if v not in seen:
+                seen.add(v)
+                out.append(v)
+        return out

@@ -9,6 +9,7 @@ import logging
 import yaml
 
 from backend.dependencies import get_requests_root
+from backend.auth.role_mgmt_impl import RoleMgmtImpl
 from backend.services.cluster_service import ClusterService
 from backend.exceptions.custom import (
     ValidationError,
@@ -80,7 +81,6 @@ class ApplicationService:
         """
         appinfo_path = app_dir / "appinfo.yaml"
         description = ""
-        managedby = ""
         clusters: List[str] = clusters_by_app.get(appname, [])
 
         if appinfo_path.exists() and appinfo_path.is_file():
@@ -88,7 +88,6 @@ class ApplicationService:
                 appinfo = yaml.safe_load(appinfo_path.read_text()) or {}
                 if isinstance(appinfo, dict):
                     description = str(appinfo.get("description", "") or "")
-                    managedby = str(appinfo.get("managedby", "") or "")
             except Exception as e:
                 logger.error(
                     "Failed to read appinfo.yaml for app=%s path=%s: %s",
@@ -97,6 +96,12 @@ class ApplicationService:
 
         totalns = self._count_namespaces(app_dir)
         argocd = self._check_argocd_exists(app_dir)
+
+        managedby: List[str] = []
+        try:
+            managedby = RoleMgmtImpl.get_instance().get_app_managedby(appname)
+        except Exception:
+            managedby = []
 
         return {
             "appname": appname,
@@ -127,8 +132,7 @@ class ApplicationService:
         self,
         env: str,
         appname: str,
-        description: str = "",
-        managedby: str = ""
+        description: str = ""
     ) -> Dict[str, Any]:
         """Create a new application.
 
@@ -136,7 +140,6 @@ class ApplicationService:
             env: Environment name
             appname: Application name
             description: Application description
-            managedby: Manager/owner identifier
 
         Returns:
             Created app data
@@ -167,7 +170,6 @@ class ApplicationService:
             app_dir.mkdir(parents=True, exist_ok=False)
             appinfo = {
                 "description": str(description or ""),
-                "managedby": str(managedby or ""),
             }
             (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
         except (ValidationError, AlreadyExistsError, NotInitializedError):
@@ -185,7 +187,6 @@ class ApplicationService:
         return {
             "appname": appname,
             "description": str(description or ""),
-            "managedby": str(managedby or ""),
             "clusters": clusters_by_app.get(appname, []),
             "totalns": 0,
         }
@@ -195,7 +196,6 @@ class ApplicationService:
         env: str,
         appname: str,
         description: str = "",
-        managedby: str = ""
     ) -> Dict[str, Any]:
         """Update an existing application.
 
@@ -203,7 +203,6 @@ class ApplicationService:
             env: Environment name
             appname: Application name
             description: New description
-            managedby: New manager/owner
 
         Returns:
             Updated app data
@@ -231,7 +230,6 @@ class ApplicationService:
         try:
             appinfo = {
                 "description": str(description or ""),
-                "managedby": str(managedby or ""),
             }
             (app_dir / "appinfo.yaml").write_text(yaml.safe_dump(appinfo, sort_keys=False))
         except Exception as e:
@@ -249,7 +247,6 @@ class ApplicationService:
         return {
             "appname": target_appname,
             "description": str(description or ""),
-            "managedby": str(managedby or ""),
             "clusters": clusters_by_app.get(target_appname, []),
             "totalns": totalns,
         }

@@ -29,7 +29,9 @@ function AppsTable({
   const fieldMapping = React.useCallback((app) => ({
     appname: safeTrim(app?.appname),
     description: safeTrim(app?.description),
-    managedby: safeTrim(app?.managedby),
+    managedby: Array.isArray(app?.managedby)
+      ? app.managedby.map((v) => safeTrim(v)).filter(Boolean).join(", ")
+      : safeTrim(app?.managedby),
     clusters: (clustersByApp?.[app?.appname] || []).join(", "),
     namespaces: String(app?.totalns || ""),
     argocd: String(Boolean(app?.argocd)),

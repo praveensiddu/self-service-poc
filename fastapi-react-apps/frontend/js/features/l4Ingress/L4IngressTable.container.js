@@ -22,12 +22,14 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   const [addRequested, setAddRequested] = React.useState("");
   const [addError, setAddError] = React.useState("");
   const [addSaving, setAddSaving] = React.useState(false);
+  const [addFreePoolInfo, setAddFreePoolInfo] = React.useState(null);
 
   const [editOpen, setEditOpen] = React.useState(false);
   const [editRow, setEditRow] = React.useState(null);
   const [editRequested, setEditRequested] = React.useState("");
   const [editError, setEditError] = React.useState("");
   const [editSaving, setEditSaving] = React.useState(false);
+  const [editFreePoolInfo, setEditFreePoolInfo] = React.useState(null);
   const [editAppname, setEditAppname] = React.useState(null);
   const [editEnv, setEditEnv] = React.useState(null);
   const editContextRef = React.useRef({ appname: null, env: null });
@@ -60,6 +62,15 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       : (Array.isArray(parsed?.clusters) ? parsed.clusters : []);
     return clusters.map(String);
   }, [env, appname]);
+
+  const fetchL4IngressFreePool = React.useCallback(async (clusterNo) => {
+    const c = String(clusterNo || "").trim();
+    if (!env) throw new Error("No env selected.");
+    if (!c) return null;
+    return await fetchJson(
+      `/api/v1/l4_ingress/free_pool?env=${encodeURIComponent(env)}&cluster_no=${encodeURIComponent(c)}`,
+    );
+  }, [env]);
 
   // Fetch clusters info - wrapped in useCallback
   const fetchClustersInfo = React.useCallback(async () => {
@@ -107,6 +118,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     setAddClusterNo("");
     setAddPurpose(String(appname || ""));
     setAddRequested("0");
+    setAddFreePoolInfo(null);
     try {
       const clusters = await fetchClustersForApp();
       setAddClusters(clusters);
@@ -117,6 +129,28 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     }
     setAddOpen(true);
   }, [appname, fetchClustersForApp]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function run() {
+      if (!addOpen) return;
+      const c = String(addClusterNo || "").trim();
+      if (!c) {
+        setAddFreePoolInfo(null);
+        return;
+      }
+      try {
+        const info = await fetchL4IngressFreePool(c);
+        if (mounted) setAddFreePoolInfo(info);
+      } catch {
+        if (mounted) setAddFreePoolInfo(null);
+      }
+    }
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [addOpen, addClusterNo, fetchL4IngressFreePool]);
 
   // Save add - wrapped in useCallback
   const onSaveAdd = React.useCallback(async () => {
@@ -191,8 +225,31 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     setEditError("");
     setEditRow(row || null);
     setEditRequested(String(row?.requested ?? ""));
+    setEditFreePoolInfo(null);
     setEditOpen(true);
   }, [appname, env]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function run() {
+      if (!editOpen) return;
+      const c = String(editRow?.clusterNoRaw || editRow?.clusterNo || "").trim();
+      if (!c) {
+        setEditFreePoolInfo(null);
+        return;
+      }
+      try {
+        const info = await fetchL4IngressFreePool(c);
+        if (mounted) setEditFreePoolInfo(info);
+      } catch {
+        if (mounted) setEditFreePoolInfo(null);
+      }
+    }
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [editOpen, editRow, fetchL4IngressFreePool]);
 
   // Save edit - wrapped in useCallback
   const onSaveEdit = React.useCallback(async () => {
@@ -526,6 +583,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       addClusters={addClusters}
       addClusterNo={addClusterNo}
       setAddClusterNo={setAddClusterNo}
+      addFreePoolInfo={addFreePoolInfo}
       addPurpose={addPurpose}
       setAddPurpose={setAddPurpose}
       addRequested={addRequested}
@@ -538,6 +596,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       editRow={editRow}
       editRequested={editRequested}
       setEditRequested={setEditRequested}
+      editFreePoolInfo={editFreePoolInfo}
       editError={editError}
       editSaving={editSaving}
       onSaveEdit={onSaveEdit}
