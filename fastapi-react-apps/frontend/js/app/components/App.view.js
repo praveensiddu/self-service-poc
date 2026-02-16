@@ -129,6 +129,12 @@ function AppView({
           {demoMode ? <div className="demoMode">DEMO MODE</div> : null}
         </div>
         <div className="user">
+          {currentUser ? (
+            <div className="muted" style={{ marginRight: 10, color: "rgba(255,255,255,0.9)", textAlign: "right" }}>
+              <div style={{ fontSize: 11, lineHeight: 1.1 }}>Logged in as</div>
+              <div style={{ fontWeight: 700, fontSize: 12, lineHeight: 1.1 }}>{currentUser}</div>
+            </div>
+          ) : null}
           <UserProfileMenu
             currentUser={currentUser}
             demoMode={demoMode}
@@ -617,7 +623,7 @@ function AppView({
                 readonly={readonly}
               />
             ) : view === "l4ingress" ? (
-              <L4IngressTable items={l4IngressItems} appname={detailAppName} env={activeEnv} renderAddButton={onSetL4IngressAddButton} readonly={readonly} />
+              <L4IngressTable items={l4IngressItems} appname={l4IngressAppName || detailAppName} env={activeEnv} renderAddButton={onSetL4IngressAddButton} readonly={readonly} />
             ) : (
               <EgressIpTable
                 items={egressIpItems}

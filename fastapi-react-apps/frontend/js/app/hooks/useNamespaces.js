@@ -262,6 +262,21 @@ function useNamespaces({ activeEnv, setLoading, setError, setShowErrorModal }) {
       if (hasClusters) {
         const basicResp = await updateNamespaceBasicInfo(activeEnv, appname, namespaceName, { clusters: nsInfo.clusters });
         updated = { ...(updated || {}), ...(basicResp || {}) };
+
+        const egressAfterBasic = await loadNamespaceEgressInfo(activeEnv, appname, namespaceName);
+        if (egressAfterBasic && typeof egressAfterBasic === "object") {
+          updated = {
+            ...(updated || {}),
+            egress_nameid: Object.prototype.hasOwnProperty.call(egressAfterBasic, "egress_nameid")
+              ? (egressAfterBasic.egress_nameid ?? null)
+              : (updated && Object.prototype.hasOwnProperty.call(updated, "egress_nameid") ? updated.egress_nameid : null),
+            allocated_egress_ips: Array.isArray(egressAfterBasic.allocated_egress_ips)
+              ? egressAfterBasic.allocated_egress_ips
+              : ((updated && updated.allocated_egress_ips) || []),
+            enable_pod_based_egress_ip: Boolean(egressAfterBasic.enable_pod_based_egress_ip),
+            allow_all_egress: Boolean(egressAfterBasic.allow_all_egress),
+          };
+        }
       }
 
       if (hasEgressNameId || hasPodBased) {

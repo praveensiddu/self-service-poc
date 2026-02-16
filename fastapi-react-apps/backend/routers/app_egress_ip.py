@@ -20,9 +20,9 @@ def get_egress_ips(
 ):
     env = require_env(env)
 
-    # Build mapping: egress_nameid -> [namespace, ...]
+    # Build mapping: egress_nameid -> namespace -> clusters
     target_app = str(appname or "").strip()
-    egress_nameid_to_namespaces: Dict[str, List[str]] = {}
+    egress_nameid_to_ns_clusters: Dict[str, Dict[str, List[str]]] = {}
     try:
         ns_dirs = NamespaceRepository.list_namespaces(env, target_app)
     except Exception:
@@ -39,9 +39,14 @@ def get_egress_ips(
         egress_nameid = str(raw_egress_nameid or "").strip()
         if not egress_nameid:
             continue
-        prev = egress_nameid_to_namespaces.get(egress_nameid) or []
-        prev.append(ns_name)
-        egress_nameid_to_namespaces[egress_nameid] = prev
+
+        raw_clusters = ns_info.get("clusters")
+        clusters = [str(c).strip() for c in raw_clusters] if isinstance(raw_clusters, list) else []
+        clusters = [c for c in clusters if c]
+
+        ns_map = egress_nameid_to_ns_clusters.get(egress_nameid) or {}
+        ns_map[ns_name] = clusters
+        egress_nameid_to_ns_clusters[egress_nameid] = ns_map
 
     workspace_path = get_workspace_path()
     rendered_root = (
@@ -54,7 +59,7 @@ def get_egress_ips(
     if not rendered_root.exists() or not rendered_root.is_dir():
         return []
 
-    target_prefix = f"{str(appname or '').strip()}_"
+    appname_prefix = f"{str(appname or '').strip()}_"
     merged: Dict[str, List[Dict[str, Any]]] = {}
 
     for path in rendered_root.rglob("egressip-allocated.yaml"):
@@ -78,7 +83,7 @@ def get_egress_ips(
 
         for k, v in raw.items():
             key = str(k or "").strip()
-            if not key.startswith(target_prefix):
+            if not key.startswith(appname_prefix):
                 continue
             ips = [str(x).strip() for x in v] if isinstance(v, list) else []
             ips = [x for x in ips if x]
@@ -101,11 +106,17 @@ def get_egress_ips(
                 seen.add(ip)
 
             egress_nameid = ""
-            if key.startswith(target_prefix):
-                egress_nameid = key[len(target_prefix):]
+            if key.startswith(appname_prefix):
+                egress_nameid = key[len(appname_prefix):]
 
-            namespaces = egress_nameid_to_namespaces.get(str(egress_nameid)) or []
-            namespaces = sorted(set([str(x).strip() for x in namespaces if str(x).strip()]), key=lambda s: s.lower())
+            ns_map = egress_nameid_to_ns_clusters.get(str(egress_nameid)) or {}
+            namespaces = [
+                str(ns).strip()
+                for ns, clusters in ns_map.items()
+                if str(ns).strip()
+                and any(str(c or "").strip().lower() == str(cluster or "").strip().lower() for c in (clusters or []))
+            ]
+            namespaces = sorted(set(namespaces), key=lambda s: s.lower())
 
             merged[row_key] = [{
                 "cluster": cluster,
@@ -166,7 +177,18 @@ def delete_egress_ip_allocation(
         except Exception:
             ns_info = {}
         raw_egress_nameid = ns_info.get("egress_nameid")
-        if str(raw_egress_nameid or "").strip() == egress_nameid:
+        ns_egress_nameid = str(raw_egress_nameid or "").strip()
+        if not ns_egress_nameid:
+            continue
+
+        raw_clusters = ns_info.get("clusters")
+        ns_clusters = [str(c).strip() for c in raw_clusters] if isinstance(raw_clusters, list) else []
+        ns_clusters = [c for c in ns_clusters if c]
+
+        uses_cluster = any(
+            str(c or "").strip().lower() == target_cluster.lower() for c in ns_clusters
+        )
+        if ns_egress_nameid == egress_nameid and uses_cluster:
             used_by.append(ns_name)
 
     if used_by:

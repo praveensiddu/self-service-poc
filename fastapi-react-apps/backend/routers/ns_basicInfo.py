@@ -12,7 +12,7 @@ from backend.repositories.namespace_repository import NamespaceRepository
 from backend.utils.helpers import parse_bool
 from backend.utils.yaml_utils import read_yaml_dict
 from backend.auth.rbac import require_rbac
-from backend.auth.rbac import require_rbac
+from backend.services.ns_egress_ip_service import NsEgressIpService
 
 router = APIRouter(tags=["ns_basic"])
 
@@ -23,6 +23,12 @@ def get_namespace_repository() -> NamespaceRepository:
     """Dependency injection for NamespaceRepository."""
     return NamespaceRepository()
 
+
+ns_egress_ip_service = NsEgressIpService()
+
+
+def get_ns_egress_ip_service() -> NsEgressIpService:
+    return ns_egress_ip_service
 
 
 def _nsargocd_summary(
@@ -79,6 +85,7 @@ def put_namespace_info_basic(
     payload: NamespaceInfoBasicUpdate,
     env: Optional[str] = None,
     repo: NamespaceRepository = Depends(get_namespace_repository),
+    ns_egress_service: NsEgressIpService = Depends(get_ns_egress_ip_service),
     _: None = Depends(require_rbac(
         obj=lambda r: f"/apps/{r.path_params.get('appname', '')}/namespaces",
         act="POST",
@@ -114,6 +121,11 @@ def put_namespace_info_basic(
             if isinstance(parsed, dict):
                 existing = parsed
 
+        old_clusters = existing.get("clusters")
+        if not isinstance(old_clusters, list):
+            old_clusters = []
+        old_clusters = [str(c).strip() for c in old_clusters if c is not None and str(c).strip()]
+
         ni = payload.namespace_info
         if ni.clusters is not None:
             # Flatten any nested lists and convert to strings
@@ -130,9 +142,40 @@ def put_namespace_info_basic(
         if ni.egress_nameid is not None:
             existing["egress_nameid"] = str(ni.egress_nameid)
 
+        # If clusters are being added for a namespace using egress_nameid, ensure
+        # allocation exists (or can be created) in each newly added cluster before
+        # persisting namespace_info.yaml.
+        next_egress_nameid = str(existing.get("egress_nameid") or "").strip()
+        next_clusters = existing.get("clusters")
+        if not isinstance(next_clusters, list):
+            next_clusters = []
+        next_clusters = [str(c).strip() for c in next_clusters if c is not None and str(c).strip()]
+
+        added_clusters = sorted(
+            set(next_clusters) - set(old_clusters),
+            key=lambda s: s.lower(),
+        )
+        if next_egress_nameid and added_clusters:
+            try:
+                ns_egress_service.validate_egress_ip_allocations(
+                    env=env,
+                    appname=appname,
+                    egress_nameid=next_egress_nameid,
+                    clusters_list=added_clusters,
+                )
+                ns_egress_service.ensure_egress_ip_allocations(
+                    env=env,
+                    appname=appname,
+                    egress_nameid=next_egress_nameid,
+                    clusters_list=added_clusters,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
         ns_info_path.write_text(yaml.safe_dump(existing, sort_keys=False))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update namespace_info.yaml: {e}")
+
 
     try:
         pull_requests.ensure_pull_request(appname=appname, env=env)

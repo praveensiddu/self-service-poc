@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from backend.models import L4IngressRequestedUpdate
+from backend.models import L4IngressRequestedUpdate, L4IngressReleaseIpRequest
 from backend.dependencies import (
     require_env,
     require_initialized_workspace,
@@ -16,7 +16,7 @@ from backend.dependencies import (
 )
 from backend.routers.allocate_l4_ingress import _load_cluster_first_range
 from backend.routers.clusters import get_allocated_clusters_for_app
-from backend.utils.yaml_utils import read_yaml_dict
+from backend.utils.yaml_utils import read_yaml_dict, write_yaml_dict
 from backend.auth.rbac import require_rbac, get_current_user_context, wrap_response_with_permissions
 
 router = APIRouter(tags=["l4_ingress"])
@@ -205,6 +205,22 @@ def put_l4_ingress_requested(
     if requested_total < 0 or requested_total > 256:
         raise HTTPException(status_code=400, detail="requested_total must be between 0 and 256")
 
+    # Prevent reducing requested_total below the number of already-allocated IPs.
+    # Allocations are stored in rendered workspace per cluster in l4ingressip-allocated.yaml.
+    workspace_path = get_workspace_path()
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
+    allocated_yaml = _load_allocated_yaml(allocated_path)
+    key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose)
+    existing_ips = allocated_yaml.get(key)
+    existing_ips_list = [str(x).strip() for x in existing_ips] if isinstance(existing_ips, list) else []
+    existing_ips_list = [x for x in existing_ips_list if x]
+    allocated_total = len(existing_ips_list)
+    if requested_total < allocated_total:
+        raise HTTPException(
+            status_code=400,
+            detail=f"requested_total ({requested_total}) cannot be less than allocated_total ({allocated_total}). Use the release ip feature to release the ip your don't need.",
+        )
+
     first_range: Optional[Dict[str, str]] = None
     # Match allocate endpoint behavior: if a cluster doesn't have any configured L4 ingress
     # ranges, we should not allow a non-zero requested_total for that cluster.
@@ -265,10 +281,6 @@ def put_l4_ingress_requested(
         if capacity <= 0:
             raise HTTPException(status_code=400, detail="Invalid l4_ingress_ip_ranges configured for this cluster")
 
-        workspace_path = get_workspace_path()
-        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
-        allocated_yaml = _load_allocated_yaml(allocated_path)
-
         allocated_in_range: set[int] = set()
         if isinstance(allocated_yaml, dict):
             for v in allocated_yaml.values():
@@ -301,6 +313,102 @@ def put_l4_ingress_requested(
         "cluster_no": cluster_no,
         "purpose": purpose,
         "requested_total": requested_total,
-        "allocated_total": 0,
-        "allocations": [],
+        "allocated_total": allocated_total,
+        "allocations": ([{"name": key, "purpose": purpose, "ips": existing_ips_list}] if existing_ips_list else []),
+    }
+
+
+@router.post("/apps/{appname}/l4_ingress/release")
+def release_l4_ingress_ip(
+    appname: str,
+    payload: L4IngressReleaseIpRequest,
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
+):
+    env = require_env(env)
+    requests_root = require_initialized_workspace()
+
+    cluster_no = str(payload.cluster_no or "").strip()
+    purpose = str(payload.purpose or "").strip()
+    ip = str(payload.ip or "").strip()
+    if not cluster_no:
+        raise HTTPException(status_code=400, detail="cluster_no is required")
+    if not purpose:
+        raise HTTPException(status_code=400, detail="purpose is required")
+    if not ip:
+        raise HTTPException(status_code=400, detail="ip is required")
+
+    workspace_path = get_workspace_path()
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
+    allocated_yaml = _load_allocated_yaml(allocated_path)
+
+    key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose)
+    existing_ips = allocated_yaml.get(key)
+    existing_ips_list = [str(x).strip() for x in existing_ips] if isinstance(existing_ips, list) else []
+    existing_ips_list = [x for x in existing_ips_list if x]
+
+    if ip not in existing_ips_list:
+        raise HTTPException(status_code=404, detail="IP not allocated for this app/purpose")
+
+    next_list = [x for x in existing_ips_list if x != ip]
+    if next_list:
+        allocated_yaml[key] = next_list
+    else:
+        try:
+            allocated_yaml.pop(key, None)
+        except Exception:
+            allocated_yaml[key] = []
+
+    try:
+        allocated_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create allocation directory: {e}")
+
+    try:
+        write_yaml_dict(allocated_path, allocated_yaml, sort_keys=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write allocated yaml: {e}")
+
+    # If release succeeded, reduce the requested count in l4_ingress_request.yaml.
+    req_path = requests_root / env / str(appname or "").strip() / "l4_ingress_request.yaml"
+    raw: Dict[str, Any] = {}
+    if req_path.exists() and req_path.is_file():
+        try:
+            loaded = yaml.safe_load(req_path.read_text()) or {}
+            if isinstance(loaded, dict):
+                raw = loaded
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read l4_ingress_request.yaml: {e}")
+
+    cluster_map = raw.get(cluster_no)
+    if cluster_map is None or not isinstance(cluster_map, dict):
+        cluster_map = {}
+
+    prev_any = cluster_map.get(purpose)
+    try:
+        prev_requested_total = int(prev_any)
+    except Exception:
+        prev_requested_total = 0
+
+    next_requested_total = max(prev_requested_total - 1, 0)
+    raw[cluster_no] = cluster_map
+    cluster_map[purpose] = next_requested_total
+
+    try:
+        req_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create request directory: {e}")
+
+    try:
+        req_path.write_text(yaml.safe_dump(raw, sort_keys=False))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write l4_ingress_request.yaml: {e}")
+
+    return {
+        "cluster_no": cluster_no,
+        "purpose": purpose,
+        "released_ip": ip,
+        "requested_total": next_requested_total,
+        "allocated_total": len(next_list),
+        "allocations": ([{"name": key, "purpose": purpose, "ips": next_list}] if next_list else []),
     }

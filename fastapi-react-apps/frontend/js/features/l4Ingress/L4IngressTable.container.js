@@ -28,6 +28,15 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
   const [editRequested, setEditRequested] = React.useState("");
   const [editError, setEditError] = React.useState("");
   const [editSaving, setEditSaving] = React.useState(false);
+  const [editAppname, setEditAppname] = React.useState(null);
+  const [editEnv, setEditEnv] = React.useState(null);
+  const editContextRef = React.useRef({ appname: null, env: null });
+
+  const [releaseOpen, setReleaseOpen] = React.useState(false);
+  const [releaseRow, setReleaseRow] = React.useState(null);
+  const [releaseIp, setReleaseIp] = React.useState("");
+  const [releaseError, setReleaseError] = React.useState("");
+  const [releaseSaving, setReleaseSaving] = React.useState(false);
 
   const [clusters, setClusters] = React.useState([]);
   const [errorModalOpen, setErrorModalOpen] = React.useState(false);
@@ -46,7 +55,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       throw new Error(text || `HTTP ${res.status}`);
     }
     const parsed = await res.json();
-    return Array.isArray(parsed) ? parsed.map(String) : [];
+    const clusters = Array.isArray(parsed)
+      ? parsed
+      : (Array.isArray(parsed?.clusters) ? parsed.clusters : []);
+    return clusters.map(String);
   }, [env, appname]);
 
   // Fetch clusters info - wrapped in useCallback
@@ -128,14 +140,6 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       setAddError("Requested must be a whole number between 0 and 256.");
       return;
     }
-    if (!appname) {
-      setAddError("No app selected.");
-      return;
-    }
-    if (!env) {
-      setAddError("No env selected.");
-      return;
-    }
 
     setAddSaving(true);
     setAddError("");
@@ -181,17 +185,14 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
 
   // Edit row - wrapped in useCallback
   const onEditRow = React.useCallback((row) => {
-    const clusterNo = String(row?.clusterNoRaw || row?.clusterNo || "");
-    if (!hasIpRangeForCluster(clusterNo)) {
-      setErrorModalMessage("There is no IP Range defined for this cluster.");
-      setErrorModalOpen(true);
-      return;
-    }
+    editContextRef.current = { appname, env };
+    setEditAppname(appname || null);
+    setEditEnv(env || null);
     setEditError("");
     setEditRow(row || null);
     setEditRequested(String(row?.requested ?? ""));
     setEditOpen(true);
-  }, [hasIpRangeForCluster]);
+  }, [appname, env]);
 
   // Save edit - wrapped in useCallback
   const onSaveEdit = React.useCallback(async () => {
@@ -207,12 +208,22 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       setEditError("Requested must be a whole number between 0 and 256.");
       return;
     }
-    if (!appname) {
+
+    const ctxAppname = String(editAppname || editContextRef.current?.appname || appname || "");
+    const ctxEnv = String(editEnv || editContextRef.current?.env || env || "");
+
+    if (!ctxAppname) {
       setEditError("No app selected.");
       return;
     }
-    if (!env) {
+    if (!ctxEnv) {
       setEditError("No env selected.");
+      return;
+    }
+
+    const clusterNo = String(editRow.clusterNoRaw || editRow.clusterNo || "");
+    if (!hasIpRangeForCluster(clusterNo)) {
+      setEditError("There is no IP Range defined for this cluster.");
       return;
     }
 
@@ -220,7 +231,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     setEditError("");
     try {
       await putJson(
-        `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(env)}`,
+        `/api/v1/apps/${encodeURIComponent(ctxAppname)}/l4_ingress?env=${encodeURIComponent(ctxEnv)}`,
         {
           cluster_no: String(editRow.clusterNoRaw || editRow.clusterNo || ""),
           purpose: String(editRow.purpose || ""),
@@ -248,7 +259,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
         e,
         "edit",
         "L4 ingress",
-        appname,
+        ctxAppname,
         (msg) => setEditError(msg),
         null
       );
@@ -260,7 +271,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     } finally {
       setEditSaving(false);
     }
-  }, [editRow, editRequested, appname, env, handlePermissionError]);
+  }, [editRow, editRequested, appname, env, handlePermissionError, hasIpRangeForCluster]);
 
   // Allocate row - wrapped in useCallback
   const onAllocateRow = React.useCallback(async (row) => {
@@ -314,6 +325,83 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     }
   }, [env, appname, handlePermissionError]);
 
+  const onReleaseRow = React.useCallback((row) => {
+    setReleaseError("");
+    setReleaseSaving(false);
+    setReleaseRow(row || null);
+    const ips = Array.isArray(row?.allocatedIpsRaw) ? row.allocatedIpsRaw : [];
+    setReleaseIp(String(ips?.[0] || ""));
+    setReleaseOpen(true);
+  }, []);
+
+  const onSaveRelease = React.useCallback(async () => {
+    if (!releaseRow) return;
+    try {
+      if (!env) throw new Error("No env selected.");
+      if (!appname) throw new Error("No app selected.");
+
+      const cluster_no = String(releaseRow.clusterNoRaw || releaseRow.clusterNo || "").trim();
+      const purpose = String(releaseRow.purpose || "").trim();
+      const ips = Array.isArray(releaseRow.allocatedIpsRaw) ? releaseRow.allocatedIpsRaw : [];
+      const ip = String(releaseIp || "").trim();
+      if (!cluster_no) throw new Error("Missing cluster.");
+      if (!purpose) throw new Error("Missing purpose.");
+      if (!ip) {
+        setReleaseError("IP is required.");
+        return;
+      }
+      if (!ips.includes(ip)) {
+        setReleaseError("Selected IP is not in the allocated list.");
+        return;
+      }
+
+      setReleaseSaving(true);
+      setReleaseError("");
+
+      const resp = await postJson(
+        `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress/release?env=${encodeURIComponent(env)}`,
+        { cluster_no, purpose, ip },
+      );
+
+      if (resp) {
+        const res = await fetch(
+          `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(env)}`,
+          { headers: { Accept: "application/json" } },
+        );
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        const parsed = await res.json();
+        const next = parseItemsResponse(parsed);
+        setLocalItems(next.items);
+      }
+
+      setReleaseOpen(false);
+      setReleaseRow(null);
+      setReleaseIp("");
+    } catch (e) {
+      const wasPermissionError = handlePermissionError(
+        e,
+        "release",
+        "L4 ingress IP",
+        appname,
+        (msg) => setReleaseError(msg),
+        null
+      );
+
+      if (!wasPermissionError) {
+        setReleaseError(e?.message || String(e));
+      }
+    } finally {
+      setReleaseSaving(false);
+    }
+  }, [releaseRow, releaseIp, env, appname, handlePermissionError, parseItemsResponse]);
+
+  const onCloseRelease = React.useCallback(() => {
+    setReleaseOpen(false);
+  }, []);
+
   // Close add - wrapped in useCallback
   const onCloseAdd = React.useCallback(() => {
     setAddOpen(false);
@@ -358,6 +446,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
         requestedRaw,
         allocatedRaw,
         allocatedIps: formatTableValue(allocatedIps),
+        allocatedIpsRaw: allocatedIps,
         hasIpRange,
       };
     }).sort((a, b) => {
@@ -428,6 +517,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       filteredRows={filteredRows}
       onEditRow={onEditRow}
       onAllocateRow={onAllocateRow}
+      onReleaseRow={onReleaseRow}
       readonly={readonly}
       canManage={canManage}
       renderAddButton={renderAddButton}
@@ -452,6 +542,14 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       editSaving={editSaving}
       onSaveEdit={onSaveEdit}
       onCloseEdit={onCloseEdit}
+      releaseOpen={releaseOpen}
+      releaseRow={releaseRow}
+      releaseIp={releaseIp}
+      setReleaseIp={setReleaseIp}
+      releaseError={releaseError}
+      releaseSaving={releaseSaving}
+      onSaveRelease={onSaveRelease}
+      onCloseRelease={onCloseRelease}
       errorModalOpen={errorModalOpen}
       errorModalMessage={errorModalMessage}
       onCloseErrorModal={onCloseErrorModal}

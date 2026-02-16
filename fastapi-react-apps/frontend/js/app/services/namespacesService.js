@@ -183,6 +183,15 @@ async function updateNamespaceEgressInfo(env, appname, namespaceName, namespaceI
   );
 }
 
+async function loadNamespaceEgressInfo(env, appname, namespaceName) {
+  if (!env) throw new Error("Environment is required.");
+  if (!appname) throw new Error("Application name is required.");
+  if (!namespaceName) throw new Error("Namespace name is required.");
+  return await fetchJson(
+    `/api/v1/apps/${encodeURIComponent(appname)}/namespaces/${encodeURIComponent(namespaceName)}/namespace_info/egress?env=${encodeURIComponent(env)}`
+  );
+}
+
 /**
  * Update namespace resource quota.
  * @param {string} env - Environment name

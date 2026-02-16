@@ -69,6 +69,7 @@ from backend.models.config import (
 
 from backend.models.common import (
     L4IngressRequestedUpdate,
+    L4IngressReleaseIpRequest,
     L4IngressAllocation,
     L4IngressResponse,
     PullRequestStatus,
@@ -125,6 +126,7 @@ __all__ = [
     'KSelfServeConfig',
     # Common models
     'L4IngressRequestedUpdate',
+    'L4IngressReleaseIpRequest',
     'L4IngressAllocation',
     'L4IngressResponse',
     'PullRequestStatus',
