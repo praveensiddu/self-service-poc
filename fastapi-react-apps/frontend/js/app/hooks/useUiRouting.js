@@ -25,6 +25,7 @@
 function useUiRouting({
   configComplete,
   allowAdminPages,
+  userLoaded,
   envKeys,
   activeEnv,
   setActiveEnv,
@@ -103,7 +104,7 @@ function useUiRouting({
         window.history.pushState({ topTab: "Home" }, "", "/home");
         return;
       }
-      if (!allowAdminPages) {
+      if (!allowAdminPages && userLoaded) {
         setTopTab("Home");
         window.history.pushState({ topTab: "Home" }, "", "/home");
         return;
@@ -168,7 +169,7 @@ function useUiRouting({
     }
 
     if (isAccessRequestsPath()) {
-      if (!configComplete || !allowAdminPages) {
+      if (!configComplete || (!allowAdminPages && userLoaded)) {
         setTopTab("Home");
         window.history.replaceState({ topTab: "Home" }, "", "/home");
         return;
@@ -203,9 +204,11 @@ function useUiRouting({
     setPendingRoute(initial);
 
     if ((isSettingsPath() || isAccessRequestsPath()) && !allowAdminPages) {
-      setTopTab("Home");
-      window.history.replaceState({ topTab: "Home" }, "", "/home");
-      return;
+      if (userLoaded) {
+        setTopTab("Home");
+        window.history.replaceState({ topTab: "Home" }, "", "/home");
+        return;
+      }
     }
 
     if (isComplete && initialEnv && !isHomePath() && !isSettingsPath() && !isPrsPath() && !isClustersPath() && !isAccessRequestsPath()) {
@@ -247,8 +250,8 @@ function useUiRouting({
         window.history.replaceState({ topTab: "Home" }, "", "/home");
       }
     } else if (isAccessRequestsPath()) {
-      setTopTab(isComplete && allowAdminPages ? "Access Requests" : "Home");
-      if (!isComplete || !allowAdminPages) {
+      setTopTab(isComplete && (allowAdminPages || !userLoaded) ? "Access Requests" : "Home");
+      if (!isComplete || (!allowAdminPages && userLoaded)) {
         window.history.replaceState({ topTab: "Home" }, "", "/home");
       }
     } else {
@@ -257,7 +260,7 @@ function useUiRouting({
         window.history.replaceState({ topTab: "Home" }, "", "/home");
       }
     }
-  }, [setTopTab, allowAdminPages]);
+  }, [setTopTab, allowAdminPages, userLoaded]);
 
   return {
     pendingRoute,

@@ -227,6 +227,7 @@ function App() {
   } = useUiRouting({
     configComplete,
     allowAdminPages,
+    userLoaded: Boolean(String(currentUser || "").trim()),
     envKeys,
     activeEnv,
     setActiveEnv,
@@ -238,6 +239,14 @@ function App() {
       resetEgressIpsState();
     },
   });
+
+  // If the user cannot access Access Requests, redirect to Home.
+  React.useEffect(() => {
+    if (!String(currentUser || "").trim()) return;
+    if (topTab === "Access Requests" && !allowAdminPages) {
+      setTopTabWithUrl("Home");
+    }
+  }, [currentUser, topTab, allowAdminPages, setTopTabWithUrl]);
 
 
   // Initial data load effect
