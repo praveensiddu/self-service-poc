@@ -568,7 +568,11 @@ function AppsTableView({
                     {a.appname}
                   </td>
                   <td className="muted" style={{ opacity: cellOpacity }}>{a.description || ""}</td>
-                  <td style={{ opacity: cellOpacity }}>{a.managedby || ""}</td>
+                  <td style={{ opacity: cellOpacity }}>
+                    {Array.isArray(a.managedby)
+                      ? a.managedby.map((v) => safeTrim(v)).filter(Boolean).join(", ")
+                      : (a.managedby || "")}
+                  </td>
                   <td style={{ opacity: cellOpacity }}>{(clustersByApp?.[a.appname] || []).join(", ")}</td>
                   <td style={{ opacity: cellOpacity }}>{a.totalns ?? ""}</td>
                   <td style={{ opacity: cellOpacity }}>{String(Boolean(a?.argocd))}</td>

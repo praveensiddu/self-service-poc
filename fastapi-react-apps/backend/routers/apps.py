@@ -83,7 +83,6 @@ def create_app(
         env=env,
         appname=payload.appname,
         description=payload.description or "",
-        managedby=payload.managedby or ""
     )
 
     _try_ensure_pull_request(env, payload.appname)
@@ -119,8 +118,7 @@ def update_app(
     result = service.update_app(
         env=env,
         appname=appname,
-        description=payload.description or "",
-        managedby=payload.managedby or ""
+        description=payload.description or ""
     )
 
     _try_ensure_pull_request(env, appname)

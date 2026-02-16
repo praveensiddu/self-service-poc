@@ -211,7 +211,6 @@ class ApplicationRepository:
         app_dir.mkdir(parents=True, exist_ok=True)
         payload = {
             "appname": str(appname or "").strip(),
-            "description": "",
-            "managedby": "",
+            "description": ""
         }
         appinfo_path.write_text(yaml.safe_dump(payload, sort_keys=False))
