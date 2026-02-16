@@ -33,7 +33,7 @@ async function saveConfig(config) {
  * @returns {Promise<{workspace: string, requestsRepo: string, templatesRepo: string, renderedManifestsRepo: string, controlRepo: string}>}
  */
 async function saveDefaultConfig() {
-  return await postJson("/api/v1/config", {
+  return await postJson("/api/v1/config?source=prepared_samples", {
     workspace: "~/workspace",
     requestsRepo: "https://github.com/praveensiddu/kselfservice-requests",
     templatesRepo: "https://github.com/praveensiddu/kselfservice-templates",

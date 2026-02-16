@@ -36,6 +36,7 @@ def get_config(service: ConfigService = Depends(get_config_service)):
 @router.post("/config", response_model=KSelfServeConfig)
 def save_config(
     cfg: KSelfServeConfig,
+    source: Optional[str] = None,
     service: ConfigService = Depends(get_config_service)
 ):
     """Save workspace configuration and setup repositories.
@@ -51,6 +52,17 @@ def save_config(
     ]
     if any(str(os.getenv(k, "")).strip() for k in env_keys):
         raise HTTPException(status_code=403, detail="Config updates are disabled when portal is started with environment-based configuration")
+
+    # If request came from "Use Pre-prepared Samples", ensure workspace directory exists.
+    # For regular Save, we keep existing behavior (workspace must already exist).
+    if str(source or "").strip().lower() == "prepared_samples":
+        workspace_path = Path(str(cfg.workspace or "").strip()).expanduser()
+        if str(cfg.workspace or "").strip() and not workspace_path.exists():
+            try:
+                workspace_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to create workspace directory: {e}")
+
     config = service.save_config(
         workspace=cfg.workspace or "",
         requests_repo=cfg.requestsRepo or "",
