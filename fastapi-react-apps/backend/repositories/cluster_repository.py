@@ -41,16 +41,16 @@ class ClusterRepository:
         return load_clusters_from_file(file_path)
 
     @staticmethod
-    def get_cluster_id_from_item(item: Dict[str, Any]) -> str:
-        """Extract cluster ID from a cluster item.
+    def get_clustername_from_item(item: Dict[str, Any]) -> str:
+        """Extract clustername from a cluster item.
 
         Args:
             item: Cluster dictionary
 
         Returns:
-            Cluster ID string
+            Clustername string
         """
-        for k in ["clustername", "cluster_no", "name", "cluster"]:
+        for k in ["clustername", "name", "cluster"]:
             v = item.get(k)
             if v is None:
                 continue
@@ -60,22 +60,22 @@ class ClusterRepository:
         return ""
 
     @staticmethod
-    def find_cluster_by_id(env: str, cluster_id: str) -> Optional[Dict[str, Any]]:
-        """Find a cluster by its ID.
+    def find_cluster_by_name(env: str, clustername: str) -> Optional[Dict[str, Any]]:
+        """Find a cluster by its name.
 
         Args:
             env: Environment name
-            cluster_id: Cluster ID to find
+            clustername: Clustername to find
 
         Returns:
             Cluster dictionary or None if not found
         """
         clusters = ClusterRepository.load_clusters(env)
-        target = str(cluster_id or "").strip()
+        target = str(clustername or "").strip()
         if not target:
             return None
 
         for cluster in clusters:
-            if ClusterRepository.get_cluster_id_from_item(cluster) == target:
+            if ClusterRepository.get_clustername_from_item(cluster) == target:
                 return cluster
         return None

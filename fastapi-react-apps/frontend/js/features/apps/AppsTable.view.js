@@ -27,6 +27,9 @@ function AppsTableView({
   openRequestAccess,
   closeRequestAccess,
   onSubmitRequestAccess,
+  requestAccessSuccessMessage,
+  requestAccessErrorMessage,
+  isPlatformAdmin,
   newAppName,
   setNewAppName,
   newDescription,
@@ -94,59 +97,95 @@ function AppsTableView({
             onClick={(e) => e.stopPropagation()}
             data-testid="request-access-panel"
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700 }}>{`Request access for ${requestAccessAppName || ""}`}</div>
-              <button className="btn" type="button" onClick={closeRequestAccess} data-testid="close-request-access-btn">
-                Close
-              </button>
-            </div>
+            {requestAccessSuccessMessage ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, marginTop: 8 }}>
+                  <svg width="48" height="48" viewBox="0 0 16 16" fill="#28a745">
+                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                  </svg>
+                </div>
+                <div style={{ textAlign: "center", marginBottom: 16, fontSize: 15 }}>
+                  {requestAccessSuccessMessage}
+                </div>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <button className="btn btn-primary" type="button" onClick={closeRequestAccess} data-testid="close-request-access-success-btn">
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700 }}>{`Request access for ${requestAccessAppName || ""}`}</div>
+                  <button className="btn" type="button" onClick={closeRequestAccess} data-testid="close-request-access-btn">
+                    Close
+                  </button>
+                </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <div className="muted" style={{ marginBottom: 4 }}>AccessType</div>
-                <select
-                  className="filterInput"
-                  value={requestAccessRole}
-                  onChange={(e) => setRequestAccessRole(e.target.value)}
-                  data-testid="request-access-role"
-                >
-                  <option value="viewer">viewer</option>
-                  <option value="manager">manager</option>
-                </select>
-              </div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div>
+                    <div className="muted" style={{ marginBottom: 4 }}>AccessType</div>
+                    <select
+                      className="filterInput"
+                      value={requestAccessRole}
+                      onChange={(e) => setRequestAccessRole(e.target.value)}
+                      data-testid="request-access-role"
+                    >
+                      <option value="viewer">viewer</option>
+                      <option value="manager">manager</option>
+                    </select>
+                  </div>
 
-              <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Userid</div>
-                <input
-                  className="filterInput"
-                  value={requestAccessUserid}
-                  onChange={(e) => setRequestAccessUserid(e.target.value)}
-                  data-testid="request-access-userid"
-                />
-              </div>
+                  <div className="muted" style={{ fontSize: 12, fontStyle: "italic", marginTop: 4 }}>
+                    Fill either Userid or Group, but not both.
+                  </div>
 
-              <div>
-                <div className="muted" style={{ marginBottom: 4 }}>Group</div>
-                <input
-                  className="filterInput"
-                  value={requestAccessGroup}
-                  onChange={(e) => setRequestAccessGroup(e.target.value)}
-                  data-testid="request-access-group"
-                />
-              </div>
-            </div>
+                  <div>
+                    <div className="muted" style={{ marginBottom: 4 }}>Userid</div>
+                    <input
+                      className="filterInput"
+                      value={requestAccessUserid}
+                      onChange={(e) => setRequestAccessUserid(e.target.value)}
+                      disabled={requestAccessGroup.length > 0}
+                      style={{ opacity: requestAccessGroup.length > 0 ? 0.5 : 1 }}
+                      placeholder={requestAccessGroup.length > 0 ? "Disabled - Group is filled" : "Enter userid"}
+                      data-testid="request-access-userid"
+                    />
+                  </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={onSubmitRequestAccess}
-                disabled={!canSubmitRequestAccess}
-                data-testid="submit-request-access-btn"
-              >
-                Submit
-              </button>
-            </div>
+                  <div>
+                    <div className="muted" style={{ marginBottom: 4 }}>Group</div>
+                    <input
+                      className="filterInput"
+                      value={requestAccessGroup}
+                      onChange={(e) => setRequestAccessGroup(e.target.value)}
+                      disabled={requestAccessUserid.length > 0}
+                      style={{ opacity: requestAccessUserid.length > 0 ? 0.5 : 1 }}
+                      placeholder={requestAccessUserid.length > 0 ? "Disabled - Userid is filled" : "Enter group"}
+                      data-testid="request-access-group"
+                    />
+                  </div>
+
+                  {requestAccessErrorMessage && (
+                    <div style={{ color: "#dc3545", fontSize: 14, padding: "8px 12px", background: "#f8d7da", borderRadius: 4 }} data-testid="request-access-error">
+                      {requestAccessErrorMessage}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={onSubmitRequestAccess}
+                    disabled={!canSubmitRequestAccess}
+                    data-testid="submit-request-access-btn"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -580,22 +619,24 @@ function AppsTableView({
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <>
-                          {/* Request Access button is always enabled - users can request access to any app */}
-                          <button
-                            className="iconBtn iconBtn-primary"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openRequestAccess(a);
-                            }}
-                            aria-label={`Request access for ${a.appname}`}
-                            title="Request access"
-                            data-testid={`request-access-${a.appname}`}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                            </svg>
-                          </button>
+                          {/* Request Access button is hidden for platform_admin since they already have full access */}
+                          {!isPlatformAdmin && (
+                            <button
+                              className="iconBtn iconBtn-primary"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRequestAccess(a);
+                              }}
+                              aria-label={`Request access for ${a.appname}`}
+                              title="Request access"
+                              data-testid={`request-access-${a.appname}`}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                              </svg>
+                            </button>
+                          )}
                           <button
                             className="iconBtn iconBtn-primary"
                             type="button"

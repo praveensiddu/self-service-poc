@@ -19,7 +19,7 @@ class NsEgressIpService:
 
     @staticmethod
     def _egress_allocated_file_for_cluster(
-        *, workspace_path: Path, env: str, cluster_no: str
+        *, workspace_path: Path, env: str, clustername: str
     ) -> Path:
         return (
             workspace_path
@@ -27,7 +27,7 @@ class NsEgressIpService:
             / "cloned-repositories"
             / f"rendered_{str(env or '').strip().lower()}"
             / "ip_provisioning"
-            / str(cluster_no).strip()
+            / str(clustername).strip()
             / "egressip-allocated.yaml"
         )
 
@@ -81,11 +81,11 @@ class NsEgressIpService:
             str(c).strip() for c in clusters_list if c is not None and str(c).strip()
         ]
 
-        for cluster_no in clusters_list:
+        for clustername in clusters_list:
             allocated_path = self._egress_allocated_file_for_cluster(
                 workspace_path=workspace_path,
                 env=env,
-                cluster_no=cluster_no,
+                clustername=clustername,
             )
             allocated_yaml = read_yaml_dict(allocated_path)
 
@@ -99,16 +99,16 @@ class NsEgressIpService:
             if existing_ip_list:
                 continue
 
-            ranges = self.cluster_service.get_cluster_egress_ranges(env, cluster_no)
+            ranges = self.cluster_service.get_cluster_egress_ranges(env, clustername)
             if not ranges:
                 raise ValueError(
-                    f"No egress_ip_ranges configured for cluster {cluster_no}"
+                    f"No egress_ip_ranges configured for cluster {clustername}"
                 )
 
             allocated_all = self._collect_allocated_ips(allocated_yaml)
             new_ip = self._allocate_first_free_ip(ranges=ranges, allocated=allocated_all)
             if not new_ip:
-                raise ValueError(f"No free egress IPs remaining for cluster {cluster_no}")
+                raise ValueError(f"No free egress IPs remaining for cluster {clustername}")
 
             allocated_yaml[alloc_key] = [new_ip]
             allocated_path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,11 +135,11 @@ class NsEgressIpService:
             str(c).strip() for c in clusters_list if c is not None and str(c).strip()
         ]
 
-        for cluster_no in clusters_list:
+        for clustername in clusters_list:
             allocated_path = self._egress_allocated_file_for_cluster(
                 workspace_path=workspace_path,
                 env=env,
-                cluster_no=cluster_no,
+                clustername=clustername,
             )
             allocated_yaml = read_yaml_dict(allocated_path)
 
@@ -153,16 +153,16 @@ class NsEgressIpService:
             if existing_ip_list:
                 continue
 
-            ranges = self.cluster_service.get_cluster_egress_ranges(env, cluster_no)
+            ranges = self.cluster_service.get_cluster_egress_ranges(env, clustername)
             if not ranges:
                 raise ValueError(
-                    f"No egress_ip_ranges configured for cluster {cluster_no}"
+                    f"No egress_ip_ranges configured for cluster {clustername}"
                 )
 
             allocated_all = self._collect_allocated_ips(allocated_yaml)
             new_ip = self._allocate_first_free_ip(ranges=ranges, allocated=allocated_all)
             if not new_ip:
-                raise ValueError(f"No free egress IPs remaining for cluster {cluster_no}")
+                raise ValueError(f"No free egress IPs remaining for cluster {clustername}")
 
 
     def get_allocated_egress_ips_for_namespace(
@@ -195,11 +195,11 @@ class NsEgressIpService:
         alloc_key = f"{str(appname or '').strip()}_{str(egress_nameid or '').strip()}"
 
         allocated_egress_ips: List[Dict[str, str]] = []
-        for cluster_no in clusters_list:
+        for clustername in clusters_list:
             allocated_path = self._egress_allocated_file_for_cluster(
                 workspace_path=workspace_path,
                 env=env,
-                cluster_no=cluster_no,
+                clustername=clustername,
             )
             allocated_yaml = read_yaml_dict(allocated_path)
             existing = allocated_yaml.get(alloc_key)
@@ -208,6 +208,6 @@ class NsEgressIpService:
             )
             existing_list = [x for x in existing_list if x]
             ip = existing_list[0] if existing_list else ""
-            allocated_egress_ips.append({str(cluster_no).strip(): str(ip).strip()})
+            allocated_egress_ips.append({str(clustername).strip(): str(ip).strip()})
 
         return allocated_egress_ips

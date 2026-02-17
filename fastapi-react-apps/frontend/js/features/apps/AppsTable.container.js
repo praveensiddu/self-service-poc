@@ -17,6 +17,12 @@ function AppsTable({
 }) {
   const { extractPermissions } = useAuthorization();
 
+  // Check if user is platform_admin (has access to all apps)
+  const isPlatformAdmin = React.useMemo(() => {
+    const roles = currentUserContext?.roles || [];
+    return roles.includes("platform_admin");
+  }, [currentUserContext?.roles]);
+
   // Add permissions to each row
   const rowsWithPermissions = React.useMemo(() => {
     return rows.map(row => ({
@@ -99,6 +105,8 @@ function AppsTable({
   const [requestAccessRole, setRequestAccessRole] = React.useState("viewer");
   const [requestAccessUserid, setRequestAccessUserid] = React.useState("");
   const [requestAccessGroup, setRequestAccessGroup] = React.useState("");
+  const [requestAccessSuccessMessage, setRequestAccessSuccessMessage] = React.useState("");
+  const [requestAccessErrorMessage, setRequestAccessErrorMessage] = React.useState("");
 
   function openRequestAccess(row) {
     const r = row || {};
@@ -107,11 +115,15 @@ function AppsTable({
     setRequestAccessRole("viewer");
     setRequestAccessUserid("");
     setRequestAccessGroup("");
+    setRequestAccessSuccessMessage("");
+    setRequestAccessErrorMessage("");
     setShowRequestAccess(true);
   }
 
   function closeRequestAccess() {
     setShowRequestAccess(false);
+    setRequestAccessSuccessMessage("");
+    setRequestAccessErrorMessage("");
   }
 
   const canSubmitRequestAccess = React.useMemo(() => {
@@ -124,6 +136,7 @@ function AppsTable({
 
   async function onSubmitRequestAccess() {
     try {
+      setRequestAccessErrorMessage("");
       const application = safeTrim(requestAccessAppName);
       const role = safeTrim(requestAccessRole);
       const userid = safeTrim(requestAccessUserid);
@@ -134,10 +147,9 @@ function AppsTable({
 
       await createAppAccessRequest({ application, role, userid, group });
 
-      setShowRequestAccess(false);
-      alert(`Access request submitted for ${application} (${role}).`);
+      setRequestAccessSuccessMessage(`Access request submitted for ${application} (${role}).`);
     } catch (e) {
-      alert(formatError(e));
+      setRequestAccessErrorMessage(formatError(e));
     }
   }
 
@@ -334,6 +346,9 @@ function AppsTable({
       openRequestAccess={openRequestAccess}
       closeRequestAccess={closeRequestAccess}
       onSubmitRequestAccess={onSubmitRequestAccess}
+      requestAccessSuccessMessage={requestAccessSuccessMessage}
+      requestAccessErrorMessage={requestAccessErrorMessage}
+      isPlatformAdmin={isPlatformAdmin}
     />
   );
 }
