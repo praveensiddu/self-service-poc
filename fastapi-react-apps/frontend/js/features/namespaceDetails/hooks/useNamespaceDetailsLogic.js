@@ -109,7 +109,7 @@ function useNamespaceDetailsLogic({
         need_argo: Boolean(draftBasic?.managedByArgo),
         argocd_sync_strategy: String(draftBasic?.nsArgoSyncStrategy || "auto") || "auto",
         gitrepourl: String(draftBasic?.nsArgoGitRepoUrl || ""),
-        generate_argo_app: false,
+        generate_argo_app: true,
         status: Boolean(draftBasic?.managedByArgo) ? "Argo used" : "Argo not used",
       };
     } else if (isEditingEgress) {

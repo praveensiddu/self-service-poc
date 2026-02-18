@@ -154,7 +154,7 @@ class NamespaceService:
             "enable_pod_based_egress_ip": False,
             "allow_all_egress": False,
             "need_argo": need_argo,
-            "generate_argo_app": False,
+            "generate_argo_app": True,
             "status": status
         }
 
