@@ -281,6 +281,19 @@ The API will be available at:
 | POST | `/api/v1/pullrequests` | Create a pull request |
 | GET | `/api/v1/pullrequests/status` | Get PR status |
 
+### Access Requests
+
+| Method | Endpoint | Description | Response Codes |
+|--------|----------|-------------|----------------|
+| GET | `/api/v1/access_requests` | List all access requests | 200, 403 |
+| POST | `/api/v1/app_access` | Create app access request | 200, 400, 409 |
+| POST | `/api/v1/global_access` | Create global access request | 200, 400 |
+
+**Notes:**
+- `POST /api/v1/app_access` returns `409 Conflict` if a duplicate request already exists (same application, role, and userid/group)
+- Requires exactly one of `userid` or `group` in the request payload
+- `GET /api/v1/access_requests` requires `platform_admin` or `role_mgmt_admin` role
+
 ---
 
 ## ⚙️ Configuration

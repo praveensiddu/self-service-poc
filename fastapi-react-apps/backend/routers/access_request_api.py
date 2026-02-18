@@ -90,6 +90,37 @@ class AccessRequestsImpl:
     def get_all_access_requests(self) -> Dict[str, Dict[str, object]]:
         return dict(self._read_from_disk())
 
+    def check_duplicate_app_access_request(
+        self, application: str, role: str, userid: str, group: str
+    ) -> bool:
+        """Check if a duplicate app access request already exists.
+
+        Args:
+            application: Application name
+            role: Requested role
+            userid: User ID (empty if group request)
+            group: Group name (empty if user request)
+
+        Returns:
+            True if duplicate exists, False otherwise
+        """
+        items = self._read_from_disk()
+        for item in items.values():
+            if item.get("type") != "app_access":
+                continue
+            payload = item.get("payload", {})
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("application") != application:
+                continue
+            if payload.get("role") != role:
+                continue
+            if userid and payload.get("userid") == userid:
+                return True
+            if group and payload.get("group") == group:
+                return True
+        return False
+
 
 accessrequestimpl: AccessRequestsImpl = AccessRequestsImpl.get_instance()
 
@@ -107,6 +138,15 @@ def create_app_access_request(payload: AppAccessRequest, request: Request):
     group = (payload.group or "").strip()
     if bool(userid) == bool(group):
         raise HTTPException(status_code=400, detail="Exactly one of userid or group is required")
+
+    # Check for duplicate request
+    if accessrequestimpl.check_duplicate_app_access_request(
+        payload.application, payload.role, userid, group
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Access request already exists for this user/group and role"
+        )
 
     requestor = get_current_user(request) or "unknown"
     item = AccessRequest(

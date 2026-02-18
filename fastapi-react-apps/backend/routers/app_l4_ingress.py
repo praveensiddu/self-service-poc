@@ -45,24 +45,24 @@ def _sanitize_allocations(allocations: Any) -> List[Dict[str, Any]]:
 
 @router.get("/l4_ingress/free_pool")
 def get_l4_ingress_free_pool(
-    cluster_no: str,
+    clustername: str,
     env: Optional[str] = None,
     _: Dict[str, Any] = Depends(get_current_user_context),
 ):
     env = require_env(env)
-    c = str(cluster_no or "").strip()
+    c = str(clustername or "").strip()
     if not c:
-        raise HTTPException(status_code=400, detail="cluster_no is required")
+        raise HTTPException(status_code=400, detail="clustername is required")
 
     workspace_path = get_workspace_path()
-    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=c)
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, clustername=c)
     allocated_yaml = _load_allocated_yaml(allocated_path)
 
     clusters_root = require_control_clusters_root()
-    first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=c)
+    first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, clustername=c)
     if not first_range:
         return {
-            "cluster_no": c,
+            "clustername": c,
             "capacity": 0,
             "allocated_in_range": 0,
             "free_remaining": 0,
@@ -79,7 +79,7 @@ def get_l4_ingress_free_pool(
     capacity = (hi - lo) + 1
     if capacity <= 0:
         return {
-            "cluster_no": c,
+            "clustername": c,
             "capacity": 0,
             "allocated_in_range": 0,
             "free_remaining": 0,
@@ -94,21 +94,21 @@ def get_l4_ingress_free_pool(
     free_remaining = capacity - len(allocated_in_range)
 
     return {
-        "cluster_no": c,
+        "clustername": c,
         "capacity": capacity,
         "allocated_in_range": len(allocated_in_range),
         "free_remaining": max(free_remaining, 0),
     }
 
 
-def _allocated_file_for_cluster(*, workspace_path: Path, env: str, cluster_no: str) -> Path:
+def _allocated_file_for_cluster(*, workspace_path: Path, env: str, clustername: str) -> Path:
     return (
         workspace_path
         / "kselfserv"
         / "cloned-repositories"
         / f"rendered_{str(env or '').strip().lower()}"
         / "ip_provisioning"
-        / str(cluster_no).strip()
+        / str(clustername).strip()
         / "l4ingressip-allocated.yaml"
     )
 
@@ -133,7 +133,7 @@ def _sanitize_l4_ingress_items(items: Any) -> List[Dict[str, Any]]:
         if not isinstance(it, dict):
             continue
         out: Dict[str, Any] = {}
-        for k in ["cluster_no", "requested_total", "allocated_total"]:
+        for k in ["clustername", "requested_total", "allocated_total"]:
             if k in it:
                 out[k] = it.get(k)
 
@@ -187,18 +187,18 @@ def get_l4_ingress(
     out: List[Dict[str, Any]] = []
     seen_clusters: set[str] = set()
 
-    for cluster_no, purposes in raw.items():
+    for clustername, purposes in raw.items():
         if not isinstance(purposes, dict):
             continue
-        seen_clusters.add(str(cluster_no))
+        seen_clusters.add(str(clustername))
         for purpose, requested_total in purposes.items():
             try:
                 req_total_int = int(requested_total)
             except Exception:
                 req_total_int = 0
-            cluster_no_s = str(cluster_no)
+            clustername_s = str(clustername)
             purpose_s = str(purpose)
-            allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no_s)
+            allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, clustername=clustername_s)
             allocated_yaml = _load_allocated_yaml(allocated_path)
             key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose_s)
             ips = allocated_yaml.get(key)
@@ -206,7 +206,7 @@ def get_l4_ingress(
             ips_list = [x for x in ips_list if x]
             out.append(
                 {
-                    "cluster_no": cluster_no_s,
+                    "clustername": clustername_s,
                     "purpose": purpose_s,
                     "requested_total": req_total_int,
                     "allocated_total": len(ips_list),
@@ -218,9 +218,9 @@ def get_l4_ingress(
     for c in allocated_clusters:
         if str(c) in seen_clusters:
             continue
-        cluster_no_s = str(c)
+        clustername_s = str(c)
         purpose_s = str(appname or "")
-        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no_s)
+        allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, clustername=clustername_s)
         allocated_yaml = _load_allocated_yaml(allocated_path)
         key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose_s)
         ips = allocated_yaml.get(key)
@@ -228,7 +228,7 @@ def get_l4_ingress(
         ips_list = [x for x in ips_list if x]
         out.append(
             {
-                "cluster_no": cluster_no_s,
+                "clustername": clustername_s,
                 "purpose": purpose_s,
                 "requested_total": 0,
                 "allocated_total": len(ips_list),
@@ -252,10 +252,10 @@ def put_l4_ingress_requested(
     env = require_env(env)
     requests_root = require_initialized_workspace()
 
-    cluster_no = str(payload.cluster_no or "").strip()
+    clustername = str(payload.clustername or "").strip()
     purpose = str(payload.purpose or "").strip()
-    if not cluster_no:
-        raise HTTPException(status_code=400, detail="cluster_no is required")
+    if not clustername:
+        raise HTTPException(status_code=400, detail="clustername is required")
     if not purpose:
         raise HTTPException(status_code=400, detail="purpose is required")
 
@@ -266,7 +266,7 @@ def put_l4_ingress_requested(
     # Prevent reducing requested_total below the number of already-allocated IPs.
     # Allocations are stored in rendered workspace per cluster in l4ingressip-allocated.yaml.
     workspace_path = get_workspace_path()
-    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, clustername=clustername)
     allocated_yaml = _load_allocated_yaml(allocated_path)
     key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose)
     existing_ips = allocated_yaml.get(key)
@@ -284,7 +284,7 @@ def put_l4_ingress_requested(
     # ranges, we should not allow a non-zero requested_total for that cluster.
     if requested_total > 0:
         clusters_root = require_control_clusters_root()
-        first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=cluster_no)
+        first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, clustername=clustername)
         if not first_range:
             raise HTTPException(status_code=400, detail="No l4_ingress_ip_ranges configured for this cluster")
 
@@ -306,7 +306,7 @@ def put_l4_ingress_requested(
     if not isinstance(raw, dict):
         raw = {}
 
-    cluster_map = raw.get(cluster_no)
+    cluster_map = raw.get(clustername)
     if cluster_map is None or not isinstance(cluster_map, dict):
         cluster_map = {}
 
@@ -323,7 +323,7 @@ def put_l4_ingress_requested(
     if delta > 0:
         if not first_range:
             clusters_root = require_control_clusters_root()
-            first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, cluster_no=cluster_no)
+            first_range = _load_cluster_first_range(clusters_root=clusters_root, env=env, clustername=clustername)
         if not first_range:
             raise HTTPException(status_code=400, detail="No l4_ingress_ip_ranges configured for this cluster")
 
@@ -359,7 +359,7 @@ def put_l4_ingress_requested(
                 detail=f"Not enough free IPs remaining in cluster range. Free IPs remaining: {max(free_remaining, 0)}",
             )
 
-    raw[cluster_no] = cluster_map
+    raw[clustername] = cluster_map
     cluster_map[purpose] = requested_total
 
     try:
@@ -368,7 +368,7 @@ def put_l4_ingress_requested(
         raise HTTPException(status_code=500, detail=f"Failed to write l4_ingress_request.yaml: {e}")
 
     return {
-        "cluster_no": cluster_no,
+        "clustername": clustername,
         "purpose": purpose,
         "requested_total": requested_total,
         "allocated_total": allocated_total,
@@ -386,18 +386,18 @@ def release_l4_ingress_ip(
     env = require_env(env)
     requests_root = require_initialized_workspace()
 
-    cluster_no = str(payload.cluster_no or "").strip()
+    clustername = str(payload.clustername or "").strip()
     purpose = str(payload.purpose or "").strip()
     ip = str(payload.ip or "").strip()
-    if not cluster_no:
-        raise HTTPException(status_code=400, detail="cluster_no is required")
+    if not clustername:
+        raise HTTPException(status_code=400, detail="clustername is required")
     if not purpose:
         raise HTTPException(status_code=400, detail="purpose is required")
     if not ip:
         raise HTTPException(status_code=400, detail="ip is required")
 
     workspace_path = get_workspace_path()
-    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, cluster_no=cluster_no)
+    allocated_path = _allocated_file_for_cluster(workspace_path=workspace_path, env=env, clustername=clustername)
     allocated_yaml = _load_allocated_yaml(allocated_path)
 
     key = _key_for_app_purpose(appname=str(appname or ""), purpose=purpose)
@@ -438,7 +438,7 @@ def release_l4_ingress_ip(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to read l4_ingress_request.yaml: {e}")
 
-    cluster_map = raw.get(cluster_no)
+    cluster_map = raw.get(clustername)
     if cluster_map is None or not isinstance(cluster_map, dict):
         cluster_map = {}
 
@@ -449,7 +449,7 @@ def release_l4_ingress_ip(
         prev_requested_total = 0
 
     next_requested_total = max(prev_requested_total - 1, 0)
-    raw[cluster_no] = cluster_map
+    raw[clustername] = cluster_map
     cluster_map[purpose] = next_requested_total
 
     try:
@@ -463,7 +463,7 @@ def release_l4_ingress_ip(
         raise HTTPException(status_code=500, detail=f"Failed to write l4_ingress_request.yaml: {e}")
 
     return {
-        "cluster_no": cluster_no,
+        "clustername": clustername,
         "purpose": purpose,
         "released_ip": ip,
         "requested_total": next_requested_total,

@@ -6,14 +6,14 @@ from typing import List, Optional
 
 class L4IngressRequestedUpdate(BaseModel):
     """Request model for updating L4 ingress requested counts."""
-    cluster_no: str
+    clustername: str
     purpose: str
     requested_total: int
 
 
 class L4IngressReleaseIpRequest(BaseModel):
     """Request model for releasing a single allocated L4 ingress IP."""
-    cluster_no: str
+    clustername: str
     purpose: str
     ip: str
 
@@ -27,7 +27,7 @@ class L4IngressAllocation(BaseModel):
 
 class L4IngressResponse(BaseModel):
     """Response model for L4 ingress data."""
-    cluster_no: str
+    clustername: str
     purpose: str
     requested_total: int
     allocated_total: int

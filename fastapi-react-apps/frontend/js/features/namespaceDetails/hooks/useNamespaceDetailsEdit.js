@@ -232,27 +232,9 @@ function useNamespaceDetailsEdit({ namespace, namespaceName, appname, onUpdateNa
 
       setEditBlock(null);
     } catch (error) {
-      const errorMessage = error?.message || String(error);
-
-      // Check if it's a permission error
-      const isPermissionError = errorMessage.includes("Access denied") ||
-                                errorMessage.includes("403") ||
-                                errorMessage.includes("Forbidden");
-
-      if (isPermissionError) {
-        // Show user-friendly alert for permission errors
-        alert(
-          `Access Denied: You don't have permission to update namespace configuration in "${appname}". ` +
-          `Please contact your administrator to request manager access.`
-        );
-
-        // Reset edit state and close the modal after alert is dismissed
-        setEditBlock(null);
-        // DO NOT set error in global state - we only showed the alert
-      } else {
-        // For non-permission errors, show the generic error alert
-        alert(`Failed to save changes:\n\n${errorMessage}`);
-      }
+      // Error is already shown in global error modal by useNamespaces hook
+      // Just reset edit state - no need to show alert as modal is displayed
+      setEditBlock(null);
     }
   }, [namespaceName, appname, onUpdateNamespaceInfo, draftBasic, draftEgress, draftRoleBindingsEntries, draftEgressFirewallEntries, draftResources]);
 

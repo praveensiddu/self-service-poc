@@ -65,34 +65,34 @@ class ClusterService:
         clusters_by_app = self.get_clusters_by_app(env)
         return clusters_by_app.get(str(app or "").strip(), [])
 
-    def get_cluster_egress_ranges(self, env: str, cluster_no: str) -> List[Dict[str, str]]:
+    def get_cluster_egress_ranges(self, env: str, clustername: str) -> List[Dict[str, str]]:
         """Get egress IP ranges for a cluster.
 
         Args:
             env: Environment name
-            cluster_no: Cluster number/ID
+            clustername: Cluster name
 
         Returns:
             List of egress IP range dictionaries with start_ip and end_ip
         """
-        cluster = self.repo.find_cluster_by_id(env, cluster_no)
+        cluster = self.repo.find_cluster_by_name(env, clustername)
         if not cluster:
             return []
 
         egress_ranges = cluster.get("egress_ip_ranges", [])
         return self._normalize_ranges(egress_ranges)
 
-    def get_cluster_l4_ingress_ranges(self, env: str, cluster_no: str) -> List[Dict[str, str]]:
+    def get_cluster_l4_ingress_ranges(self, env: str, clustername: str) -> List[Dict[str, str]]:
         """Get L4 ingress IP ranges for a cluster.
 
         Args:
             env: Environment name
-            cluster_no: Cluster number/ID
+            clustername: Cluster name
 
         Returns:
             List of L4 ingress IP range dictionaries with start_ip and end_ip
         """
-        cluster = self.repo.find_cluster_by_id(env, cluster_no)
+        cluster = self.repo.find_cluster_by_name(env, clustername)
         if not cluster:
             return []
 

@@ -68,7 +68,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     if (!env) throw new Error("No env selected.");
     if (!c) return null;
     return await fetchJson(
-      `/api/v1/l4_ingress/free_pool?env=${encodeURIComponent(env)}&cluster_no=${encodeURIComponent(c)}`,
+      `/api/v1/l4_ingress/free_pool?env=${encodeURIComponent(env)}&clustername=${encodeURIComponent(c)}`,
     );
   }, [env]);
 
@@ -154,10 +154,10 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
 
   // Save add - wrapped in useCallback
   const onSaveAdd = React.useCallback(async () => {
-    const cluster_no = String(addClusterNo || "").trim();
+    const clustername = String(addClusterNo || "").trim();
     const purpose = String(addPurpose || "").trim();
     const next = String(addRequested || "").trim();
-    if (!cluster_no) {
+    if (!clustername) {
       setAddError("Cluster is required.");
       return;
     }
@@ -180,19 +180,19 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
     try {
       await putJson(
         `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress?env=${encodeURIComponent(env)}`,
-        { cluster_no, purpose, requested_total: n },
+        { clustername, purpose, requested_total: n },
       );
 
       setLocalItems((prev) => {
         const arr = Array.isArray(prev) ? [...prev] : [];
         const idx = arr.findIndex(
-          (it) => String(it?.cluster_no || "") === cluster_no && String(it?.purpose || "") === purpose,
+          (it) => String(it?.clustername || "") === clustername && String(it?.purpose || "") === purpose,
         );
         if (idx >= 0) {
           arr[idx] = { ...arr[idx], requested_total: n };
           return arr;
         }
-        arr.push({ cluster_no, purpose, requested_total: n, allocated_total: 0, allocations: [] });
+        arr.push({ clustername, purpose, requested_total: n, allocated_total: 0, allocations: [] });
         return arr;
       });
 
@@ -290,7 +290,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       await putJson(
         `/api/v1/apps/${encodeURIComponent(ctxAppname)}/l4_ingress?env=${encodeURIComponent(ctxEnv)}`,
         {
-          cluster_no: String(editRow.clusterNoRaw || editRow.clusterNo || ""),
+          clustername: String(editRow.clusterNoRaw || editRow.clusterNo || ""),
           purpose: String(editRow.purpose || ""),
           requested_total: n,
         },
@@ -299,7 +299,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       setLocalItems((prev) =>
         (Array.isArray(prev) ? prev : []).map((it) => {
           if (
-            String(it?.cluster_no || "") === String(editRow.clusterNoRaw || "") &&
+            String(it?.clustername || "") === String(editRow.clusterNoRaw || "") &&
             String(it?.purpose || "") === String(editRow.purpose || "")
           ) {
             return { ...it, requested_total: n };
@@ -336,14 +336,14 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       if (!env) throw new Error("No env selected.");
       if (!appname) throw new Error("No app selected.");
       if (!row) return;
-      const cluster_no = String(row.clusterNoRaw || row.clusterNo || "").trim();
+      const clustername = String(row.clusterNoRaw || row.clusterNo || "").trim();
       const purpose = String(row.purpose || "").trim();
-      if (!cluster_no) throw new Error("Missing cluster.");
+      if (!clustername) throw new Error("Missing cluster.");
       if (!purpose) throw new Error("Missing purpose.");
 
       const resp = await postJson(
         `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress/allocate?env=${encodeURIComponent(env)}`,
-        { cluster_no, purpose },
+        { clustername, purpose },
       );
 
       const allocated_total = Number(resp?.allocated_total ?? row.allocatedRaw ?? 0);
@@ -351,7 +351,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
 
       setLocalItems((prev) =>
         (Array.isArray(prev) ? prev : []).map((it) => {
-          if (String(it?.cluster_no || "") === cluster_no && String(it?.purpose || "") === purpose) {
+          if (String(it?.clustername || "") === clustername && String(it?.purpose || "") === purpose) {
             return {
               ...it,
               allocated_total,
@@ -397,11 +397,11 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       if (!env) throw new Error("No env selected.");
       if (!appname) throw new Error("No app selected.");
 
-      const cluster_no = String(releaseRow.clusterNoRaw || releaseRow.clusterNo || "").trim();
+      const clustername = String(releaseRow.clusterNoRaw || releaseRow.clusterNo || "").trim();
       const purpose = String(releaseRow.purpose || "").trim();
       const ips = Array.isArray(releaseRow.allocatedIpsRaw) ? releaseRow.allocatedIpsRaw : [];
       const ip = String(releaseIp || "").trim();
-      if (!cluster_no) throw new Error("Missing cluster.");
+      if (!clustername) throw new Error("Missing cluster.");
       if (!purpose) throw new Error("Missing purpose.");
       if (!ip) {
         setReleaseError("IP is required.");
@@ -417,7 +417,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
 
       const resp = await postJson(
         `/api/v1/apps/${encodeURIComponent(appname)}/l4_ingress/release?env=${encodeURIComponent(env)}`,
-        { cluster_no, purpose, ip },
+        { clustername, purpose, ip },
       );
 
       if (resp) {
@@ -480,7 +480,7 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       const allocationIds = (it?.allocations || []).map((a) => a?.name).filter(Boolean);
       const purpose = formatTableValue(it?.purpose);
       const allocationIdText = allocationIds.length ? allocationIds.join(", ") : purpose;
-      const key = `${it?.cluster_no || ""}::${allocationIdText || idx}`;
+      const key = `${it?.clustername || ""}::${allocationIdText || idx}`;
 
       const allocatedIpsList = (it?.allocations || [])
         .flatMap((a) => (Array.isArray(a?.ips) ? a.ips : []))
@@ -490,13 +490,13 @@ function L4IngressTable({ items, appname, env, renderAddButton, readonly }) {
       const requestedRaw = Number(it?.requested_total ?? 0);
       const allocatedRaw = Number(it?.allocated_total ?? 0);
 
-      const clusterNoRaw = String(it?.cluster_no || "");
+      const clusterNoRaw = String(it?.clustername || "");
       const hasIpRange = hasIpRangeForCluster(clusterNoRaw);
 
       return {
         key,
         clusterNoRaw,
-        clusterNo: formatTableValue(it?.cluster_no),
+        clusterNo: formatTableValue(it?.clustername),
         purpose,
         requested: formatTableValue(it?.requested_total),
         allocated: formatTableValue(it?.allocated_total),

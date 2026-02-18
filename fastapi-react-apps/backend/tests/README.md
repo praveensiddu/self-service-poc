@@ -3,7 +3,7 @@
 ## Overview
 End-to-end tests for the FastAPI backend API endpoints using pytest and httpx.
 
-**Total Tests: 167** (98 E2E + 69 Unit)
+**Total Tests: 171** (102 E2E + 69 Unit)
 
 ## Requirements
 - Python 3.8+
@@ -97,6 +97,8 @@ The RBAC tests verify permissions for different user roles:
 - ✅ Users without roles are denied access
 - ✅ Permission flags in API responses match user roles
 - ✅ Protected endpoints require authorization
+- ✅ Duplicate app access requests return 409 Conflict
+- ✅ Different role/app combinations are not considered duplicates
 
 ## Test Coverage
 
@@ -145,6 +147,7 @@ The RBAC tests verify permissions for different user roles:
 ### Access Request Endpoints
 - ✅ GET /api/v1/access_requests
 - ✅ POST /api/v1/app_access
+- ✅ POST /api/v1/app_access (duplicate detection - returns 409)
 - ✅ POST /api/v1/global_access
 
 ### Role Management Endpoints

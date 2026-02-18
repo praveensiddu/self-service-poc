@@ -55,6 +55,7 @@ def write_yaml_dict(path: Path, data: Dict[str, Any], sort_keys: bool = False) -
     Raises:
         Exception: If write fails
     """
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=sort_keys))
 
 
@@ -69,6 +70,7 @@ def write_yaml_list(path: Path, data: List[Any], sort_keys: bool = False) -> Non
     Raises:
         Exception: If write fails
     """
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=sort_keys))
 
 

@@ -103,7 +103,8 @@ function useUsers({ setError }) {
     try {
       await updateCurrentUser(u);
       setCurrentUser(u);
-      window.location.reload();
+      // Navigate to Request provisioning page (apps view) after user change
+      window.location.href = "/apps";
     } catch (e) {
       setDemoUsersError(e?.message || String(e));
     }
