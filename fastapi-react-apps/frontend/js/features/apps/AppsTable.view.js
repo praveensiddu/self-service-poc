@@ -288,7 +288,10 @@ function AppsTableView({
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">argocd_admin_groups</div>
+                  <div className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span>argocd_admin_groups</span>
+                    <HelpIconButton docPath="/static/help/argocdDetailsPanel/argocd_admin_groups.html" title="argocd_admin_groups" />
+                  </div>
                   <div className="muted" style={{ fontSize: 12 }}>Groups which can perform admin actions on ArgoCD</div>
                 </div>
                 <input
@@ -302,7 +305,10 @@ function AppsTableView({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">argocd_operator_groups</div>
+                  <div className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span>argocd_operator_groups</span>
+                    <HelpIconButton docPath="/static/help/argocdDetailsPanel/argocd_operator_groups.html" title="argocd_operator_groups" />
+                  </div>
                   <div className="muted" style={{ fontSize: 12 }}>Groups which can perform operator actions on ArgoCD</div>
                 </div>
                 <input
@@ -316,7 +322,10 @@ function AppsTableView({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">argocd_readonly_groups</div>
+                  <div className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span>argocd_readonly_groups</span>
+                    <HelpIconButton docPath="/static/help/argocdDetailsPanel/argocd_readonly_groups.html" title="argocd_readonly_groups" />
+                  </div>
                   <div className="muted" style={{ fontSize: 12 }}>Groups with readonly access to ArgoCD</div>
                 </div>
                 <input
@@ -330,7 +339,10 @@ function AppsTableView({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">argocd_sync_strategy</div>
+                  <div className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span>argocd_sync_strategy</span>
+                    <HelpIconButton docPath="/static/help/argocdDetailsPanel/argocd_sync_strategy.html" title="argocd_sync_strategy" />
+                  </div>
                   <div className="muted" style={{ fontSize: 12 }}>
                     <a
                       href="https://argo-cd.readthedocs.io/en/latest/user-guide/auto_sync/"
@@ -354,7 +366,10 @@ function AppsTableView({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">gitrepourl</div>
+                  <div className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span>gitrepourl</span>
+                    <HelpIconButton docPath="/static/help/argocdDetailsPanel/gitrepourl.html" title="gitrepourl" />
+                  </div>
                   <div className="muted" style={{ fontSize: 12 }}>
                     Git repository which contains application k8s manifests for each cluster and namespace. Example:{" "}
                     <a
