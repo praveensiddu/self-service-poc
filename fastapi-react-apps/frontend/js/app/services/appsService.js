@@ -18,7 +18,7 @@ async function loadApps(env) {
 /**
  * Create a new application.
  * @param {string} env - Environment name
- * @param {{appname: string, description?: string, managedby?: string}} payload
+ * @param {{appname: string, description?: string}} payload
  * @returns {Promise<Object>} - Created app data
  */
 async function createAppApi(env, payload) {
@@ -29,7 +29,6 @@ async function createAppApi(env, payload) {
   return await postJson(`/api/v1/apps?env=${encodeURIComponent(env)}`, {
     appname,
     description: safeTrim(payload?.description),
-    managedby: safeTrim(payload?.managedby),
   });
 }
 
@@ -37,7 +36,7 @@ async function createAppApi(env, payload) {
  * Update an existing application.
  * @param {string} env - Environment name
  * @param {string} appname - Application name
- * @param {{description?: string, managedby?: string}} payload
+ * @param {{description?: string}} payload
  * @returns {Promise<Object>} - Updated app data
  */
 async function updateAppApi(env, appname, payload) {
@@ -48,7 +47,6 @@ async function updateAppApi(env, appname, payload) {
   return await putJson(`/api/v1/apps/${encodeURIComponent(target)}?env=${encodeURIComponent(env)}`, {
     appname: target,
     description: safeTrim(payload?.description),
-    managedby: safeTrim(payload?.managedby),
   });
 }
 

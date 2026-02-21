@@ -29,6 +29,7 @@ class Application(ApplicationCreate):
 
 class AppCreate(BaseModel):
     """Request model for creating an application via API."""
+    model_config = ConfigDict(extra="forbid")
     appname: str
     description: Optional[str] = ""
     clusters: Optional[List[str]] = None

@@ -35,16 +35,12 @@ function AppsTableView({
   setNewAppName,
   newDescription,
   setNewDescription,
-  newManagedBy,
-  setNewManagedBy,
   canSubmitCreate,
   showEdit,
   setShowEdit,
   editAppName,
   editDescription,
   setEditDescription,
-  editManagedBy,
-  setEditManagedBy,
   canSubmitEdit,
   openEditApp,
   onSubmitEdit,
@@ -245,14 +241,6 @@ function AppsTableView({
                 </div>
                 <input className="filterInput" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} data-testid="input-description" />
               </div>
-
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Managed By</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Team or owner</div>
-                </div>
-                <input className="filterInput" value={newManagedBy} onChange={(e) => setNewManagedBy(e.target.value)} data-testid="input-managedby" />
-              </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
@@ -434,7 +422,7 @@ function AppsTableView({
               Environment: {env || ""}
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 700 }}>Edit App</div>
+              <div style={{ fontWeight: 700 }}>{`Edit App: ${editAppName || ""}`}</div>
               <button className="btn" type="button" onClick={() => setShowEdit(false)} data-testid="close-edit-app-modal-btn">
                 Close
               </button>
@@ -443,26 +431,10 @@ function AppsTableView({
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">App Name</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Read-only</div>
-                </div>
-                <input className="filterInput" value={editAppName} disabled readOnly data-testid="edit-input-appname" />
-              </div>
-
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <div className="muted">Description</div>
                   <div className="muted" style={{ fontSize: 12 }}>Short summary</div>
                 </div>
                 <input className="filterInput" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} data-testid="edit-input-description" />
-              </div>
-
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <div className="muted">Managed By</div>
-                  <div className="muted" style={{ fontSize: 12 }}>Team or owner</div>
-                </div>
-                <input className="filterInput" value={editManagedBy} onChange={(e) => setEditManagedBy(e.target.value)} data-testid="edit-input-managedby" />
               </div>
             </div>
 
@@ -528,7 +500,7 @@ function AppsTableView({
               <th>
                 <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                   <span>Actions</span>
-                  <HelpIconButton docPath="/static/help/appsTable/actions.html" title="Actions" />
+                  <HelpIconButton docPath="/static/help/appsTable/app_actions.html" title="Actions" />
                 </span>
               </th>
             )}

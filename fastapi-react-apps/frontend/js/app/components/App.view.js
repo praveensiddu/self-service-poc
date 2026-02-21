@@ -479,11 +479,6 @@ function AppView({
                       View Egress IPs
                     </button>
                   </div>
-                  {!readonly && canUserCreateApps && (
-                    <button className="btn btn-primary" type="button" onClick={onOpenCreateApp} data-testid="add-app-btn">
-                      Add App
-                    </button>
-                  )}
                 </>
               ) : view === "namespaceDetails" ? (
                 <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>

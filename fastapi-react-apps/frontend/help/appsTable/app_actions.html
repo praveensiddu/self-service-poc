@@ -1,0 +1,52 @@
+<div>
+  <p><strong>App Actions</strong> shows the operations available for each application in the Apps table. What you can do depends on your role and permissions.</p>
+
+  <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+    <thead>
+      <tr>
+        <th style="text-align: left;">Operation</th>
+        <th style="text-align: left;">What it does</th>
+        <th style="text-align: center;">App Manager</th>
+        <th style="text-align: center;">Platform Admin</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Edit App</td>
+        <td>Update app metadata (for example, description).</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+      </tr>
+      <tr>
+        <td>ArgoCD</td>
+        <td>View/add/update ArgoCD details for the application.</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+      </tr>
+      <tr>
+        <td>Request Access</td>
+        <td>Request viewer/manager access to the application.</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">N/A (already has access)</td>
+      </tr>
+      <tr>
+        <td>Commit / Push and Open PR</td>
+        <td>Push latest request state for this app/environment and create a PR to <code>main</code>.</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+      </tr>
+      <tr>
+        <td>Delete App</td>
+        <td>Delete the application entry for the selected environment.</td>
+        <td style="text-align: center;">Yes</td>
+        <td style="text-align: center;">Yes</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Notes</strong></p>
+  <ul>
+    <li>Some actions appear disabled if you do not have <em>manage</em> permission for that application.</li>
+    <li>Platform admins typically have full access; the UI hides the Request Access button for platform admins.</li>
+  </ul>
+</div>

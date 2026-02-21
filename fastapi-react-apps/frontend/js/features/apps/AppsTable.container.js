@@ -76,16 +76,14 @@ function AppsTable({
   // Modal and form state
   const [newAppName, setNewAppName] = React.useState("");
   const [newDescription, setNewDescription] = React.useState("");
-  const [newManagedBy, setNewManagedBy] = React.useState("");
 
   const canSubmitCreate = React.useMemo(() => {
-    return isNonEmptyString(newAppName) && isNonEmptyString(newDescription) && isNonEmptyString(newManagedBy);
-  }, [newAppName, newDescription, newManagedBy]);
+    return isNonEmptyString(newAppName) && isNonEmptyString(newDescription);
+  }, [newAppName, newDescription]);
 
   const [showEdit, setShowEdit] = React.useState(false);
   const [editAppName, setEditAppName] = React.useState("");
   const [editDescription, setEditDescription] = React.useState("");
-  const [editManagedBy, setEditManagedBy] = React.useState("");
 
   const [showArgoCd, setShowArgoCd] = React.useState(false);
   const [argoCdAppName, setArgoCdAppName] = React.useState("");
@@ -235,15 +233,14 @@ function AppsTable({
   }
 
   const canSubmitEdit = React.useMemo(() => {
-    return isNonEmptyString(editAppName) && isNonEmptyString(editDescription) && isNonEmptyString(editManagedBy);
-  }, [editAppName, editDescription, editManagedBy]);
+    return isNonEmptyString(editAppName) && isNonEmptyString(editDescription);
+  }, [editAppName, editDescription]);
 
   function openEditApp(row) {
     const r = row || {};
     const name = safeTrim(r?.appname);
     setEditAppName(name);
     setEditDescription(safeTrim(r?.description));
-    setEditManagedBy(safeTrim(r?.managedby));
     setShowEdit(true);
   }
 
@@ -255,7 +252,6 @@ function AppsTable({
       await onUpdateApp(target, {
         appname: target,
         description: editDescription,
-        managedby: editManagedBy,
       });
       setShowEdit(false);
     } catch (e) {
@@ -269,12 +265,10 @@ function AppsTable({
       await onCreateApp({
         appname: newAppName,
         description: newDescription,
-        managedby: newManagedBy,
       });
       onCloseCreate();
       setNewAppName("");
       setNewDescription("");
-      setNewManagedBy("");
     } catch (e) {
       alert(formatError(e));
     }
@@ -315,16 +309,12 @@ function AppsTable({
       setNewAppName={setNewAppName}
       newDescription={newDescription}
       setNewDescription={setNewDescription}
-      newManagedBy={newManagedBy}
-      setNewManagedBy={setNewManagedBy}
       canSubmitCreate={canSubmitCreate}
       showEdit={showEdit}
       setShowEdit={setShowEdit}
       editAppName={editAppName}
       editDescription={editDescription}
       setEditDescription={setEditDescription}
-      editManagedBy={editManagedBy}
-      setEditManagedBy={setEditManagedBy}
       canSubmitEdit={canSubmitEdit}
       openEditApp={openEditApp}
       onSubmitEdit={onSubmitEdit}
