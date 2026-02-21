@@ -94,6 +94,7 @@ function AppView({
   detailAppName,
   argocdEnabled,
   requestsChanges,
+  refreshRequestsChangesData,
   l4IngressItems,
   l4IngressAppName,
   egressIpItems,
@@ -584,6 +585,7 @@ function AppView({
                 showCreate={showCreateApp}
                 onCloseCreate={onCloseCreateApp}
                 requestsChanges={requestsChanges}
+                onRefreshRequestsChanges={refreshRequestsChangesData}
                 readonly={readonly}
               />
             ) : view === "namespaceDetails" ? (

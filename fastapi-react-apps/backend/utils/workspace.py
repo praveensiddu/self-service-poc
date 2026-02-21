@@ -141,6 +141,12 @@ def get_requests_repo_root() -> Path:
     return workspace_path / "kselfserv" / "cloned-repositories" / "requests"
 
 
+def get_requests_write_repo_root() -> Path:
+    """Get the writable requests-write repository root directory path."""
+    workspace_path = get_workspace_path()
+    return workspace_path / "kselfserv" / "cloned-repositories" / "requests-write"
+
+
 def get_control_settings_path() -> Path:
     """Get the control settings file path."""
     workspace_path = get_workspace_path()

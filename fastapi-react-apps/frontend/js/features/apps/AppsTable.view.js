@@ -16,6 +16,17 @@ function AppsTableView({
   requestsChanges,
   readonly,
   onCommitPush,
+  onDiscardEdits,
+  showDiscardEdits,
+  discardEditsAppName,
+  closeDiscardEdits,
+  confirmDiscardEdits,
+  showDiscardEditsSuccess,
+  discardEditsSuccessMessage,
+  closeDiscardEditsSuccess,
+  showActionError,
+  actionErrorMessage,
+  closeActionError,
   showRequestAccess,
   requestAccessAppName,
   requestAccessRole,
@@ -66,6 +77,156 @@ function AppsTableView({
 
   return (
     <div className="card">
+
+      {showDiscardEditsSuccess ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeDiscardEditsSuccess();
+          }}
+          data-testid="discard-edits-success-overlay"
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: "92vw",
+              width: 520,
+              padding: 16,
+              overflow: "visible",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="discard-edits-success-panel"
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Success</div>
+              <button className="btn" type="button" onClick={closeDiscardEditsSuccess} data-testid="close-discard-edits-success-btn">
+                Close
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, marginTop: 4 }}>
+              <svg width="48" height="48" viewBox="0 0 16 16" fill="#28a745" aria-hidden="true">
+                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+              </svg>
+            </div>
+
+            <div style={{ textAlign: "center", marginBottom: 16, fontSize: 15 }} data-testid="discard-edits-success-message">
+              {discardEditsSuccessMessage || "Completed."}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <button className="btn btn-primary" type="button" onClick={closeDiscardEditsSuccess} data-testid="ack-discard-edits-success-btn">
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showActionError ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeActionError();
+          }}
+          data-testid="action-error-overlay"
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: "92vw",
+              width: 640,
+              padding: 16,
+              overflow: "visible",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="action-error-panel"
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Action failed</div>
+              <button className="btn" type="button" onClick={closeActionError} data-testid="close-action-error-btn">
+                Close
+              </button>
+            </div>
+
+            <div style={{ color: "#dc3545", fontSize: 14, padding: "8px 12px", background: "#f8d7da", borderRadius: 4 }} data-testid="action-error-message">
+              {actionErrorMessage || "Unknown error"}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button className="btn btn-primary" type="button" onClick={closeActionError} data-testid="ack-action-error-btn">
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showDiscardEdits ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeDiscardEdits();
+          }}
+          data-testid="discard-edits-overlay"
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: "92vw",
+              width: 640,
+              padding: 16,
+              overflow: "visible",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="discard-edits-panel"
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>{`Discard edits: ${discardEditsAppName || ""}`}</div>
+              <button className="btn" type="button" onClick={closeDiscardEdits} data-testid="close-discard-edits-btn">
+                Close
+              </button>
+            </div>
+
+            <div style={{ padding: "10px 12px", background: "#fff3cd", borderRadius: 4, marginBottom: 14 }} data-testid="discard-edits-warning">
+              Are you sure you want to discard local edits and replace the content from the main/master branch from the origin. If this app is not present in the origin then this application will be deleted
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button className="btn" type="button" onClick={closeDiscardEdits} data-testid="cancel-discard-edits-btn">
+                Cancel
+              </button>
+              <button className="btn btn-primary" type="button" onClick={confirmDiscardEdits} data-testid="confirm-discard-edits-btn">
+                Discard edits
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showRequestAccess ? (
         <div
@@ -639,6 +800,27 @@ function AppsTableView({
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <>
+                          {(() => {
+                            const envKey = String(env || "").toLowerCase();
+                            const hasEdits = Boolean(requestsChanges?.apps?.has && requestsChanges.apps.has(`${envKey}/${String(a.appname || "")}`));
+                            return (
+                              <button
+                                className="iconBtn iconBtn-warning"
+                                type="button"
+                                onClick={() => onDiscardEdits(a)}
+                                aria-label={`Discard local edits for ${a.appname}`}
+                                title={hasManagePermission ? (hasEdits ? "Discard local edits" : "No local edits to discard") : "You don't have permission to discard edits for this application"}
+                                data-testid={`discard-edits-${a.appname}`}
+                                disabled={!hasManagePermission || !hasEdits}
+                                style={{ opacity: (hasManagePermission && hasEdits) ? 1 : 0.5, cursor: (hasManagePermission && hasEdits) ? 'pointer' : 'not-allowed' }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                  <path d="M8 3a5 5 0 1 0 4.546 2.916.75.75 0 0 1 1.36-.634A6.5 6.5 0 1 1 8 1.5a.75.75 0 0 1 0 1.5z"/>
+                                  <path d="M8 4.25a.75.75 0 0 1 .75.75V8a.75.75 0 0 1-.75.75H5a.75.75 0 0 1 0-1.5h2.25V5a.75.75 0 0 1 .75-.75z"/>
+                                </svg>
+                              </button>
+                            );
+                          })()}
                           <button
                             className="iconBtn iconBtn-primary"
                             type="button"

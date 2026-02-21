@@ -874,6 +874,7 @@ function App() {
       detailAppName={detailAppName}
       argocdEnabled={argocdEnabled}
       requestsChanges={requestsChanges}
+      refreshRequestsChangesData={refreshRequestsChangesData}
       l4IngressItems={l4IngressItems}
       l4IngressAppName={l4IngressAppName}
       egressIpItems={egressIpItems}

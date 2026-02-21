@@ -13,9 +13,32 @@ function AppsTable({
   showCreate,
   onCloseCreate,
   requestsChanges,
+  onRefreshRequestsChanges,
   readonly,
 }) {
   const { extractPermissions } = useAuthorization();
+
+  const [showDiscardEdits, setShowDiscardEdits] = React.useState(false);
+  const [discardEditsAppName, setDiscardEditsAppName] = React.useState("");
+
+  const [showDiscardEditsSuccess, setShowDiscardEditsSuccess] = React.useState(false);
+  const [discardEditsSuccessMessage, setDiscardEditsSuccessMessage] = React.useState("");
+
+  function closeDiscardEditsSuccess() {
+    setShowDiscardEditsSuccess(false);
+    setDiscardEditsSuccessMessage("");
+
+    // Ensure the Apps table reflects the latest restored content.
+    window.location.reload();
+  }
+
+  const [showActionError, setShowActionError] = React.useState(false);
+  const [actionErrorMessage, setActionErrorMessage] = React.useState("");
+
+  function closeActionError() {
+    setShowActionError(false);
+    setActionErrorMessage("");
+  }
 
   // Check if user is platform_admin (has access to all apps)
   const isPlatformAdmin = React.useMemo(() => {
@@ -283,6 +306,37 @@ function AppsTable({
       await commitPushAppRequest(env, name);
       alert(`PR opened/updated for ${env}/${name}.`);
     } catch (e) {
+      setActionErrorMessage(formatError(e));
+      setShowActionError(true);
+    }
+  }
+
+  function onDiscardEdits(row) {
+    const name = safeTrim(row?.appname);
+    if (!name || !env) return;
+    setDiscardEditsAppName(name);
+    setShowDiscardEdits(true);
+  }
+
+  function closeDiscardEdits() {
+    setShowDiscardEdits(false);
+    setDiscardEditsAppName("");
+  }
+
+  async function confirmDiscardEdits() {
+    try {
+      const name = safeTrim(discardEditsAppName);
+      if (!name) throw new Error("App Name is required.");
+      if (!env) throw new Error("Environment is required.");
+
+      await discardEditsAppRequest(env, name);
+      if (typeof onRefreshRequestsChanges === "function") {
+        await onRefreshRequestsChanges();
+      }
+      closeDiscardEdits();
+      setDiscardEditsSuccessMessage(`Edits discarded for ${env}/${name}.`);
+      setShowDiscardEditsSuccess(true);
+    } catch (e) {
       alert(formatError(e));
     }
   }
@@ -354,6 +408,20 @@ function AppsTable({
       isPlatformAdmin={isPlatformAdmin}
 
       onCommitPush={onCommitPush}
+      onDiscardEdits={onDiscardEdits}
+
+      showDiscardEdits={showDiscardEdits}
+      discardEditsAppName={discardEditsAppName}
+      closeDiscardEdits={closeDiscardEdits}
+      confirmDiscardEdits={confirmDiscardEdits}
+
+      showDiscardEditsSuccess={showDiscardEditsSuccess}
+      discardEditsSuccessMessage={discardEditsSuccessMessage}
+      closeDiscardEditsSuccess={closeDiscardEditsSuccess}
+
+      showActionError={showActionError}
+      actionErrorMessage={actionErrorMessage}
+      closeActionError={closeActionError}
     />
   );
 }

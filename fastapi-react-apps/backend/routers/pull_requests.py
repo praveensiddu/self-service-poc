@@ -158,17 +158,34 @@ def _git_branch_exists(repo_dir: Path, branch: str) -> bool:
 
 def _copy_app_env_folder(*, env: str, appname: str, src_repo_dir: Path, dst_repo_dir: Path) -> Tuple[Path, Path]:
     src_path = src_repo_dir / "apprequests" / env / appname
-    if not src_path.exists() or not src_path.is_dir():
-        raise HTTPException(status_code=404, detail=f"Source folder not found: {env}/{appname}")
-
     dst_path = dst_repo_dir / "apprequests" / env / appname
     dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not src_path.exists() or not src_path.is_dir():
+        if dst_path.exists():
+            shutil.rmtree(dst_path)
+        raise HTTPException(status_code=404, detail=f"Source folder not found: {env}/{appname}")
 
     if dst_path.exists():
         shutil.rmtree(dst_path)
 
     shutil.copytree(src_path, dst_path)
     return src_path, dst_path
+
+
+def _reset_main_to_origin(repo_dir: Path, base_branch: str = "main") -> None:
+    try:
+        _run_git(repo_dir, ["fetch", "origin", base_branch])
+    except subprocess.CalledProcessError:
+        _run_git(repo_dir, ["fetch", "--all"])
+
+    _run_git(repo_dir, ["checkout", "-B", base_branch, f"origin/{base_branch}"])
+    _run_git(repo_dir, ["reset", "--hard", f"origin/{base_branch}"])
+    try:
+        _run_git(repo_dir, ["clean", "-fd"])
+    except subprocess.CalledProcessError:
+        # Best effort.
+        pass
 
 
 def _git_remote_branch_exists(repo_dir: Path, remote: str, branch: str) -> bool:
@@ -568,3 +585,26 @@ def commit_push_pull_request(
 
     # Return latest status (includes approvals).
     return get_pull_request_status(appname=appname, env=env_key)
+
+
+@router.post(
+    "/apps/{appname}/pull_request/discard_edits",
+)
+def discard_edits(
+    appname: str,
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
+):
+    env_key = _require_env(env)
+    base_branch = "main"
+
+    readonly_repo_dir = _requests_repo_root()
+    write_repo_dir = _requests_write_repo_root()
+
+    # Ensure requests-write/main matches origin/main.
+    _reset_main_to_origin(write_repo_dir, base_branch)
+
+    # Restore readonly clone content from the clean main branch in requests-write.
+    _copy_app_env_folder(env=env_key, appname=appname, src_repo_dir=write_repo_dir, dst_repo_dir=readonly_repo_dir)
+
+    return {"env": env_key, "appname": appname, "discarded": True}

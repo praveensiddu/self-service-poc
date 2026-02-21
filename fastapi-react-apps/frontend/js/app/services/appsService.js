@@ -82,6 +82,17 @@ async function commitPushAppRequest(env, appname) {
   );
 }
 
+async function discardEditsAppRequest(env, appname) {
+  const target = safeTrim(appname);
+  if (!target) throw new Error("App Name is required.");
+  if (!env) throw new Error("Environment is required.");
+
+  return await postJson(
+    `/api/v1/apps/${encodeURIComponent(target)}/pull_request/discard_edits?env=${encodeURIComponent(env)}`,
+    {}
+  );
+}
+
 /**
  * Create an access request for an application.
  * @param {{application: string, role: "viewer"|"manager", userid?: string, group?: string}} payload
