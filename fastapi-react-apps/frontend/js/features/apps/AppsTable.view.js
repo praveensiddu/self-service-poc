@@ -493,13 +493,45 @@ function AppsTableView({
                 data-testid="select-all-apps-checkbox"
               />
             </th>
-            <th>App Name</th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>App Name</span>
+                <HelpIconButton docPath="/static/help/appsTable/appName.html" title="App Name" />
+              </span>
+            </th>
             <th>Description</th>
-            <th>Managed By</th>
-            <th>Clusters</th>
-            <th>Namespaces</th>
-            <th>ArgoCD</th>
-            {!readonly && <th>Actions</th>}
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Managed By</span>
+                <HelpIconButton docPath="/static/help/appsTable/managedBy.html" title="Managed By" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Clusters</span>
+                <HelpIconButton docPath="/static/help/appsTable/clusters.html" title="Clusters" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>Namespaces</span>
+                <HelpIconButton docPath="/static/help/appsTable/namespaces.html" title="Namespaces" />
+              </span>
+            </th>
+            <th>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <span>ArgoCD</span>
+                <HelpIconButton docPath="/static/help/appsTable/argocd.html" title="ArgoCD" />
+              </span>
+            </th>
+            {!readonly && (
+              <th>
+                <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                  <span>Actions</span>
+                  <HelpIconButton docPath="/static/help/appsTable/actions.html" title="Actions" />
+                </span>
+              </th>
+            )}
           </tr>
           <tr>
             <th></th>
