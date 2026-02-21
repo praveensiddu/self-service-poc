@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 import logging
 import os
 import re
 import subprocess
+import json
+import shutil
 
 import requests
 import yaml
@@ -12,6 +14,7 @@ import yaml
 from backend.models import PullRequestStatus
 from backend.dependencies import require_env
 from backend.routers.system import _require_workspace_path
+from backend.auth.rbac import require_rbac, get_current_user_context
 
 router = APIRouter(tags=["pull_requests"])
 
@@ -34,6 +37,14 @@ def _control_repo_root() -> Path:
 def _requests_repo_root() -> Path:
     workspace_path = _require_workspace_path()
     root = workspace_path / "kselfserv" / "cloned-repositories" / "requests"
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(status_code=400, detail="not initialized")
+    return root
+
+
+def _requests_write_repo_root() -> Path:
+    workspace_path = _require_workspace_path()
+    root = workspace_path / "kselfserv" / "cloned-repositories" / "requests-write"
     if not root.exists() or not root.is_dir():
         raise HTTPException(status_code=400, detail="not initialized")
     return root
@@ -119,6 +130,14 @@ def _run_git(repo_dir: Path, args: List[str]) -> subprocess.CompletedProcess:
     )
 
 
+def _git_config_pull_rebase_true(repo_dir: Path) -> None:
+    try:
+        _run_git(repo_dir, ["config", "pull.rebase", "true"])
+    except subprocess.CalledProcessError:
+        # Best effort.
+        pass
+
+
 def _git_has_changes(repo_dir: Path) -> bool:
     res = _run_git(repo_dir, ["status", "--porcelain"])  # empty output => clean
     return bool((res.stdout or "").strip())
@@ -135,6 +154,21 @@ def _git_branch_exists(repo_dir: Path, branch: str) -> bool:
         return True
     except subprocess.CalledProcessError:
         return False
+
+
+def _copy_app_env_folder(*, env: str, appname: str, src_repo_dir: Path, dst_repo_dir: Path) -> Tuple[Path, Path]:
+    src_path = src_repo_dir / "apprequests" / env / appname
+    if not src_path.exists() or not src_path.is_dir():
+        raise HTTPException(status_code=404, detail=f"Source folder not found: {env}/{appname}")
+
+    dst_path = dst_repo_dir / "apprequests" / env / appname
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if dst_path.exists():
+        shutil.rmtree(dst_path)
+
+    shutil.copytree(src_path, dst_path)
+    return src_path, dst_path
 
 
 def _git_remote_branch_exists(repo_dir: Path, remote: str, branch: str) -> bool:
@@ -294,11 +328,8 @@ def _merge_pr(owner: str, repo: str, pr_number: int) -> Dict[str, Any]:
 @router.post("/apps/{appname}/pull_request/ensure", response_model=PullRequestStatus)
 def ensure_pull_request(appname: str, env: Optional[str] = None):
     env_key = _require_env(env)
-    head_branch = f"{env_key.upper()}_{appname}_update"
+    head_branch = f"{env_key}_{appname}_update"
     base_branch = "main"
-
-    repo_dir = _requests_repo_root()
-    _ensure_branch_committed_and_pushed(repo_dir, head_branch=head_branch, base_branch=base_branch)
 
     if not _has_github_token():
         required = _read_required_approvers(appname)
@@ -320,14 +351,18 @@ def ensure_pull_request(appname: str, env: Optional[str] = None):
 
     pr = _find_open_pr(owner, repo, head_branch, base_branch)
     if not pr:
-        pr = _create_pr(
-            owner,
-            repo,
-            head_branch,
-            base_branch,
-            title=f"{env_key.upper()} {appname} update",
-            body=f"Automated update PR for {env_key.upper()}/{appname}.",
-        )
+        try:
+            pr = _create_pr(
+                owner,
+                repo,
+                head_branch,
+                base_branch,
+                title=f"{env_key.upper()} {appname} update",
+                body=f"Automated update PR for {env_key.upper()}/{appname}.",
+            )
+        except HTTPException:
+            # Head branch may not exist yet (commit/push not run). Return status without PR.
+            pr = None
 
     pr_number = int(pr.get("number")) if pr.get("number") else None
     pr_url = str(pr.get("html_url") or "")
@@ -354,7 +389,7 @@ def ensure_pull_request(appname: str, env: Optional[str] = None):
 @router.get("/apps/{appname}/pull_request/status", response_model=PullRequestStatus)
 def get_pull_request_status(appname: str, env: Optional[str] = None):
     env_key = _require_env(env)
-    head_branch = f"{env_key.upper()}_{appname}_update"
+    head_branch = f"{env_key}_{appname}_update"
     base_branch = "main"
 
     if not _has_github_token():
@@ -439,3 +474,97 @@ def get_pull_requests(appname: str, env: Optional[str] = None):
             "merge_allowed": status.merge_allowed,
         }
     ]
+
+
+@router.post(
+    "/apps/{appname}/pull_request/commit_push",
+    response_model=PullRequestStatus,
+)
+def commit_push_pull_request(
+    appname: str,
+    env: Optional[str] = None,
+    _: None = Depends(require_rbac(obj=lambda r: r.url.path, act=lambda r: r.method, app_id=lambda r: r.path_params.get("appname", ""))),
+    user_context: Dict[str, Any] = Depends(get_current_user_context),
+):
+    if not _has_github_token():
+        raise HTTPException(status_code=400, detail="GITHUB_TOKEN is not setup to push to origin")
+
+    env_key = _require_env(env)
+    head_branch = f"{env_key}_{appname}_update"
+    base_branch = "main"
+
+    readonly_repo_dir = _requests_repo_root()
+    write_repo_dir = _requests_write_repo_root()
+
+    username = str((user_context or {}).get("username") or "unknown")
+    metadata = {
+        "clicked_by": username,
+        "env": env_key,
+        "app": appname,
+    }
+
+    _git_config_pull_rebase_true(write_repo_dir)
+
+    # Always start from latest origin/main.
+    try:
+        _run_git(write_repo_dir, ["fetch", "origin", base_branch])
+    except subprocess.CalledProcessError:
+        _run_git(write_repo_dir, ["fetch", "--all"])
+
+    _run_git(write_repo_dir, ["checkout", "-B", base_branch, f"origin/{base_branch}"])
+    try:
+        _run_git(write_repo_dir, ["pull", "origin", base_branch])
+    except subprocess.CalledProcessError:
+        pass
+
+    # Create/reset head branch from latest origin/main.
+    _run_git(write_repo_dir, ["checkout", "-B", head_branch, f"origin/{base_branch}"])
+
+    _copy_app_env_folder(env=env_key, appname=appname, src_repo_dir=readonly_repo_dir, dst_repo_dir=write_repo_dir)
+
+    if not _git_has_changes(write_repo_dir):
+        return get_pull_request_status(appname=appname, env=env_key)
+
+    _run_git(write_repo_dir, ["add", "-A"])
+    try:
+        _run_git(
+            write_repo_dir,
+            [
+                "commit",
+                "-m",
+                f"Update {env_key}/{appname}",
+                "-m",
+                json.dumps(metadata, sort_keys=True),
+            ],
+        )
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        raise HTTPException(status_code=500, detail=f"Failed to commit changes on {head_branch}: {stderr}")
+
+    try:
+        _run_git(write_repo_dir, ["push", "-u", "origin", head_branch])
+    except subprocess.CalledProcessError as e:
+        try:
+            _run_git(write_repo_dir, ["pull", "--rebase", "origin", head_branch])
+            _run_git(write_repo_dir, ["push", "-u", "origin", head_branch])
+        except subprocess.CalledProcessError as e2:
+            stderr = (e2.stderr or e.stderr or "").strip()
+            logger.error("Failed to push branch %s: %s", head_branch, stderr)
+            raise HTTPException(status_code=500, detail=f"Failed to push branch {head_branch}: {stderr}")
+
+    # Ensure PR exists.
+    repo_url = _get_requests_repo_url_from_config()
+    owner, repo = _parse_github_owner_repo(repo_url)
+    pr = _find_open_pr(owner, repo, head_branch, base_branch)
+    if not pr:
+        pr = _create_pr(
+            owner,
+            repo,
+            head_branch,
+            base_branch,
+            title=f"{env_key.upper()} {appname} update",
+            body=json.dumps(metadata, sort_keys=True),
+        )
+
+    # Return latest status (includes approvals).
+    return get_pull_request_status(appname=appname, env=env_key)

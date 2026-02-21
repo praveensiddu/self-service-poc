@@ -68,6 +68,23 @@ async function deleteAppApi(env, appname) {
 }
 
 /**
+ * Commit/push latest request state for an app/env and open a PR.
+ * @param {string} env - Environment name
+ * @param {string} appname - Application name
+ * @returns {Promise<Object>} - Pull request status response
+ */
+async function commitPushAppRequest(env, appname) {
+  const target = safeTrim(appname);
+  if (!target) throw new Error("App Name is required.");
+  if (!env) throw new Error("Environment is required.");
+
+  return await postJson(
+    `/api/v1/apps/${encodeURIComponent(target)}/pull_request/commit_push?env=${encodeURIComponent(env)}`,
+    {}
+  );
+}
+
+/**
  * Create an access request for an application.
  * @param {{application: string, role: "viewer"|"manager", userid?: string, group?: string}} payload
  * @returns {Promise<Object>} - Created access request

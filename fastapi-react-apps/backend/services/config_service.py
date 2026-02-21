@@ -109,12 +109,14 @@ class ConfigService:
         # Setup repository directories
         cloned_repos_dir = workspace_path / "kselfserv" / "cloned-repositories"
         requests_clone_dir = cloned_repos_dir / "requests"
+        requests_write_clone_dir = cloned_repos_dir / "requests-write"
         templates_clone_dir = cloned_repos_dir / "templates"
         control_clone_dir = cloned_repos_dir / "control"
 
         # Validate existing clone directories
         self._validate_clone_directories(
             requests_clone_dir,
+            requests_write_clone_dir,
             templates_clone_dir,
             control_clone_dir,
         )
@@ -122,6 +124,9 @@ class ConfigService:
         # Clone requests repo if needed
         if not requests_clone_dir.exists():
             self._clone_repository(requests_repo, requests_clone_dir, "requestsRepo")
+
+        if not requests_write_clone_dir.exists():
+            self._clone_repository(requests_repo, requests_write_clone_dir, "requestsRepo")
 
         # Validate env_info.yaml
         env_keys = self._validate_env_info(requests_clone_dir)
@@ -185,6 +190,7 @@ class ConfigService:
     def _validate_clone_directories(
         self,
         requests_dir: Path,
+        requests_write_dir: Path,
         templates_dir: Path,
         control_dir: Path,
     ) -> None:
@@ -209,6 +215,12 @@ class ConfigService:
             raise ValidationError(
                 "templatesRepo",
                 f"Expected templates clone path to be a directory: {templates_dir}",
+            )
+        if requests_write_dir.exists() and not requests_write_dir.is_dir():
+            logger.error("Requests-write clone path validation failed: expected directory but found file: %s", requests_write_dir)
+            raise ValidationError(
+                "requestsRepo",
+                f"Expected requests-write clone path to be a directory: {requests_write_dir}",
             )
         if control_dir.exists() and not control_dir.is_dir():
             logger.error("Control clone path validation failed: expected directory but found file: %s", control_dir)

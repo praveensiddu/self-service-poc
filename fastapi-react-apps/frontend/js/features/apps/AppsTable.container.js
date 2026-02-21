@@ -280,6 +280,19 @@ function AppsTable({
     }
   }
 
+  async function onCommitPush(row) {
+    try {
+      const name = safeTrim(row?.appname);
+      if (!name) throw new Error("App Name is required.");
+      if (!env) throw new Error("Environment is required.");
+
+      await commitPushAppRequest(env, name);
+      alert(`PR opened/updated for ${env}/${name}.`);
+    } catch (e) {
+      alert(formatError(e));
+    }
+  }
+
   return (
     <AppsTableView
       filteredRows={sortedRows}
@@ -349,6 +362,8 @@ function AppsTable({
       requestAccessSuccessMessage={requestAccessSuccessMessage}
       requestAccessErrorMessage={requestAccessErrorMessage}
       isPlatformAdmin={isPlatformAdmin}
+
+      onCommitPush={onCommitPush}
     />
   );
 }

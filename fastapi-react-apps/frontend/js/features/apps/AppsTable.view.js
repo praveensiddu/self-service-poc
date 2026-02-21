@@ -15,6 +15,7 @@ function AppsTableView({
   onCloseCreate,
   requestsChanges,
   readonly,
+  onCommitPush,
   showRequestAccess,
   requestAccessAppName,
   requestAccessRole,
@@ -619,6 +620,20 @@ function AppsTableView({
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <>
+                          <button
+                            className="iconBtn iconBtn-primary"
+                            type="button"
+                            onClick={() => onCommitPush(a)}
+                            aria-label={`Commit/push request state for ${a.appname}`}
+                            title={hasManagePermission ? "Commit/push and open PR" : "You don't have permission to commit/push for this application"}
+                            data-testid={`commit-push-${a.appname}`}
+                            disabled={!hasManagePermission}
+                            style={{ opacity: hasManagePermission ? 1 : 0.5, cursor: hasManagePermission ? 'pointer' : 'not-allowed' }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M8 1a.75.75 0 0 1 .75.75V7h5.25a.75.75 0 0 1 .53 1.28l-6 6a.75.75 0 0 1-1.06 0l-6-6A.75.75 0 0 1 2 7h5.25V1.75A.75.75 0 0 1 8 1z"/>
+                            </svg>
+                          </button>
                           {/* Request Access button is hidden for platform_admin since they already have full access */}
                           {!isPlatformAdmin && (
                             <button
