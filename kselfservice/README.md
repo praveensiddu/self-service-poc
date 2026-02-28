@@ -2,15 +2,15 @@
 ## How to start the application
 
 ```bash
-cd backend
-python -m venv venv
+# from kselfservice/
+python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
-pip install -r requirements.txt
-uvicorn backend.main:app --reload
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8888
 ```
 
-React app runs at `http://localhost:8000/` access from the browzer
+React app runs at `http://localhost:8888/`
 
 ## Documentation
 

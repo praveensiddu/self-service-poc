@@ -24,7 +24,7 @@ NC='\033[0m' # No Color
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-# Go to the parent directory (fastapi-react-apps root)
+# Go to the parent directory (kselfservice root)
 cd "$SCRIPT_DIR/.."
 
 # Check if server is running

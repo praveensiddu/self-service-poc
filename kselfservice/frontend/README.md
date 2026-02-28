@@ -249,7 +249,7 @@ The frontend is served by the FastAPI backend:
 
 ```bash
 # From the project root
-cd fastapi-react-apps
+cd kselfservice
 ./run_app.sh
 ```
 

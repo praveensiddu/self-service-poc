@@ -161,7 +161,7 @@ backend/
 
 1. **Clone the repository**
    ```bash
-   cd fastapi-react-apps/backend
+   cd kselfservice/backend
    ```
 
 2. **Create and activate virtual environment**
@@ -196,7 +196,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8888
 #### Production Mode
 
 ```bash
-# Using the start script from fastapi-react-apps directory
+# Using the start script from kselfservice directory
 cd ..
 ./start.sh
 ```
@@ -490,7 +490,7 @@ def test_get_apps():
 ### Using the Start Script
 
 ```bash
-# From fastapi-react-apps directory
+# From kselfservice directory
 ./start.sh
 ```
 
